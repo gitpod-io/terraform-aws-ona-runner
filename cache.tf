@@ -105,24 +105,29 @@ resource "aws_elasticache_subnet_group" "this" {
   subnet_ids = var.runner_subnet_ids
 }
 
-resource "aws_elasticache_cluster" "this" {
+resource "aws_elasticache_replication_group" "this" {
   count                      = var.cache_engine == "ElastiCache" ? 1 : 0
-  cluster_id                 = "${local.name_prefix}-redis"
+  replication_group_id       = "${local.name_prefix}-redis"
+  description                = "AI execution data store with TLS enabled"
   engine                     = "redis"
   engine_version             = "7.1"
-  parameter_group_name       = "default.redis7"
+  parameter_group_name       = "default.redis7.cluster.on"
   node_type                  = local.elasticache_node_type
-  num_cache_nodes            = 1
+  num_node_groups            = 1
+  replicas_per_node_group    = 0
   port                       = 6379
   subnet_group_name          = aws_elasticache_subnet_group.this[0].name
   security_group_ids         = [aws_security_group.elasticache[0].id]
+  transit_encryption_enabled = true
+  at_rest_encryption_enabled = true
+  auth_token                 = random_password.cache.result
   apply_immediately          = true
   auto_minor_version_upgrade = true
   tags                       = local.common_tags
 }
 
 locals {
-  cache_connection_string = var.cache_engine == "MemoryDB" ? "redis://${aws_memorydb_user.this[0].user_name}:${random_password.cache.result}@${aws_memorydb_cluster.this[0].cluster_endpoint[0].address}:6379/0" : "redis://default:${random_password.cache.result}@${aws_elasticache_cluster.this[0].cache_nodes[0].address}:${aws_elasticache_cluster.this[0].cache_nodes[0].port}/0"
+  cache_connection_string = var.cache_engine == "MemoryDB" ? "redis://${aws_memorydb_user.this[0].user_name}:${random_password.cache.result}@${aws_memorydb_cluster.this[0].cluster_endpoint[0].address}:6379/0" : "redis://default:${random_password.cache.result}@${aws_elasticache_replication_group.this[0].configuration_endpoint_address}:6379/0"
 }
 
 resource "aws_ssm_parameter" "redis_connection" {

@@ -31,6 +31,25 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "ecs_execution" {
+  role   = aws_iam_role.ecs_execution.id
+  policy = data.aws_iam_policy_document.ecs_execution.json
+}
+
+data "aws_iam_policy_document" "ecs_execution" {
+  statement {
+    sid       = "PrometheusMetricsSecret"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.metrics_config.arn]
+  }
+
+  statement {
+    sid       = "PullThroughCache"
+    actions   = ["ecr:BatchImportUpstreamImage"]
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_role" "ecs_task" {
   name_prefix        = "${local.name_prefix}-ecs-task-"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
@@ -154,21 +173,42 @@ data "aws_iam_policy_document" "ecs_task" {
     sid = "EnvironmentEC2Lifecycle"
     actions = [
       "ec2:CancelSpotInstanceRequests",
+      "ec2:AttachNetworkInterface",
+      "ec2:AttachVolume",
+      "ec2:CreateNetworkInterface",
+      "ec2:CreateSnapshot",
       "ec2:CreateTags",
+      "ec2:CreateVolume",
+      "ec2:DeleteNetworkInterface",
+      "ec2:DeleteSnapshot",
       "ec2:DeleteTags",
+      "ec2:DeleteVolume",
+      "ec2:DeregisterImage",
+      "ec2:DescribeInternetGateways",
       "ec2:DescribeImages",
       "ec2:DescribeInstanceAttribute",
       "ec2:DescribeInstanceStatus",
       "ec2:DescribeInstanceTypeOfferings",
       "ec2:DescribeInstanceTypes",
       "ec2:DescribeInstances",
+      "ec2:DescribeLaunchTemplates",
       "ec2:DescribeLaunchTemplateVersions",
+      "ec2:DescribeNatGateways",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeRouteTables",
       "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSnapshots",
       "ec2:DescribeSubnets",
       "ec2:DescribeTags",
       "ec2:DescribeVolumes",
+      "ec2:DescribeVpcAttribute",
+      "ec2:DescribeVpcEndpoints",
       "ec2:DescribeVpcs",
+      "ec2:DetachNetworkInterface",
+      "ec2:DetachVolume",
       "ec2:GetConsoleOutput",
+      "ec2:RegisterImage",
+      "ec2:CreateLaunchTemplateVersion",
       "ec2:ModifyInstanceAttribute",
       "ec2:ModifyVolume",
       "ec2:RunInstances",
@@ -194,9 +234,17 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
+    sid       = "SSMSendRunShellScript"
+    actions   = ["ssm:SendCommand"]
+    resources = ["arn:aws:ssm:*:*:document/AWS-RunShellScript"]
+  }
+
+  statement {
     sid = "EnvironmentSecrets"
     actions = [
       "secretsmanager:CreateSecret",
+      "secretsmanager:DeleteSecret",
+      "secretsmanager:DescribeSecret",
       "secretsmanager:GetSecretValue",
       "secretsmanager:PutSecretValue",
       "secretsmanager:TagResource",
@@ -237,8 +285,32 @@ data "aws_iam_policy_document" "ecs_task" {
       "ecs:ListTasks",
       "ecs:DescribeTasks",
       "ecs:DescribeContainerInstances",
+      "ecs:UpdateServicePrimaryTaskSet",
+      "application-autoscaling:DescribeScalableTargets",
+      "application-autoscaling:DescribeScheduledActions",
+      "application-autoscaling:RegisterScalableTarget",
+      "application-autoscaling:DeregisterScalableTarget",
+      "application-autoscaling:PutScalingPolicy",
+      "application-autoscaling:DeleteScalingPolicy",
+      "application-autoscaling:DescribeScalingPolicies",
+      "iam:GetRole",
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid     = "CreateRequiredServiceLinkedRoles"
+    actions = ["iam:CreateServiceLinkedRole"]
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/spot.amazonaws.com/AWSServiceRoleForEC2Spot",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService",
+    ]
+  }
+
+  statement {
+    sid       = "ReadRunnerCloudWatchLogs"
+    actions   = ["logs:FilterLogEvents"]
+    resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/gitpod/*"]
   }
 }
 

@@ -21,7 +21,9 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
 - DynamoDB resource reconciler table and restrictive resource policy.
 - Secrets Manager runner token and metrics configuration secrets.
 - SSM runner configuration parameter and AI execution cache connection parameter.
-- MemoryDB default cache path and ElastiCache compatibility cache path.
+- MemoryDB default cache path and ElastiCache compatibility cache path. The
+  Terraform ElastiCache path uses an authenticated TLS replication group so it
+  works with the runner's Redis cluster/TLS client behavior.
 - IAM roles for ECS execution, ECS task, ECS instances, environment instances,
   S3 cache access, and devcontainer cache registry access.
 - Outputs corresponding to the CloudFormation stack outputs needed by operators
@@ -46,5 +48,5 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
   service reaches steady state.
 - Confirm runner bootstrap against the current production runner images once the
   image version placeholders are replaced by the release automation.
-- Audit IAM permissions against `runner/ec2/deploy/pkg/iam` before declaring
-  least-privilege parity complete.
+- Run the IAM permissions audit against `runner/ec2/deploy/pkg/iam` after the
+  first AWS test deployment to trim any broader Terraform bootstrap permissions.
