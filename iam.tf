@@ -141,9 +141,12 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
-    sid       = "BedrockInvocation"
-    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
-    resources = ["arn:aws:bedrock:${split("-", data.aws_region.current.name)[0]}::*"]
+    sid     = "BedrockInvocation"
+    actions = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+    resources = [
+      "arn:aws:bedrock:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+      "arn:aws:bedrock:*::foundation-model/*",
+    ]
   }
 
   statement {

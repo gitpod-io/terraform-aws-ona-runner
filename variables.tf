@@ -106,13 +106,13 @@ variable "bottlerocket_ami_id" {
 variable "runner_image" {
   description = "Container image for the EC2 runner."
   type        = string
-  default     = "public.ecr.aws/gitpod/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
 }
 
 variable "proxy_image" {
   description = "Container image for the runner proxy."
   type        = string
-  default     = "public.ecr.aws/gitpod/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:__EC2_RUNNER_VERSION__"
 }
 
 variable "prometheus_image" {
