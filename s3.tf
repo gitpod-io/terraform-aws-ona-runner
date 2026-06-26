@@ -65,6 +65,27 @@ resource "aws_s3_bucket_public_access_block" "logs" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    id     = "expire-environment-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "logs" {
+  count  = var.disable_resource_policies ? 0 : 1
+  bucket = aws_s3_bucket.logs.id
+  policy = data.aws_iam_policy_document.logs_bucket.json
+}
+
 resource "aws_s3_bucket" "agent" {
   bucket_prefix = "${local.name_prefix}-agent-"
   tags          = local.common_tags
@@ -103,7 +124,35 @@ resource "aws_s3_bucket_lifecycle_configuration" "agent" {
   }
 }
 
+resource "aws_s3_bucket_policy" "agent" {
+  count  = var.disable_resource_policies ? 0 : 1
+  bucket = aws_s3_bucket.agent.id
+  policy = data.aws_iam_policy_document.agent_bucket.json
+}
+
 data "aws_iam_policy_document" "container_registry_bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_s3_bucket.container_registry.arn,
+      "${aws_s3_bucket.container_registry.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
   statement {
     sid     = "DenyReadsExceptS3AccessRole"
     effect  = "Deny"
@@ -123,6 +172,54 @@ data "aws_iam_policy_document" "container_registry_bucket" {
       test     = "StringNotEquals"
       variable = "aws:PrincipalArn"
       values   = [aws_iam_role.s3_access.arn]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "logs_bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_s3_bucket.logs.arn,
+      "${aws_s3_bucket.logs.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "agent_bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_s3_bucket.agent.arn,
+      "${aws_s3_bucket.agent.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
     }
   }
 }
