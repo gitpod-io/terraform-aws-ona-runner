@@ -151,6 +151,70 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
+    sid = "EnvironmentEC2Lifecycle"
+    actions = [
+      "ec2:CancelSpotInstanceRequests",
+      "ec2:CreateTags",
+      "ec2:DeleteTags",
+      "ec2:DescribeImages",
+      "ec2:DescribeInstanceAttribute",
+      "ec2:DescribeInstanceStatus",
+      "ec2:DescribeInstanceTypeOfferings",
+      "ec2:DescribeInstanceTypes",
+      "ec2:DescribeInstances",
+      "ec2:DescribeLaunchTemplateVersions",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeTags",
+      "ec2:DescribeVolumes",
+      "ec2:DescribeVpcs",
+      "ec2:GetConsoleOutput",
+      "ec2:ModifyInstanceAttribute",
+      "ec2:ModifyVolume",
+      "ec2:RunInstances",
+      "ec2:StartInstances",
+      "ec2:StopInstances",
+      "ec2:TerminateInstances",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EnvironmentSSMCommands"
+    actions = [
+      "ssm:DeleteParameter",
+      "ssm:GetCommandInvocation",
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath",
+      "ssm:PutParameter",
+      "ssm:SendCommand",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EnvironmentSecrets"
+    actions = [
+      "secretsmanager:CreateSecret",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+      "secretsmanager:TagResource",
+    ]
+    resources = [
+      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*${var.runner_id}*",
+      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*gitpod*",
+      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*ona*",
+    ]
+  }
+
+  statement {
+    sid       = "CallerIdentity"
+    actions   = ["sts:GetCallerIdentity"]
+    resources = ["*"]
+  }
+
+  statement {
     sid       = "PassEnvironmentRole"
     actions   = ["iam:PassRole"]
     resources = [aws_iam_role.environment.arn]
