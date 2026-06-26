@@ -73,6 +73,11 @@ output "load_balancer_arn" {
   value       = aws_lb.proxy.arn
 }
 
+output "load_balancer_zone_id" {
+  description = "Canonical hosted zone ID of the runner proxy Network Load Balancer."
+  value       = aws_lb.proxy.zone_id
+}
+
 output "load_balancer_security_group_id" {
   description = "Security group ID used by the runner proxy Network Load Balancer."
   value       = local.load_balancer_security_group_id_effective

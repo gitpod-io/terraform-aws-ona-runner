@@ -14,6 +14,10 @@ CloudFormation runner stack.
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 
+The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
+module can create an ACM certificate and Route53 records for customers who want
+Terraform to own runner custom-domain DNS resources.
+
 ## Migration From CloudFormation
 
 For the first release, migrate by creating a new Terraform-managed runner rather

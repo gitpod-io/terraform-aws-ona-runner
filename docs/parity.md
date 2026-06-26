@@ -14,6 +14,8 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
   custom CA init containers.
 - Network Load Balancer with TLS listener, ACM certificate, custom-domain proxy
   support, cross-zone load balancing, and internal or internet-facing mode.
+- Optional custom-domain helper module for ACM certificate validation and
+  Route53 alias records.
 - Security groups for ECS tasks, the load balancer, environment instances, and
   cache access.
 - S3 buckets for container registry cache, logs, and agent execution data, with

@@ -1,0 +1,6 @@
+domain_name    = "runner.example.com"
+hosted_zone_id = "Z00000000000000000000"
+
+# Optional after the runner load balancer exists:
+# load_balancer_dns_name = "runner-nlb.example.elb.amazonaws.com"
+# load_balancer_zone_id  = "Z00000000000000"
