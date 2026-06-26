@@ -7,6 +7,9 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
 
 - ECS cluster with container insights and EC2 launch type.
 - Bottlerocket ECS hosts from the AWS SSM public AMI parameter.
+- Optional explicit Bottlerocket AMI override for customers whose Terraform
+  execution role cannot read public SSM parameters or whose governance process
+  requires a pre-approved AMI.
 - Launch template with IMDSv2, encrypted Bottlerocket volumes, detailed
   monitoring, and ECS image cleanup tuning.
 - Auto Scaling Group and ECS capacity provider for the runner task.

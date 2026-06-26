@@ -2,7 +2,8 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 data "aws_ssm_parameter" "bottlerocket_ami" {
-  name = "/aws/service/bottlerocket/aws-ecs-1/x86_64/latest/image_id"
+  count = var.bottlerocket_ami_id == "" ? 1 : 0
+  name  = "/aws/service/bottlerocket/aws-ecs-1/x86_64/latest/image_id"
 }
 
 locals {
@@ -16,6 +17,8 @@ locals {
   })
 
   runner_is_large = var.runner_size == "large"
+
+  bottlerocket_ami_id = var.bottlerocket_ami_id == "" ? data.aws_ssm_parameter.bottlerocket_ami[0].value : var.bottlerocket_ami_id
 
   ecs_instance_type = local.runner_is_large ? (
     data.aws_region.current.name == "eu-south-2" ? "c7i.2xlarge" : "c6i.2xlarge"

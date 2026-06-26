@@ -97,6 +97,12 @@ variable "default_ami" {
   default     = ""
 }
 
+variable "bottlerocket_ami_id" {
+  description = "Optional Bottlerocket ECS AMI ID for runner ECS hosts. Leave empty to resolve the latest AWS-managed Bottlerocket AMI from SSM."
+  type        = string
+  default     = ""
+}
+
 variable "runner_image" {
   description = "Container image for the EC2 runner."
   type        = string

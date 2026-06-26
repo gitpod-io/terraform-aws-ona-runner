@@ -46,7 +46,7 @@ locals {
 
 resource "aws_launch_template" "ecs" {
   name_prefix            = "${local.name_prefix}-ecs-"
-  image_id               = data.aws_ssm_parameter.bottlerocket_ami.value
+  image_id               = local.bottlerocket_ami_id
   instance_type          = local.ecs_instance_type
   update_default_version = true
   ebs_optimized          = true
@@ -165,6 +165,7 @@ locals {
     { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
     { name = "REDIS_CLUSTER_MODE", value = "true" },
     { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
+    { name = "RUNNER_CONFIG_HASH", value = sha256(jsonencode(local.runner_config)) },
     ], var.custom_ca_trust_bundle == "" ? [] : [
     { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle }
     ], var.development_version == "" ? [] : [

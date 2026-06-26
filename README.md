@@ -40,5 +40,10 @@ The module implements the supported EC2 runner infrastructure path:
 - IAM roles for ECS tasks, ECS instances, environment instances, S3 cache access,
   and devcontainer cache registry access.
 
+By default the module resolves the latest AWS-managed Bottlerocket ECS AMI from
+the public SSM parameter. Set `bottlerocket_ami_id` when your Terraform role
+cannot read public SSM parameters or your organization requires an explicitly
+approved AMI.
+
 See [AWS Runner CloudFormation Parity](./docs/parity.md) for the current parity
 map and first-release migration notes.
