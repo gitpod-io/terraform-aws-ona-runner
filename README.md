@@ -1,0 +1,40 @@
+# Ona AWS Runner
+
+This is the Terraform module for the Ona AWS Runner. It deploys an
+[Ona](https://ona.com) runner in your AWS VPC, where development environment
+resources run in your AWS account.
+
+This module manages native AWS resources directly. It does not wrap the
+CloudFormation runner stack.
+
+> AWS Runners require an Enterprise plan.
+
+## Example
+
+The [`runner-with-networking`](./examples/runner-with-networking/) example shows
+how to call the module with existing VPC, subnet, DNS, and certificate inputs.
+
+## Migration From CloudFormation
+
+For the first release, migrate by creating a new Terraform-managed runner rather
+than importing every existing CloudFormation-managed resource. Create the runner
+record and environment classes with the Ona Terraform provider, deploy this AWS
+module with the new runner ID/token/domain, validate the new runner, then move
+workloads to environment classes backed by the new runner.
+
+## Scope
+
+The module implements the supported EC2 runner infrastructure path:
+
+- ECS on EC2 using Bottlerocket instances and an Auto Scaling capacity provider.
+- Network Load Balancer with TLS listener and custom domain certificate support.
+- S3 buckets for container cache, logs, and agent execution data.
+- DynamoDB resources table.
+- MemoryDB by default, with ElastiCache as a compatibility cache option.
+- Runner configuration and cache connection in SSM Parameter Store.
+- Secrets Manager runner token and metrics configuration secrets.
+- IAM roles for ECS tasks, ECS instances, environment instances, S3 cache access,
+  and devcontainer cache registry access.
+
+See [AWS Runner CloudFormation Parity](./docs/parity.md) for the current parity
+map and first-release migration notes.

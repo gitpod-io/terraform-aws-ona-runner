@@ -1,0 +1,11 @@
+aws_region = "us-east-1"
+
+runner_id     = "runner-id-from-ona"
+runner_token  = "runner-token-from-ona"
+runner_domain = "runner.example.com"
+
+certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/example"
+
+vpc_id                   = "vpc-00000000000000000"
+runner_subnet_ids        = ["subnet-00000000000000000", "subnet-11111111111111111"]
+load_balancer_subnet_ids = ["subnet-00000000000000000", "subnet-11111111111111111"]
