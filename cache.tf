@@ -30,7 +30,7 @@ resource "aws_security_group" "memorydb" {
 
 resource "aws_memorydb_subnet_group" "this" {
   count       = var.cache_engine == "MemoryDB" ? 1 : 0
-  name        = "${local.name_prefix}-memorydb-subnet"
+  name        = "${local.memorydb_subnet_name_prefix}-memorydb-subnet"
   description = "Subnet group for Ona AI execution MemoryDB"
   subnet_ids  = var.runner_subnet_ids
   tags        = local.common_tags
@@ -38,7 +38,7 @@ resource "aws_memorydb_subnet_group" "this" {
 
 resource "aws_memorydb_user" "this" {
   count         = var.cache_engine == "MemoryDB" ? 1 : 0
-  user_name     = "${local.name_prefix}-memorydb-user"
+  user_name     = "${local.memorydb_user_name_prefix}-memorydb-user"
   access_string = "on ~* +@all"
 
   authentication_mode {
@@ -51,14 +51,14 @@ resource "aws_memorydb_user" "this" {
 
 resource "aws_memorydb_acl" "this" {
   count      = var.cache_engine == "MemoryDB" ? 1 : 0
-  name       = "${local.name_prefix}-memorydb-acl"
+  name       = "${local.memorydb_acl_name_prefix}-memorydb-acl"
   user_names = [aws_memorydb_user.this[0].user_name]
   tags       = local.common_tags
 }
 
 resource "aws_memorydb_cluster" "this" {
   count                      = var.cache_engine == "MemoryDB" ? 1 : 0
-  name                       = "${local.name_prefix}-memorydb"
+  name                       = "${local.memorydb_name_prefix}-memorydb"
   description                = "AI execution data store with TLS enabled"
   node_type                  = local.memorydb_node_type
   num_shards                 = 1
@@ -101,13 +101,13 @@ resource "aws_security_group" "elasticache" {
 
 resource "aws_elasticache_subnet_group" "this" {
   count      = var.cache_engine == "ElastiCache" ? 1 : 0
-  name       = "${local.name_prefix}-redis-subnet"
+  name       = "${local.elasticache_subnet_name_prefix}-redis-subnet"
   subnet_ids = var.runner_subnet_ids
 }
 
 resource "aws_elasticache_replication_group" "this" {
   count                      = var.cache_engine == "ElastiCache" ? 1 : 0
-  replication_group_id       = "${local.name_prefix}-redis"
+  replication_group_id       = "${local.elasticache_name_prefix}-redis"
   description                = "AI execution data store with TLS enabled"
   engine                     = "redis"
   engine_version             = "7.1"

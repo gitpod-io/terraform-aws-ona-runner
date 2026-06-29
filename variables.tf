@@ -13,6 +13,11 @@ variable "runner_name" {
   description = "Human-readable runner name used in AWS resource names."
   type        = string
   default     = "ona-runner"
+
+  validation {
+    condition     = can(regex("^[A-Za-z]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$", var.runner_name)) && !can(regex("--", var.runner_name))
+    error_message = "runner_name must be 1-32 characters, start with a letter, end with a letter or number, contain only letters, numbers, and hyphens, and not contain consecutive hyphens."
+  }
 }
 
 variable "api_endpoint" {
@@ -151,7 +156,13 @@ variable "custom_ca_trust_bundle" {
 }
 
 variable "disable_resource_policies" {
-  description = "Disable restrictive S3 and DynamoDB resource policies. Intended for organizations that cannot use resource policies."
+  description = "Disable restrictive read-scoping S3 and DynamoDB resource policies. TLS-only S3 policies remain enabled unless disable_s3_tls_enforcement is true."
+  type        = bool
+  default     = false
+}
+
+variable "disable_s3_tls_enforcement" {
+  description = "Disable S3 bucket policies that deny non-TLS requests. Intended only for organizations that cannot use S3 bucket policies."
   type        = bool
   default     = false
 }

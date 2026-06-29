@@ -22,7 +22,8 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
 - Security groups for ECS tasks, the load balancer, environment instances, and
   cache access.
 - S3 buckets for container registry cache, logs, and agent execution data, with
-  encryption, public access blocking, and lifecycle expiration.
+  encryption, public access blocking, lifecycle expiration, and TLS-only bucket
+  policies enabled by default.
 - DynamoDB resource reconciler table and restrictive resource policy.
 - Secrets Manager runner token and metrics configuration secrets.
 - SSM runner configuration parameter and AI execution cache connection parameter.

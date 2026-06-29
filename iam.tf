@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 resource "aws_iam_role" "ecs_execution" {
-  name_prefix        = "${local.name_prefix}-ecs-exec-"
+  name_prefix        = "${local.iam_role_name_prefix}-ecs-exec-"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
   tags               = local.common_tags
 }
@@ -51,7 +51,7 @@ data "aws_iam_policy_document" "ecs_execution" {
 }
 
 resource "aws_iam_role" "ecs_task" {
-  name_prefix        = "${local.name_prefix}-ecs-task-"
+  name_prefix        = "${local.iam_role_name_prefix}-ecs-task-"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
   tags               = local.common_tags
 }
@@ -318,7 +318,7 @@ data "aws_iam_policy_document" "ecs_task" {
 }
 
 resource "aws_iam_role" "ecs_instance" {
-  name_prefix        = "${local.name_prefix}-ecs-instance-"
+  name_prefix        = "${local.iam_role_name_prefix}-ecs-instance-"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
   tags               = local.common_tags
 }
@@ -340,7 +340,7 @@ resource "aws_iam_instance_profile" "ecs" {
 }
 
 resource "aws_iam_role" "environment" {
-  name_prefix        = "${local.name_prefix}-environment-"
+  name_prefix        = "${local.iam_role_name_prefix}-environment-"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
   tags               = merge(local.common_tags, { "gitpod.dev/environment-role" = "true" })
 }
@@ -430,7 +430,7 @@ data "aws_iam_policy_document" "environment" {
 }
 
 resource "aws_iam_role" "s3_access" {
-  name_prefix        = "${local.name_prefix}-s3-access-"
+  name_prefix        = "${local.iam_role_name_prefix}-s3-access-"
   assume_role_policy = data.aws_iam_policy_document.s3_access_assume.json
   tags               = local.common_tags
 }
@@ -512,7 +512,7 @@ data "aws_iam_policy_document" "s3_access" {
 }
 
 resource "aws_iam_role" "devcontainer_cache_registry_access" {
-  name_prefix        = "${local.name_prefix}-ecr-cache-"
+  name_prefix        = "${local.iam_role_name_prefix}-ecr-cache-"
   assume_role_policy = data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.json
   tags               = local.common_tags
 }

@@ -1,5 +1,5 @@
 resource "aws_lb" "proxy" {
-  name               = substr("${local.name_prefix}-runner", 0, 32)
+  name               = "${local.load_balancer_name_prefix}-runner"
   load_balancer_type = "network"
   internal           = var.load_balancer_scheme == "internal"
   subnets            = var.load_balancer_subnet_ids
@@ -12,7 +12,7 @@ resource "aws_lb" "proxy" {
 }
 
 resource "aws_lb_target_group" "proxy" {
-  name                 = substr("${local.name_prefix}-proxy", 0, 32)
+  name                 = "${local.target_group_name_prefix}-proxy"
   port                 = 443
   protocol             = "TLS"
   target_type          = "instance"

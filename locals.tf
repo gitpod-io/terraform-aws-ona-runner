@@ -7,7 +7,18 @@ data "aws_ssm_parameter" "bottlerocket_ami" {
 }
 
 locals {
-  name_prefix = substr(replace(lower(var.runner_name), "/[^a-z0-9-]/", "-"), 0, 32)
+  name_prefix = lower(var.runner_name)
+
+  memorydb_name_prefix           = substr(local.name_prefix, 0, 31)
+  memorydb_subnet_name_prefix    = substr(local.name_prefix, 0, 40)
+  memorydb_user_name_prefix      = substr(local.name_prefix, 0, 26)
+  memorydb_acl_name_prefix       = substr(local.name_prefix, 0, 27)
+  elasticache_name_prefix        = substr(local.name_prefix, 0, 34)
+  elasticache_subnet_name_prefix = substr(local.name_prefix, 0, 38)
+  load_balancer_name_prefix      = substr(local.name_prefix, 0, 25)
+  target_group_name_prefix       = substr(local.name_prefix, 0, 26)
+  s3_bucket_name_prefix          = substr(local.name_prefix, 0, 25)
+  iam_role_name_prefix           = substr(local.name_prefix, 0, 24)
 
   common_tags = merge(var.tags, {
     "aws-apn-id"                           = "pc:7fmtjv5ewmq6d8gwjb08fwitz"
