@@ -70,7 +70,7 @@ data "aws_iam_policy_document" "ecs_task" {
       "ssm:GetParameters",
     ]
     resources = [
-      aws_secretsmanager_secret.runner_token.arn,
+      local.runner_token_secret_arn,
       aws_secretsmanager_secret.metrics_config.arn,
       aws_ssm_parameter.runner_config.arn,
       aws_ssm_parameter.redis_connection.arn,
@@ -150,6 +150,12 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
+    sid       = "ECRAuthorization"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+
+  statement {
     sid = "ASGWarmPoolManagement"
     actions = [
       "ec2:CreateLaunchTemplate",
@@ -226,6 +232,7 @@ data "aws_iam_policy_document" "ecs_task" {
     sid = "EnvironmentSSMCommands"
     actions = [
       "ssm:DeleteParameter",
+      "ssm:DescribeParameters",
       "ssm:GetCommandInvocation",
       "ssm:GetParameter",
       "ssm:GetParameters",

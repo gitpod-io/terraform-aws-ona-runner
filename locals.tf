@@ -27,6 +27,16 @@ locals {
     "gitpod.dev/runner-id"                 = var.runner_id
   })
 
+  runner_owned_resource_tag_keys = [
+    "aws-apn-id",
+    "gitpod.dev/runner-id",
+  ]
+
+  runner_resource_tags = {
+    for key, value in local.common_tags : key => value
+    if !contains(local.runner_owned_resource_tag_keys, key)
+  }
+
   runner_is_large = var.runner_size == "large"
 
   bottlerocket_ami_id = var.bottlerocket_ami_id == "" ? data.aws_ssm_parameter.bottlerocket_ami[0].value : var.bottlerocket_ami_id
@@ -49,6 +59,7 @@ locals {
   memorydb_node_type = local.runner_is_large ? "db.t4g.medium" : "db.t4g.small"
 
   runner_token_secret_name = "${data.aws_region.current.name}-${var.runner_id}-runner-token"
+  runner_token_secret_arn  = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${local.runner_token_secret_name}-??????"
   redis_parameter_name     = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
   runner_config_key        = "/gitpod/runner/${var.runner_id}"
 
@@ -71,12 +82,13 @@ locals {
     resourceTableName                      = aws_dynamodb_table.resources.name
     gatewayAPIEndpoint                     = var.gateway_api_endpoint
     infrastructureVersion                  = "terraform"
+    resourceTags                           = local.runner_resource_tags
     sshPort                                = 29222
     cacheBucketName                        = aws_s3_bucket.container_registry.bucket
     runnerProxyDomain                      = var.runner_domain
     sshOverGateway                         = "true"
     runnerPackage                          = "Enterprise"
-    runnerTemplateBuildVersion             = "__EC2_RUNNER_VERSION__"
+    runnerTemplateBuildVersion             = var.runner_template_build_version
     asgWarmPoolEnabled                     = true
     horizontalScalingEnabled               = true
     agentBucketName                        = aws_s3_bucket.agent.bucket

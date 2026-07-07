@@ -4,8 +4,8 @@ output "runner_config_parameter_name" {
 }
 
 output "runner_token_secret_arn" {
-  description = "Secrets Manager secret ARN containing the runner token."
-  value       = aws_secretsmanager_secret.runner_token.arn
+  description = "Secrets Manager secret ARN pattern for the runner-created token secret."
+  value       = local.runner_token_secret_arn
 }
 
 output "runner_ecs_security_group_id" {

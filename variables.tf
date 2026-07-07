@@ -138,6 +138,12 @@ variable "development_version" {
   default     = ""
 }
 
+variable "runner_template_build_version" {
+  description = "Runner template build version recorded in the runner SSM config. Release automation should set this to the EC2 runner release version."
+  type        = string
+  default     = "__EC2_RUNNER_VERSION__"
+}
+
 variable "proxy_config" {
   description = "HTTP proxy settings for runner containers and Bottlerocket hosts."
   type = object({
