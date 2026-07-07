@@ -1,0 +1,17 @@
+{
+  "name": "Ona AWS Runner Terraform module",
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "amazonwebservices.aws-toolkit-vscode",
+        "timonwong.shellcheck"
+      ]
+    }
+  },
+  "remoteUser": "vscode"
+}

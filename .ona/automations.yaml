@@ -1,0 +1,36 @@
+tasks:
+  install-dependencies:
+    name: Install dependencies
+    command: |
+      pre-commit install
+    triggeredBy:
+      - manual
+      - postDevcontainerStart
+      - prebuild
+
+  validate-terraform:
+    name: Validate Terraform
+    dependsOn:
+      - install-dependencies
+    command: |
+      terraform fmt -check -recursive
+      terraform init -backend=false
+      terraform validate
+
+      for dir in examples/*/ modules/*/; do
+        if [ -f "${dir}versions.tf" ]; then
+          terraform -chdir="$dir" init -backend=false
+          terraform -chdir="$dir" validate
+        fi
+      done
+    triggeredBy:
+      - manual
+
+  pre-commit:
+    name: Run pre-commit
+    dependsOn:
+      - install-dependencies
+    command: |
+      pre-commit run --all-files
+    triggeredBy:
+      - manual

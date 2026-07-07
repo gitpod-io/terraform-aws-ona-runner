@@ -7,7 +7,13 @@ Terraform module.
 
 ## Development Environment
 
-Install the following tools:
+The easiest way to get started is to open this repository in [Ona](https://ona.com/)
+or run the included [dev container](.devcontainer/) locally with
+[VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
+or any compatible IDE. The dev container comes pre-configured with the tools
+needed to validate and deploy the module.
+
+If you prefer a manual setup, install the following:
 
 - [Terraform](https://terraform.io/) >= 1.5
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
