@@ -121,7 +121,12 @@ resource "aws_autoscaling_group" "ecs" {
   }
 
   dynamic "tag" {
-    for_each = merge(local.common_tags, { Name = "${local.name_prefix}-ecs" })
+    // ECS adds this tag when associating the capacity provider. Declare it so
+    // Terraform continues to own the full ASG tag set after that association.
+    for_each = merge(local.common_tags, {
+      Name             = "${local.name_prefix}-ecs"
+      AmazonECSManaged = ""
+    })
     content {
       key                 = tag.key
       value               = tag.value

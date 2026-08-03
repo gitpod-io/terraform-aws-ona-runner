@@ -37,9 +37,10 @@ resource "aws_memorydb_subnet_group" "this" {
 }
 
 resource "aws_memorydb_user" "this" {
-  count         = var.cache_engine == "MemoryDB" ? 1 : 0
-  user_name     = "${local.memorydb_user_name_prefix}-memorydb-user"
-  access_string = "on ~* +@all"
+  count     = var.cache_engine == "MemoryDB" ? 1 : 0
+  user_name = "${local.memorydb_user_name_prefix}-memorydb-user"
+  // MemoryDB normalizes an unrestricted ACL to include resetchannels.
+  access_string = "on ~* resetchannels +@all"
 
   authentication_mode {
     type      = "password"
