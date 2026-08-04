@@ -45,10 +45,11 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
   by Terraform.
 - The module does not create the CloudFormation capacity-provider detach custom
   resource. Terraform owns the ECS capacity provider lifecycle directly.
-- The ElastiCache fallback uses an authenticated TLS replication group instead
-  of the CloudFormation stack's single `AWS::ElastiCache::CacheCluster` shape.
-  This keeps the Terraform fallback compatible with the runner's Redis
-  cluster/TLS client mode while MemoryDB remains the default cache engine.
+- The ElastiCache fallback uses an authenticated TLS replication group with one
+  replica and automatic failover instead of the CloudFormation stack's single
+  `AWS::ElastiCache::CacheCluster` shape. This keeps the Terraform fallback
+  compatible with the runner's Redis cluster/TLS client mode while MemoryDB
+  remains the default cache engine.
 - Fargate two-service mode and ADOT sidecar mode are not part of the supported
   EC2 runner path targeted by this module.
 

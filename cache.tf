@@ -115,7 +115,8 @@ resource "aws_elasticache_replication_group" "this" {
   parameter_group_name       = "default.redis7.cluster.on"
   node_type                  = local.elasticache_node_type
   num_node_groups            = 1
-  replicas_per_node_group    = 0
+  replicas_per_node_group    = 1
+  automatic_failover_enabled = true
   port                       = 6379
   subnet_group_name          = aws_elasticache_subnet_group.this[0].name
   security_group_ids         = [aws_security_group.elasticache[0].id]
