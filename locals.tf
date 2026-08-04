@@ -70,33 +70,40 @@ locals {
     try(var.proxy_config.no_proxy, "") == "" ? "" : "no_proxy=${var.proxy_config.no_proxy}",
   ])
 
-  runner_config = {
-    exchangeToken                          = var.runner_token
-    apiEndpoint                            = var.api_endpoint
-    awsAccountId                           = data.aws_caller_identity.current.account_id
-    vpcId                                  = var.vpc_id
-    stackName                              = local.name_prefix
-    subnetIDs                              = join(" ", var.runner_subnet_ids)
-    instanceProfileName                    = aws_iam_instance_profile.environment.name
-    securityGroupId                        = aws_security_group.environment.id
-    resourceTableName                      = aws_dynamodb_table.resources.name
-    gatewayAPIEndpoint                     = var.gateway_api_endpoint
-    infrastructureVersion                  = "terraform"
-    resourceTags                           = local.runner_resource_tags
-    sshPort                                = 29222
-    cacheBucketName                        = aws_s3_bucket.container_registry.bucket
-    runnerProxyDomain                      = var.runner_domain
-    sshOverGateway                         = "true"
-    runnerPackage                          = "Enterprise"
-    runnerTemplateBuildVersion             = var.runner_template_build_version
-    asgWarmPoolEnabled                     = true
-    horizontalScalingEnabled               = true
-    agentBucketName                        = aws_s3_bucket.agent.bucket
-    logsBucket                             = aws_s3_bucket.logs.bucket
-    environmentRoleArn                     = aws_iam_role.environment.arn
-    runnerLogGroup                         = aws_cloudwatch_log_group.runner.name
-    proxyLogGroup                          = aws_cloudwatch_log_group.runner.name
-    devContainerCacheRegistryAccessRoleArn = aws_iam_role.devcontainer_cache_registry_access.arn
-    defaultAMI                             = var.default_ami
-  }
+  # Keep this order aligned with config.Runner in gitpod-next. The runner
+  # rewrites this SSM value with encoding/json and Terraform compares raw bytes.
+  runner_config = join("", concat([
+    "{",
+    "\"awsAccountId\":", jsonencode(data.aws_caller_identity.current.account_id),
+    ",\"resourceTableName\":", jsonencode(aws_dynamodb_table.resources.name),
+    ",\"vpcId\":", jsonencode(var.vpc_id),
+    ",\"stackName\":", jsonencode(local.name_prefix),
+    ",\"runnerLogGroup\":", jsonencode(aws_cloudwatch_log_group.runner.name),
+    ",\"proxyLogGroup\":", jsonencode(aws_cloudwatch_log_group.runner.name),
+    ",\"subnetIDs\":", jsonencode(join(" ", var.runner_subnet_ids)),
+    ",\"securityGroupId\":", jsonencode(aws_security_group.environment.id),
+    ",\"instanceProfileName\":", jsonencode(aws_iam_instance_profile.environment.name),
+    ",\"environmentRoleArn\":", jsonencode(aws_iam_role.environment.arn),
+    ",\"apiEndpoint\":", jsonencode(var.api_endpoint),
+    ",\"exchangeToken\":", jsonencode(var.runner_token),
+    ], var.default_ami == "" ? [] : [
+    ",\"defaultAMI\":", jsonencode(var.default_ami),
+    ], [
+    ",\"gatewayAPIEndpoint\":", jsonencode(var.gateway_api_endpoint),
+    ",\"infrastructureVersion\":\"terraform\"",
+    ",\"sshPort\":29222",
+    ",\"resourceTags\":", jsonencode(local.runner_resource_tags),
+    ",\"cacheBucketName\":", jsonencode(aws_s3_bucket.container_registry.bucket),
+    ",\"logsBucket\":", jsonencode(aws_s3_bucket.logs.bucket),
+    ",\"agentBucketName\":", jsonencode(aws_s3_bucket.agent.bucket),
+    ",\"logLevel\":\"info\"",
+    ",\"devContainerCacheRegistryAccessRoleArn\":", jsonencode(aws_iam_role.devcontainer_cache_registry_access.arn),
+    ",\"sshOverGateway\":\"true\"",
+    ",\"runnerProxyDomain\":", jsonencode(var.runner_domain),
+    ",\"runnerPackage\":\"Enterprise\"",
+    ",\"runnerTemplateBuildVersion\":", jsonencode(var.runner_template_build_version),
+    ",\"asgWarmPoolEnabled\":true",
+    ",\"horizontalScalingEnabled\":true",
+    "}",
+  ]))
 }
