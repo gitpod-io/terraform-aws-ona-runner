@@ -108,7 +108,7 @@ resource "aws_elasticache_subnet_group" "this" {
 
 resource "aws_elasticache_cluster" "this" {
   count                      = var.cache_engine == "ElastiCache" ? 1 : 0
-  cluster_id                 = "${local.elasticache_name_prefix}-redis"
+  cluster_id                 = "${local.elasticache_name_prefix}-redis-cache"
   engine                     = "redis"
   engine_version             = "7.1"
   parameter_group_name       = "default.redis7"
