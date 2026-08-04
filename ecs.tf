@@ -170,7 +170,7 @@ locals {
     { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
     { name = "REDIS_CLUSTER_MODE", value = "true" },
     { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
-    { name = "RUNNER_CONFIG_HASH", value = sha256(jsonencode(local.runner_config)) },
+    { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
     ], var.custom_ca_trust_bundle == "" ? [] : [
     { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle }
     ], var.development_version == "" ? [] : [
