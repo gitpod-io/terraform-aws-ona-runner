@@ -168,7 +168,7 @@ locals {
     { name = "AWS_REGION", value = data.aws_region.current.name },
     { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "__GITPOD_PRIVATE_ECR_PREFIX__" },
     { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
-    { name = "REDIS_CLUSTER_MODE", value = "true" },
+    { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
     { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
     { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
     ], var.custom_ca_trust_bundle == "" ? [] : [
