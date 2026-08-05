@@ -2,30 +2,18 @@ resource "aws_cloudwatch_log_group" "runner" {
   name              = "/gitpod/runner/${local.name_prefix}/${var.runner_id}"
   retention_in_days = 365
   tags              = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_cloudwatch_log_group" "proxy" {
   name              = "/gitpod/runner-proxy/${local.name_prefix}/${var.runner_id}"
   retention_in_days = 365
   tags              = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_cloudwatch_log_group" "adot" {
   name              = "/gitpod/runner-adot/${local.name_prefix}/${var.runner_id}"
   retention_in_days = 365
   tags              = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_ecs_cluster" "this" {
