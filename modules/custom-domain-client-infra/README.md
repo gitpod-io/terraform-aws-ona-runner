@@ -41,3 +41,24 @@ module "runner" {
 After the runner is created, pass `module.runner.load_balancer_dns_name` and
 `module.runner.load_balancer_zone_id` to this module, or create equivalent alias
 records in your DNS system.
+
+## Upgrading
+
+The validation records are keyed by their ACM record name, because ACM returns
+one shared CNAME for `domain_name` and `*.domain_name`. If you upgrade from a
+module version that keyed them by domain name, move the existing state entry
+before applying the upgrade. This prevents Terraform from deleting and
+recreating the certificate validation CNAME.
+
+First, use `terraform state show` to obtain the ACM validation record name, then
+move its state entry. For example:
+
+```sh
+terraform state mv \
+  'module.runner_domain.aws_route53_record.validation["runner.example.com"]' \
+  'module.runner_domain.aws_route53_record.validation["_abc123.runner.example.com."]'
+```
+
+Use the module name, existing state address, and ACM record name from your own
+state. Run `terraform plan` afterwards and confirm it does not replace the
+validation record.
