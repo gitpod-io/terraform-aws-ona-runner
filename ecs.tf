@@ -428,6 +428,29 @@ resource "aws_appautoscaling_policy" "runner_memory" {
   }
 }
 
+resource "aws_appautoscaling_policy" "runner_queue_depth" {
+  name               = "${local.name_prefix}-runner-queue-depth"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.runner.resource_id
+  scalable_dimension = aws_appautoscaling_target.runner.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.runner.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    target_value       = 100
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 120
+    customized_metric_specification {
+      metric_name = "EnvironmentQueueDepth"
+      namespace   = "Ona/Runner"
+      statistic   = "Average"
+      dimensions {
+        name  = "RunnerID"
+        value = var.runner_id
+      }
+    }
+  }
+}
+
 resource "aws_appautoscaling_policy" "proxy_cpu" {
   name               = "${local.name_prefix}-proxy-cpu"
   policy_type        = "TargetTrackingScaling"
