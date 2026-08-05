@@ -1,6 +1,11 @@
 variable "runner_id" {
   description = "The Ona runner ID."
   type        = string
+
+  validation {
+    condition     = trimspace(var.runner_id) != ""
+    error_message = "runner_id must not be empty."
+  }
 }
 
 variable "runner_token" {
@@ -17,6 +22,17 @@ variable "runner_name" {
   validation {
     condition     = can(regex("^[A-Za-z]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$", var.runner_name)) && !can(regex("--", var.runner_name))
     error_message = "runner_name must be 1-32 characters, start with a letter, end with a letter or number, contain only letters, numbers, and hyphens, and not contain consecutive hyphens."
+  }
+}
+
+variable "resource_name_prefix" {
+  description = "Optional legacy AWS resource-name prefix. Leave unset to derive a unique prefix from runner_name and runner_id."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.resource_name_prefix == null || (can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.resource_name_prefix)) && !can(regex("--", var.resource_name_prefix)))
+    error_message = "resource_name_prefix must be 1-32 lowercase letters, numbers, or hyphens; it must start with a letter, end with a letter or number, and not contain consecutive hyphens."
   }
 }
 

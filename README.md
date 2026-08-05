@@ -19,6 +19,14 @@ The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
 Terraform to own runner custom-domain DNS resources.
 
+## Resource names
+
+New installations derive AWS resource names from both `runner_name` and the
+unique `runner_id`, so multiple runners can use the default name in one account
+and region. Upgrading an existing installation without replacing its resources
+requires setting `resource_name_prefix` to its previous lowercase
+`runner_name`; migrate to the generated prefix in a planned replacement.
+
 ## Migration From CloudFormation
 
 For the first release, migrate by creating a new Terraform-managed runner rather
