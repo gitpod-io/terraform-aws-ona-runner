@@ -127,7 +127,6 @@ locals {
       "daemon",
       "--ssm-key=${local.runner_config_key}",
       "--runner-token-secret=${local.runner_token_secret_name}",
-      "--old-runner-token-secret=${data.aws_region.current.name}-${local.name_prefix}-runner-token",
       "--metrics-secret-arn=${aws_secretsmanager_secret.metrics_config.arn}",
       "--server-port=8081",
       "--enable-ai-execution-feature",
