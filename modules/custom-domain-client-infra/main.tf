@@ -16,18 +16,18 @@ resource "aws_acm_certificate" "runner" {
 resource "aws_route53_record" "validation" {
   for_each = {
     for option in aws_acm_certificate.runner.domain_validation_options :
-    option.domain_name => {
+    option.resource_record_name => {
       name   = option.resource_record_name
       record = option.resource_record_value
       type   = option.resource_record_type
-    }
+    }...
   }
 
   zone_id = var.hosted_zone_id
-  name    = each.value.name
-  type    = each.value.type
+  name    = each.value[0].name
+  type    = each.value[0].type
   ttl     = 300
-  records = [each.value.record]
+  records = [each.value[0].record]
 }
 
 resource "aws_acm_certificate_validation" "runner" {
