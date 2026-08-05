@@ -126,6 +126,12 @@ variable "assign_public_ip" {
   default     = false
 }
 
+variable "permissions_boundary_arn" {
+  description = "Optional IAM permissions boundary applied to every runner-managed role. Set this to the enterprise boundary approved for the AWS account."
+  type        = string
+  default     = null
+}
+
 variable "development_version" {
   description = "Optional development version passed to the runner."
   type        = string
