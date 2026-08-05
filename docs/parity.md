@@ -1,20 +1,18 @@
 # AWS Runner CloudFormation Parity
 
-This module is a native Terraform implementation of the supported EC2 runner
-CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
+This module is a native Terraform implementation of the supported Fargate
+runner path defined in `gitpod-next/runner/ec2/deploy`.
 
 ## Implemented
 
-- ECS cluster with container insights and EC2 launch type.
-- Bottlerocket ECS hosts from the AWS SSM public AMI parameter.
-- Optional explicit Bottlerocket AMI override for customers whose Terraform
-  execution role cannot read public SSM parameters or whose governance process
-  requires a pre-approved AMI.
-- Launch template with IMDSv2, encrypted Bottlerocket volumes, detailed
-  monitoring, and ECS image cleanup tuning.
-- Auto Scaling Group and ECS capacity provider for the runner task.
-- ECS task definition with runner, proxy, Prometheus, node-exporter, and optional
-  custom CA init containers.
+- ECS cluster with container insights and Service Connect discovery.
+- Separate Fargate services for the runner, proxy, and AWS Distro for
+  OpenTelemetry (ADOT) collector.
+- Fargate task definitions with read-only root filesystems, CloudWatch log
+  groups, health checks, proxy settings, and custom CA initialization.
+- Target-tracking autoscaling for the runner and proxy services.
+- ADOT target discovery and metrics collection from the runner and proxy.
+- Metrics audit files uploaded from the ADOT task to the logs bucket.
 - Network Load Balancer with TLS listener, ACM certificate, custom-domain proxy
   support, cross-zone load balancing, and internal or internet-facing mode.
 - Optional custom-domain helper module for ACM certificate validation and
@@ -30,7 +28,7 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
 - MemoryDB default cache path and ElastiCache compatibility cache path. The
   Terraform ElastiCache path uses an authenticated TLS replication group so it
   works with the runner's Redis cluster/TLS client behavior.
-- IAM roles for ECS execution, ECS task, ECS instances, environment instances,
+- IAM roles for ECS execution, the runner, proxy, ADOT, environment instances,
   S3 cache access, and devcontainer cache registry access.
 - Outputs corresponding to the CloudFormation stack outputs needed by operators
   and runner registration flows.
@@ -40,21 +38,20 @@ CloudFormation/CDK path in `gitpod-next/runner/ec2/deploy`.
 - Migration is greenfield: deploy a new Terraform-managed runner and move
   environment classes to it. Importing every CloudFormation-created resource is
   intentionally out of scope for the first release.
-- The module does not create CloudFormation helper Lambda custom resources. The
-  Bottlerocket user data and network/proxy configuration are rendered directly
-  by Terraform.
-- The module does not create the CloudFormation capacity-provider detach custom
-  resource. Terraform owns the ECS capacity provider lifecycle directly.
+- The module does not create CloudFormation helper Lambda custom resources.
+  Terraform manages the supported AWS resources directly.
+- The Fargate path does not create EC2 hosts, Auto Scaling Groups, ECS capacity
+  providers, or the capacity-provider detach custom resource.
 - The ElastiCache fallback follows the CloudFormation stack's single
   `AWS::ElastiCache::CacheCluster` shape. It uses a non-clustered Redis
   connection while MemoryDB remains the default cache engine.
-- Fargate two-service mode and ADOT sidecar mode are not part of the supported
-  EC2 runner path targeted by this module.
 
 ## Open Parity Checks
 
-- Exercise a real `terraform apply` in an AWS test account and confirm the ECS
-  service reaches steady state.
+- Exercise a real `terraform apply` in an AWS test account and confirm all three
+  ECS services reach steady state.
+- Enable metrics auditing and confirm rotated ADOT files reach the logs bucket
+  when proxy and custom CA settings are configured.
 - Confirm runner bootstrap against the current production runner images once the
   image version placeholders are replaced by the release automation.
 - Run the IAM permissions audit against `runner/ec2/deploy/pkg/iam` after the
