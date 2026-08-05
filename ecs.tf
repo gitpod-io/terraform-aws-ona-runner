@@ -152,14 +152,18 @@ locals {
       done
     EOT
     ]
-    mountPoints = [
+    mountPoints = concat(local.ca_mount, [
       { sourceVolume = "audit", containerPath = "/audit", readOnly = false },
       { sourceVolume = "audit-tmp", containerPath = "/tmp", readOnly = false },
-    ]
-    environment = [
+    ])
+    dependsOn = local.ca_dependency
+    environment = concat([
       { name = "AUDIT_BUCKET", value = aws_s3_bucket.logs.bucket },
+      { name = "AWS_CA_BUNDLE", value = "/etc/ssl/certs/ca-certificates.crt" },
       { name = "RUNNER_ID", value = var.runner_id },
-    ]
+      ], [for item in local.proxy_env : {
+        name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
+    }])
   }
 
   runner_container = {
