@@ -2,8 +2,9 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  runner_id_name_suffix = substr(replace(lower(var.runner_id), "/[^a-z0-9-]/", "-"), 0, 12)
-  default_name_prefix   = "${substr(lower(var.runner_name), 0, 12)}-${local.runner_id_name_suffix}"
+  runner_name_prefix    = trimsuffix(substr(lower(var.runner_name), 0, 12), "-")
+  runner_id_name_suffix = substr(sha256(lower(var.runner_id)), 0, 16)
+  default_name_prefix   = "${local.runner_name_prefix}-${local.runner_id_name_suffix}"
   name_prefix           = coalesce(var.resource_name_prefix, local.default_name_prefix)
 
   memorydb_name_prefix           = substr(local.name_prefix, 0, 31)

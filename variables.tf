@@ -31,8 +31,8 @@ variable "resource_name_prefix" {
   default     = null
 
   validation {
-    condition     = var.resource_name_prefix == null || can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.resource_name_prefix))
-    error_message = "resource_name_prefix must be 1-32 lowercase letters, numbers, or hyphens; it must start with a letter and end with a letter or number."
+    condition     = var.resource_name_prefix == null || (can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.resource_name_prefix)) && !can(regex("--", var.resource_name_prefix)))
+    error_message = "resource_name_prefix must be 1-32 lowercase letters, numbers, or hyphens; it must start with a letter, end with a letter or number, and not contain consecutive hyphens."
   }
 }
 
