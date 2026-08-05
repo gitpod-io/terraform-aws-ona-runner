@@ -82,6 +82,16 @@ resource "aws_iam_role_policy" "ecs_task" {
 
 data "aws_iam_policy_document" "ecs_task" {
   statement {
+    sid = "ManageMetricsConfig"
+    actions = [
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+    ]
+    resources = [aws_secretsmanager_secret.metrics_config.arn]
+  }
+
+  statement {
     sid = "ReadRunnerSecretsAndConfig"
     actions = [
       "secretsmanager:GetSecretValue",
