@@ -23,6 +23,9 @@ jobs:
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
+      - name: Check Fargate parity contract
+        run: bash scripts/check-parity-contract.sh
+
       - name: Terraform Init
         run: terraform init -backend=false
 

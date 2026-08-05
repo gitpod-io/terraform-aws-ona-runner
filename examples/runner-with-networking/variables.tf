@@ -14,6 +14,26 @@ variable "runner_token" {
   sensitive   = true
 }
 
+variable "runner_image" {
+  description = "Tested runner image from the runner release manifest."
+  type        = string
+}
+
+variable "proxy_image" {
+  description = "Tested runner proxy image from the same runner release manifest."
+  type        = string
+}
+
+variable "private_ecr_prefix" {
+  description = "Private ECR registry prefix from the runner release manifest."
+  type        = string
+}
+
+variable "runner_template_build_version" {
+  description = "Runner template build version from the runner release manifest."
+  type        = string
+}
+
 variable "runner_domain" {
   description = "Runner custom domain."
   type        = string

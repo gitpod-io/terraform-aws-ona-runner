@@ -173,7 +173,7 @@ locals {
     ]
     environment = concat([
       { name = "AWS_REGION", value = data.aws_region.current.name },
-      { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "__GITPOD_PRIVATE_ECR_PREFIX__" },
+      { name = "GITPOD_PRIVATE_ECR_PREFIX", value = var.private_ecr_prefix },
       { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
