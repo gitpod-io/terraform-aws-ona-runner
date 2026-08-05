@@ -1,11 +1,6 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
-data "aws_ssm_parameter" "bottlerocket_ami" {
-  count = var.bottlerocket_ami_id == "" ? 1 : 0
-  name  = "/aws/service/bottlerocket/aws-ecs-1/x86_64/latest/image_id"
-}
-
 locals {
   name_prefix = lower(var.runner_name)
 
@@ -38,17 +33,6 @@ locals {
   }
 
   runner_is_large = var.runner_size == "large"
-
-  bottlerocket_ami_id = var.bottlerocket_ami_id == "" ? data.aws_ssm_parameter.bottlerocket_ami[0].value : var.bottlerocket_ami_id
-
-  ecs_instance_type = local.runner_is_large ? (
-    data.aws_region.current.name == "eu-south-2" ? "c7i.2xlarge" : "c6i.2xlarge"
-    ) : (
-    data.aws_region.current.name == "eu-south-2" ? "c7i.large" : "c6i.large"
-  )
-
-  runner_memory_reservation = local.runner_is_large ? 14336 : 1024
-  autoscaling_max_size      = 1
 
   non_graviton_cache_region = contains(["eu-west-3", "eu-south-2"], data.aws_region.current.name)
   elasticache_node_type = local.runner_is_large ? (

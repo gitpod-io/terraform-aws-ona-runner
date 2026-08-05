@@ -5,7 +5,8 @@ This is the Terraform module for the Ona AWS Runner. It deploys an
 resources run in your AWS account.
 
 This module manages native AWS resources directly. It does not wrap the
-CloudFormation runner stack.
+CloudFormation runner stack, and follows its single supported Fargate
+private-ECR installation path.
 
 > AWS Runners require an Enterprise plan.
 
@@ -28,9 +29,10 @@ workloads to environment classes backed by the new runner.
 
 ## Scope
 
-The module implements the supported EC2 runner infrastructure path:
+The module implements the supported Fargate runner infrastructure path:
 
-- ECS on EC2 using Bottlerocket instances and an Auto Scaling capacity provider.
+- Three Fargate services for the runner, proxy, and telemetry collector,
+  connected with ECS Service Connect and backed by Fargate autoscaling.
 - Network Load Balancer with TLS listener and custom domain certificate support.
 - S3 buckets for container cache, logs, and agent execution data.
 - DynamoDB resources table.
@@ -39,11 +41,6 @@ The module implements the supported EC2 runner infrastructure path:
 - Secrets Manager runner token and metrics configuration secrets.
 - IAM roles for ECS tasks, ECS instances, environment instances, S3 cache access,
   and devcontainer cache registry access.
-
-By default the module resolves the latest AWS-managed Bottlerocket ECS AMI from
-the public SSM parameter. Set `bottlerocket_ami_id` when your Terraform role
-cannot read public SSM parameters or your organization requires an explicitly
-approved AMI.
 
 See [AWS Runner CloudFormation Parity](./docs/parity.md) for the current parity
 map and first-release migration notes.

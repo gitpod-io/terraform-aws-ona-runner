@@ -2,10 +2,34 @@ resource "aws_cloudwatch_log_group" "runner" {
   name              = "/gitpod/runner/${local.name_prefix}/${var.runner_id}"
   retention_in_days = 365
   tags              = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_cloudwatch_log_group" "proxy" {
+  name              = "/gitpod/runner-proxy/${local.name_prefix}/${var.runner_id}"
+  retention_in_days = 365
+  tags              = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_cloudwatch_log_group" "adot" {
+  name              = "/gitpod/runner-adot/${local.name_prefix}/${var.runner_id}"
+  retention_in_days = 365
+  tags              = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_ecs_cluster" "this" {
-  name = "${local.name_prefix}-gitpod-flex-runner"
+  name = "${local.name_prefix}-ona-cluster"
 
   setting {
     name  = "containerInsights"
@@ -18,252 +42,64 @@ resource "aws_ecs_cluster" "this" {
     }
   }
 
+  service_connect_defaults {
+    namespace = aws_service_discovery_http_namespace.this.arn
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_service_discovery_http_namespace" "this" {
+  name = "ona-${var.runner_id}"
   tags = local.common_tags
 }
 
 locals {
-  bottlerocket_user_data = <<-EOT
-    [settings]
-    motd = "Welcome to Gitpod ECS Runner"
+  runner_task_cpu    = local.runner_is_large ? 4096 : 1024
+  runner_task_memory = local.runner_is_large ? 16384 : 3072
+  proxy_task_cpu     = local.runner_is_large ? 2048 : 512
+  proxy_task_memory  = local.runner_is_large ? 4096 : 1024
 
-    [settings.ecs]
-    cluster = "${aws_ecs_cluster.this.name}"
-    task-cleanup-wait = "10m"
-    image-cleanup-wait = "10m"
-    image-cleanup-age = "10m"
-    image-cleanup-delete-per-cycle = 25
-
-    [settings.autoscaling]
-    should-wait = true
-
-    %{if try(var.proxy_config.https_proxy, "") != ""}
-    [settings.network]
-    https-proxy = "${var.proxy_config.https_proxy}"
-    no-proxy = ["${replace(try(var.proxy_config.no_proxy, ""), ",", "\", \"")}"]
-    %{endif}
-  EOT
-}
-
-resource "aws_launch_template" "ecs" {
-  name_prefix            = "${local.name_prefix}-ecs-"
-  image_id               = local.bottlerocket_ami_id
-  instance_type          = local.ecs_instance_type
-  update_default_version = true
-  ebs_optimized          = true
-  user_data              = base64encode(local.bottlerocket_user_data)
-  vpc_security_group_ids = [aws_security_group.ecs.id]
-
-  iam_instance_profile {
-    arn = aws_iam_instance_profile.ecs.arn
+  task_network_configuration = {
+    subnets          = var.runner_subnet_ids
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = var.assign_public_ip
   }
 
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 2
+  runner_log_options = {
+    awslogs-region        = data.aws_region.current.name
+    awslogs-group         = aws_cloudwatch_log_group.runner.name
+    awslogs-stream-prefix = "/gitpod/runner/${local.name_prefix}"
   }
 
-  monitoring {
-    enabled = true
+  proxy_log_options = {
+    awslogs-region        = data.aws_region.current.name
+    awslogs-group         = aws_cloudwatch_log_group.proxy.name
+    awslogs-stream-prefix = "/gitpod/runner-proxy/${local.name_prefix}"
   }
 
-  block_device_mappings {
-    device_name = "/dev/xvda"
-
-    ebs {
-      volume_size           = 2
-      volume_type           = "gp3"
-      encrypted             = true
-      delete_on_termination = true
-    }
+  adot_log_options = {
+    awslogs-region        = data.aws_region.current.name
+    awslogs-group         = aws_cloudwatch_log_group.adot.name
+    awslogs-stream-prefix = "aws-otel-collector"
   }
 
-  block_device_mappings {
-    device_name = "/dev/xvdb"
+  ca_volumes = [
+    { name = "ca-certificates" },
+    { name = "ca-init-tmp" },
+    { name = "ca-init-ssl-certs" },
+    { name = "ca-init-usr-local" },
+  ]
 
-    ebs {
-      volume_size           = 5
-      volume_type           = "gp3"
-      encrypted             = true
-      delete_on_termination = true
-    }
-  }
+  ca_init_mounts = [
+    { sourceVolume = "ca-certificates", containerPath = "/shared-ca-certs", readOnly = false },
+    { sourceVolume = "ca-init-tmp", containerPath = "/tmp", readOnly = false },
+    { sourceVolume = "ca-init-ssl-certs", containerPath = "/etc/ssl/certs", readOnly = false },
+    { sourceVolume = "ca-init-usr-local", containerPath = "/usr/local/share/ca-certificates", readOnly = false },
+  ]
 
-  tag_specifications {
-    resource_type = "instance"
-    tags          = merge(local.common_tags, { Name = "${local.name_prefix}-ecs" })
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_autoscaling_group" "ecs" {
-  name                      = "${local.name_prefix}-gitpod-flex-runner-asg"
-  min_size                  = 1
-  max_size                  = local.autoscaling_max_size
-  desired_capacity          = 1
-  vpc_zone_identifier       = var.runner_subnet_ids
-  health_check_type         = "EC2"
-  default_cooldown          = 60
-  max_instance_lifetime     = 604800
-  capacity_rebalance        = true
-  protect_from_scale_in     = false
-  wait_for_capacity_timeout = "10m"
-
-  launch_template {
-    id      = aws_launch_template.ecs.id
-    version = "$Latest"
-  }
-
-  instance_maintenance_policy {
-    min_healthy_percentage = 100
-    max_healthy_percentage = 200
-  }
-
-  dynamic "tag" {
-    // ECS adds this tag when associating the capacity provider. Declare it so
-    // Terraform continues to own the full ASG tag set after that association.
-    for_each = merge(local.common_tags, {
-      Name             = "${local.name_prefix}-ecs"
-      AmazonECSManaged = ""
-    })
-    content {
-      key                 = tag.key
-      value               = tag.value
-      propagate_at_launch = true
-    }
-  }
-}
-
-resource "aws_ecs_capacity_provider" "asg" {
-  name = "${local.name_prefix}-asg"
-
-  auto_scaling_group_provider {
-    auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn
-    managed_termination_protection = "DISABLED"
-
-    managed_scaling {
-      status                    = "ENABLED"
-      target_capacity           = 100
-      minimum_scaling_step_size = 1
-      instance_warmup_period    = 60
-    }
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_ecs_cluster_capacity_providers" "this" {
-  cluster_name       = aws_ecs_cluster.this.name
-  capacity_providers = [aws_ecs_capacity_provider.asg.name]
-
-  default_capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.asg.name
-    weight            = 1
-  }
-}
-
-locals {
-  runner_environment = concat([
-    { name = "AWS_REGION", value = data.aws_region.current.name },
-    { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "__GITPOD_PRIVATE_ECR_PREFIX__" },
-    { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
-    { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
-    { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
-    { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
-    ], var.custom_ca_trust_bundle == "" ? [] : [
-    { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle }
-    ], var.development_version == "" ? [] : [
-    { name = "GITPOD_DEVELOPMENT_VERSION", value = var.development_version }
-    ], [for item in local.proxy_env : {
-      name  = split("=", item)[0]
-      value = join("=", slice(split("=", item), 1, length(split("=", item))))
-  }])
-
-  proxy_environment = concat([
-    { name = "AWS_REGION", value = data.aws_region.current.name },
-    { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
-    ], [for item in local.proxy_env : {
-      name  = split("=", item)[0]
-      value = join("=", slice(split("=", item), 1, length(split("=", item))))
-  }])
-
-  node_exporter_job = <<-EOT
-      - job_name: 'node_exporter'
-        static_configs:
-          - targets: ['node-exporter:9100']
-            labels:
-              instance: $HOSTNAME
-  EOT
-
-  prometheus_default_config = <<-EOT
-    global:
-      scrape_interval: 15s
-      scrape_timeout: 10s
-      external_labels:
-        stack: ${local.name_prefix}
-        account_id: ${data.aws_caller_identity.current.account_id}
-        region: ${data.aws_region.current.name}
-
-    scrape_configs:
-      - job_name: 'ec2_runner'
-        static_configs:
-          - targets: ['ec2-runner:9090']
-            labels:
-              instance: $HOSTNAME
-              __address__: ec2-runner:9090
-      - job_name: 'ec2_runner_proxy'
-        static_configs:
-          - targets: ['proxy:9090']
-            labels:
-              instance: $HOSTNAME
-              __address__: proxy:9090
-    ${local.node_exporter_job}
-  EOT
-
-  prometheus_remote_write_config = <<-EOT
-    ${local.prometheus_default_config}
-    remote_write:
-    - url: "$PROMETHEUS_URL"
-      basic_auth:
-        username: "$PROMETHEUS_USER"
-        password: "$PROMETHEUS_PASSWORD"
-  EOT
-
-  prometheus_startup_script = <<-EOT
-    #!/bin/sh
-    set -euo pipefail
-    echo "Configuring Prometheus"
-
-    HOSTNAME=$(hostname)
-
-    if [ "$ENABLE_METRICS" = "true" ]; then
-      echo "$PROMETHEUS_REMOTE_WRITE_CONFIG" | sed \
-        -e "s|\\$PROMETHEUS_URL|$PROMETHEUS_URL|g" \
-        -e "s|\\$PROMETHEUS_USER|$PROMETHEUS_USER|g" \
-        -e "s|\\$PROMETHEUS_PASSWORD|$PROMETHEUS_PASSWORD|g" \
-        -e "s|\\$HOSTNAME|$HOSTNAME|g" \
-        >/etc/prometheus/prometheus.yml
-    else
-      echo "$PROMETHEUS_DEFAULT_CONFIG" | sed \
-        -e "s|\\$HOSTNAME|$HOSTNAME|g" \
-        >/etc/prometheus/prometheus.yml
-    fi
-
-    echo "Starting Prometheus"
-    /bin/prometheus --web.listen-address=:9093 \
-      --config.file=/etc/prometheus/prometheus.yml \
-      --storage.tsdb.path=/prometheus \
-      --storage.tsdb.retention.time=15m \
-      --storage.tsdb.retention.size=100MB \
-      --web.console.libraries=/usr/share/prometheus/console_libraries \
-      --web.console.templates=/usr/share/prometheus/consoles \
-      --web.enable-remote-write-receiver \
-      --enable-feature=remote-write-receiver
-  EOT
-
-  ca_init_container = var.custom_ca_trust_bundle == "" ? [] : [{
-    name                   = "ca-trust-init"
+  ca_init_container = {
+    name                   = "init-container"
     image                  = var.runner_image
     essential              = false
     memoryReservation      = 64
@@ -275,255 +111,174 @@ locals {
       { name = "AWS_REGION", value = data.aws_region.current.name },
       { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle },
     ]
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        awslogs-region        = data.aws_region.current.name
-        awslogs-group         = aws_cloudwatch_log_group.runner.name
-        awslogs-stream-prefix = "/gitpod/ca-init/${local.name_prefix}"
-      }
-    }
-    mountPoints = [
-      { sourceVolume = "ca-certificates", containerPath = "/shared-ca-certs", readOnly = false },
-      { sourceVolume = "ca-init-tmp", containerPath = "/tmp", readOnly = false },
-      { sourceVolume = "ca-init-ssl-certs", containerPath = "/etc/ssl/certs", readOnly = false },
-      { sourceVolume = "ca-init-usr-local", containerPath = "/usr/local/share/ca-certificates", readOnly = false },
+    mountPoints = local.ca_init_mounts
+  }
+
+  ca_mount      = [{ sourceVolume = "ca-certificates", containerPath = "/etc/ssl/certs", readOnly = true }]
+  ca_dependency = [{ containerName = "init-container", condition = "SUCCESS" }]
+
+  runner_container = {
+    name                   = "ec2-runner"
+    image                  = var.runner_image
+    essential              = true
+    memoryReservation      = local.runner_is_large ? 14336 : 128
+    readonlyRootFilesystem = true
+    command = [
+      "daemon",
+      "--ssm-key=${local.runner_config_key}",
+      "--runner-token-secret=${local.runner_token_secret_name}",
+      "--old-runner-token-secret=${data.aws_region.current.name}-${local.name_prefix}-runner-token",
+      "--metrics-secret-arn=${aws_secretsmanager_secret.metrics_config.arn}",
+      "--server-port=8081",
+      "--enable-ai-execution-feature",
+      "--ai-execution-redis-secret=${local.redis_parameter_name}",
+      "--enable-llm-proxy",
+      "--enable-environment-snapshots",
     ]
-  }]
+    environment = concat([
+      { name = "AWS_REGION", value = data.aws_region.current.name },
+      { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "__GITPOD_PRIVATE_ECR_PREFIX__" },
+      { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
+      { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
+      { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
+      { name = "ADOT_CONFIG_SSM_PARAM", value = aws_ssm_parameter.adot_config.name },
+      { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle },
+      ], var.development_version == "" ? [] : [
+      { name = "GITPOD_DEVELOPMENT_VERSION", value = var.development_version },
+      ], [for item in local.proxy_env : {
+        name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
+    }])
+    mountPoints = local.ca_mount
+    dependsOn   = local.ca_dependency
+    portMappings = [
+      { name = "metrics", containerPort = 9090, protocol = "tcp" },
+      { name = "runner-api", containerPort = 8081, protocol = "tcp" },
+      { name = "portspec", containerPort = 7070, protocol = "tcp" },
+    ]
+    healthCheck = { command = ["CMD-SHELL", "/app/gitpod-ec2-runner ping"], retries = 3, timeout = 5, startPeriod = 10 }
+  }
 
-  ca_mounts = var.custom_ca_trust_bundle == "" ? [] : [{
-    sourceVolume  = "ca-certificates"
-    containerPath = "/etc/ssl/certs"
-    readOnly      = true
-  }]
+  proxy_container = {
+    name                   = "proxy"
+    image                  = var.proxy_image
+    essential              = true
+    memoryReservation      = 128
+    readonlyRootFilesystem = true
+    command = [
+      "run-runner-proxy",
+      "--runner-id=${var.runner_id}",
+      "--public-domain=${var.runner_domain}",
+      "--cert-dir=/app/certs",
+      "--metrics-addr=:9094",
+      "--http-port=8080",
+      "--https-port=8443",
+      "--runner-host=runner",
+      "--runner-port=8081",
+      "--management-plane-api-url=${var.api_endpoint}",
+    ]
+    environment = concat([
+      { name = "AWS_REGION", value = data.aws_region.current.name },
+      { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
+      ], [for item in local.proxy_env : {
+        name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
+    }])
+    mountPoints = concat(local.ca_mount, [{ sourceVolume = "proxy-config", containerPath = "/app/certs/", readOnly = false }])
+    dependsOn   = local.ca_dependency
+    portMappings = [
+      { name = "proxy-metrics", containerPort = 9094, protocol = "tcp" },
+      { name = "http", containerPort = 8080, protocol = "tcp" },
+      { name = "https", containerPort = 8443, protocol = "tcp" },
+      { name = "health", containerPort = 5000, protocol = "tcp" },
+    ]
+    healthCheck = { command = ["CMD-SHELL", "curl -f -k http://localhost:5000/_health || exit 1"], retries = 3, timeout = 5, interval = 30, startPeriod = 10 }
+  }
 
-  ca_depends_on = var.custom_ca_trust_bundle == "" ? [] : [{
-    containerName = "ca-trust-init"
-    condition     = "SUCCESS"
-  }]
+  adot_default_config = <<-EOT
+    extensions:
+      health_check:
+        endpoint: "0.0.0.0:13133"
+    receivers:
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: placeholder
+              static_configs:
+                - targets: []
+    exporters:
+      debug:
+        verbosity: basic
+    service:
+      extensions: [health_check]
+      pipelines:
+        metrics:
+          receivers: [prometheus]
+          exporters: [debug]
+  EOT
+}
 
-  core_container_definitions = [
-    {
-      name                   = "ec2-runner"
-      image                  = var.runner_image
-      essential              = true
-      memoryReservation      = local.runner_memory_reservation
-      readonlyRootFilesystem = true
-      command = [
-        "daemon",
-        "--ssm-key=${local.runner_config_key}",
-        "--runner-token-secret=${local.runner_token_secret_name}",
-        "--old-runner-token-secret=${data.aws_region.current.name}-${local.name_prefix}-runner-token",
-        "--metrics-secret-arn=${aws_secretsmanager_secret.metrics_config.arn}",
-        "--enable-ai-execution-feature",
-        "--ai-execution-redis-secret=${local.redis_parameter_name}",
-        "--enable-llm-proxy",
-        "--enable-environment-snapshots",
-      ]
-      environment = local.runner_environment
-      mountPoints = local.ca_mounts
-      dependsOn   = local.ca_depends_on
-      ulimits = [{
-        name      = "nofile"
-        softLimit = 65535
-        hardLimit = 65535
-      }]
-      stopTimeout = 120
-      healthCheck = {
-        command     = ["CMD-SHELL", "/app/gitpod-ec2-runner ping"]
-        retries     = 3
-        timeout     = 5
-        startPeriod = 10
-      }
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-region        = data.aws_region.current.name
-          awslogs-group         = aws_cloudwatch_log_group.runner.name
-          awslogs-stream-prefix = "/gitpod/runner/${local.name_prefix}"
-        }
-      }
-      portMappings = [
-        { name = "metrics", containerPort = 9090, protocol = "tcp" },
-        { name = "tcp", containerPort = 80, protocol = "tcp" },
-        { name = "portspec", containerPort = 7070, protocol = "tcp" },
-      ]
-    },
-    {
-      name                   = "proxy"
-      image                  = var.proxy_image
-      essential              = false
-      memoryReservation      = 128
-      readonlyRootFilesystem = true
-      command = [
-        "run-runner-proxy",
-        "--runner-id=${var.runner_id}",
-        "--public-domain=${var.runner_domain}",
-        "--cert-dir=/app/certs",
-        "--management-plane-api-url=${var.api_endpoint}",
-      ]
-      environment = local.proxy_environment
-      links       = ["ec2-runner"]
-      mountPoints = concat([{
-        sourceVolume  = "proxy-config"
-        containerPath = "/app/certs/"
-        readOnly      = false
-      }], local.ca_mounts)
-      dependsOn = local.ca_depends_on
-      ulimits = [{
-        name      = "nofile"
-        softLimit = 65535
-        hardLimit = 65535
-      }]
-      stopTimeout = 120
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f -k http://localhost:5000/_health || exit 1"]
-        retries     = 3
-        timeout     = 5
-        startPeriod = 10
-        interval    = 30
-      }
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-region        = data.aws_region.current.name
-          awslogs-group         = aws_cloudwatch_log_group.runner.name
-          awslogs-stream-prefix = "/gitpod/runner-proxy/${local.name_prefix}"
-        }
-      }
-      portMappings = [
-        { name = "proxy-metrics", containerPort = 9090, protocol = "tcp" },
-        { name = "http", containerPort = 80, protocol = "tcp" },
-        { name = "https", containerPort = 443, protocol = "tcp" },
-        { name = "health", containerPort = 5000, protocol = "tcp" },
-      ]
-    },
-    {
-      name                   = "node-exporter"
-      image                  = var.node_exporter_image
-      essential              = false
-      memoryReservation      = 64
-      readonlyRootFilesystem = true
-      command = [
-        "--path.procfs=/host/proc",
-        "--path.sysfs=/host/sys",
-        "--path.rootfs=/host/rootfs",
-        "--web.listen-address=:9100",
-        "--collector.disable-defaults",
-        "--collector.filesystem",
-        "--collector.diskstats",
-        "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)",
-      ]
-      environment = local.proxy_environment
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-region        = data.aws_region.current.name
-          awslogs-group         = aws_cloudwatch_log_group.runner.name
-          awslogs-stream-prefix = "/gitpod/node-exporter/${local.name_prefix}"
-        }
-      }
-      mountPoints = [
-        { sourceVolume = "host-proc", containerPath = "/host/proc", readOnly = true },
-        { sourceVolume = "host-sys", containerPath = "/host/sys", readOnly = true },
-        { sourceVolume = "host-rootfs", containerPath = "/host/rootfs", readOnly = true },
-      ]
-      portMappings = [{ name = "node-exporter", containerPort = 9100, protocol = "tcp" }]
-    },
-    {
-      name                   = "prometheus"
-      image                  = var.prometheus_image
-      essential              = false
-      memoryReservation      = 256
-      readonlyRootFilesystem = true
-      links                  = ["ec2-runner", "proxy", "node-exporter"]
-      entryPoint             = ["sh", "-c"]
-      command                = [local.prometheus_startup_script]
-      environment = concat(local.proxy_environment, [
-        { name = "PROMETHEUS_DEFAULT_CONFIG", value = local.prometheus_default_config },
-        { name = "PROMETHEUS_REMOTE_WRITE_CONFIG", value = local.prometheus_remote_write_config },
-        { name = "RESTART", value = "true" },
-      ])
-      secrets = [
-        { name = "ENABLE_METRICS", valueFrom = "${aws_secretsmanager_secret.metrics_config.arn}:enableMetrics::" },
-        { name = "PROMETHEUS_URL", valueFrom = "${aws_secretsmanager_secret.metrics_config.arn}:url::" },
-        { name = "PROMETHEUS_USER", valueFrom = "${aws_secretsmanager_secret.metrics_config.arn}:user::" },
-        { name = "PROMETHEUS_PASSWORD", valueFrom = "${aws_secretsmanager_secret.metrics_config.arn}:password::" },
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-region        = data.aws_region.current.name
-          awslogs-group         = aws_cloudwatch_log_group.runner.name
-          awslogs-stream-prefix = "/gitpod/runner/${local.name_prefix}"
-        }
-      }
-      mountPoints = [{
-        sourceVolume  = "tmp"
-        containerPath = "/config"
-        readOnly      = false
-        }, {
-        sourceVolume  = "prometheus-config"
-        containerPath = "/etc/prometheus"
-        readOnly      = false
-      }]
-    },
-  ]
-
-  container_definitions = concat(local.ca_init_container, local.core_container_definitions)
+resource "aws_ssm_parameter" "adot_config" {
+  name  = "/gitpod/runner/${var.runner_id}/adot-config"
+  type  = "String"
+  value = local.adot_default_config
+  tags  = local.common_tags
 }
 
 resource "aws_ecs_task_definition" "runner" {
   family                   = "${local.name_prefix}-runner"
-  requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = local.runner_task_cpu
+  memory                   = local.runner_task_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  container_definitions    = jsonencode(local.container_definitions)
-
-  volume {
-    name = "proxy-config"
+  task_role_arn            = aws_iam_role.ecs_task.arn
+  container_definitions = jsonencode([
+    merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
+    merge(local.runner_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
+  ])
+  dynamic "volume" {
+    for_each = local.ca_volumes
+    content { name = volume.value.name }
   }
+  tags = local.common_tags
+}
 
-  volume {
-    name = "ca-certificates"
+resource "aws_ecs_task_definition" "proxy" {
+  family                   = "${local.name_prefix}-proxy"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = local.proxy_task_cpu
+  memory                   = local.proxy_task_memory
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = aws_iam_role.proxy.arn
+  container_definitions = jsonencode([
+    merge(local.ca_init_container, { command = ["update-ca-certificates && /app/gitpod-ec2-runner setup-ca && chmod 777 /proxy-config"], mountPoints = concat(local.ca_init_mounts, [{ sourceVolume = "proxy-config", containerPath = "/proxy-config", readOnly = false }]), logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
+    merge(local.proxy_container, { logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
+  ])
+  dynamic "volume" {
+    for_each = concat(local.ca_volumes, [{ name = "proxy-config" }])
+    content { name = volume.value.name }
   }
+  tags = local.common_tags
+}
 
-  volume {
-    name = "ca-init-tmp"
-  }
-
-  volume {
-    name = "ca-init-ssl-certs"
-  }
-
-  volume {
-    name = "ca-init-usr-local"
-  }
-
-  volume {
-    name      = "host-proc"
-    host_path = "/proc"
-  }
-
-  volume {
-    name      = "host-sys"
-    host_path = "/sys"
-  }
-
-  volume {
-    name      = "host-rootfs"
-    host_path = "/"
-  }
-
-  volume {
-    name = "tmp"
-  }
-
-  volume {
-    name = "prometheus-config"
-  }
-
+resource "aws_ecs_task_definition" "adot" {
+  family                   = "${local.name_prefix}-adot"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = aws_iam_role.adot.arn
+  container_definitions = jsonencode([
+    {
+      name             = "aws-otel-collector", image = var.adot_image, essential = true, user = "0", readonlyRootFilesystem = true,
+      secrets          = [{ name = "AOT_CONFIG_CONTENT", valueFrom = aws_ssm_parameter.adot_config.arn }],
+      mountPoints      = [{ sourceVolume = "adot-tmp", containerPath = "/config", readOnly = false }],
+      healthCheck      = { command = ["CMD", "/healthcheck"], retries = 3, timeout = 5, interval = 30, startPeriod = 15 },
+      logConfiguration = { logDriver = "awslogs", options = local.adot_log_options },
+    },
+  ])
+  volume { name = "adot-tmp" }
   tags = local.common_tags
 }
 
@@ -531,35 +286,197 @@ resource "aws_ecs_service" "runner" {
   name                               = "${local.name_prefix}-runner"
   cluster                            = aws_ecs_cluster.this.id
   task_definition                    = aws_ecs_task_definition.runner.arn
-  desired_count                      = 1
+  desired_count                      = local.runner_is_large ? 2 : 1
+  launch_type                        = "FARGATE"
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
   enable_ecs_managed_tags            = true
   propagate_tags                     = "SERVICE"
   enable_execute_command             = false
-
   deployment_circuit_breaker {
     enable   = true
     rollback = true
   }
-
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.asg.name
-    weight            = 1
+  network_configuration {
+    subnets          = local.task_network_configuration.subnets
+    security_groups  = local.task_network_configuration.security_groups
+    assign_public_ip = local.task_network_configuration.assign_public_ip
   }
+  service_connect_configuration {
+    enabled = true
+    service {
+      port_name = "runner-api"
+      client_alias {
+        dns_name = "runner"
+        port     = 8081
+      }
+    }
+    service {
+      port_name = "portspec"
+      client_alias {
+        dns_name = "runner-portspec"
+        port     = 7070
+      }
+    }
+  }
+  lifecycle { ignore_changes = [task_definition] }
+  tags = local.common_tags
+}
 
+resource "aws_ecs_service" "proxy" {
+  name                               = "${local.name_prefix}-proxy"
+  cluster                            = aws_ecs_cluster.this.id
+  task_definition                    = aws_ecs_task_definition.proxy.arn
+  desired_count                      = 2
+  launch_type                        = "FARGATE"
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+  enable_ecs_managed_tags            = true
+  propagate_tags                     = "SERVICE"
+  enable_execute_command             = false
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+  network_configuration {
+    subnets          = local.task_network_configuration.subnets
+    security_groups  = local.task_network_configuration.security_groups
+    assign_public_ip = local.task_network_configuration.assign_public_ip
+  }
+  service_connect_configuration { enabled = true }
   load_balancer {
     target_group_arn = aws_lb_target_group.proxy.arn
     container_name   = "proxy"
-    container_port   = 443
+    container_port   = 8443
   }
-
-  depends_on = [
-    aws_ecs_cluster_capacity_providers.this,
-    aws_ssm_parameter.runner_config,
-    aws_ssm_parameter.redis_connection,
-    aws_lb_listener.proxy_tls,
-  ]
-
+  depends_on = [aws_ecs_service.runner, aws_lb_listener.proxy_tls]
+  lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
+}
+
+resource "aws_ecs_service" "adot" {
+  name                               = "${local.name_prefix}-adot"
+  cluster                            = aws_ecs_cluster.this.id
+  task_definition                    = aws_ecs_task_definition.adot.arn
+  desired_count                      = 1
+  launch_type                        = "FARGATE"
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
+  enable_ecs_managed_tags            = true
+  propagate_tags                     = "SERVICE"
+  enable_execute_command             = false
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+  network_configuration {
+    subnets          = local.task_network_configuration.subnets
+    security_groups  = local.task_network_configuration.security_groups
+    assign_public_ip = local.task_network_configuration.assign_public_ip
+  }
+  service_connect_configuration { enabled = true }
+  depends_on = [aws_ecs_service.runner, aws_ssm_parameter.adot_config]
+  lifecycle { ignore_changes = [task_definition] }
+  tags = local.common_tags
+}
+
+resource "aws_appautoscaling_target" "runner" {
+  max_capacity       = local.runner_is_large ? 16 : 8
+  min_capacity       = local.runner_is_large ? 2 : 1
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.runner.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_target" "proxy" {
+  max_capacity       = local.runner_is_large ? 16 : 8
+  min_capacity       = 2
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.proxy.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "runner_cpu" {
+  name               = "${local.name_prefix}-runner-cpu"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.runner.resource_id
+  scalable_dimension = aws_appautoscaling_target.runner.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.runner.service_namespace
+  target_tracking_scaling_policy_configuration {
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
+}
+
+resource "aws_appautoscaling_policy" "runner_memory" {
+  name               = "${local.name_prefix}-runner-memory"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.runner.resource_id
+  scalable_dimension = aws_appautoscaling_target.runner.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.runner.service_namespace
+  target_tracking_scaling_policy_configuration {
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+  }
+}
+
+resource "aws_appautoscaling_policy" "runner_queue_depth" {
+  name               = "${local.name_prefix}-runner-queue-depth"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.runner.resource_id
+  scalable_dimension = aws_appautoscaling_target.runner.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.runner.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    target_value       = 100
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 120
+    customized_metric_specification {
+      metric_name = "EnvironmentQueueDepth"
+      namespace   = "Ona/Runner"
+      statistic   = "Average"
+      dimensions {
+        name  = "RunnerID"
+        value = var.runner_id
+      }
+    }
+  }
+}
+
+resource "aws_appautoscaling_policy" "proxy_cpu" {
+  name               = "${local.name_prefix}-proxy-cpu"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.proxy.resource_id
+  scalable_dimension = aws_appautoscaling_target.proxy.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.proxy.service_namespace
+  target_tracking_scaling_policy_configuration {
+    target_value = 50
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
+}
+
+resource "aws_appautoscaling_policy" "proxy_memory" {
+  name               = "${local.name_prefix}-proxy-memory"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.proxy.resource_id
+  scalable_dimension = aws_appautoscaling_target.proxy.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.proxy.service_namespace
+  target_tracking_scaling_policy_configuration {
+    target_value       = 70
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+  }
 }

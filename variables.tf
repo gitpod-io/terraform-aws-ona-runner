@@ -102,12 +102,6 @@ variable "default_ami" {
   default     = ""
 }
 
-variable "bottlerocket_ami_id" {
-  description = "Optional Bottlerocket ECS AMI ID for runner ECS hosts. Leave empty to resolve the latest AWS-managed Bottlerocket AMI from SSM."
-  type        = string
-  default     = ""
-}
-
 variable "runner_image" {
   description = "Container image for the EC2 runner."
   type        = string
@@ -120,16 +114,22 @@ variable "proxy_image" {
   default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:__EC2_RUNNER_VERSION__"
 }
 
-variable "prometheus_image" {
-  description = "Container image for the Prometheus sidecar."
+variable "adot_image" {
+  description = "Container image for the AWS Distro for OpenTelemetry collector."
   type        = string
-  default     = "prom/prometheus:v3.2.1"
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
 }
 
-variable "node_exporter_image" {
-  description = "Container image for the node-exporter sidecar."
+variable "assign_public_ip" {
+  description = "Assign public IP addresses to the Fargate runner, proxy, and ADOT tasks. Use only when the runner subnets have internet-gateway egress."
+  type        = bool
+  default     = false
+}
+
+variable "permissions_boundary_arn" {
+  description = "Optional IAM permissions boundary applied to every runner-managed role. Set this to the enterprise boundary approved for the AWS account."
   type        = string
-  default     = "prom/node-exporter:v1.9.1"
+  default     = null
 }
 
 variable "development_version" {

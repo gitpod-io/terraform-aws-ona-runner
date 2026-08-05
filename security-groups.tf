@@ -69,6 +69,36 @@ resource "aws_security_group_rule" "ecs_portspec_self" {
   description       = "Allow proxy to reach runner port spec endpoint"
 }
 
+resource "aws_security_group_rule" "ecs_runner_api_self" {
+  type              = "ingress"
+  security_group_id = aws_security_group.ecs.id
+  self              = true
+  protocol          = "tcp"
+  from_port         = 8081
+  to_port           = 8081
+  description       = "Allow Service Connect traffic to runner API"
+}
+
+resource "aws_security_group_rule" "ecs_runner_metrics_self" {
+  type              = "ingress"
+  security_group_id = aws_security_group.ecs.id
+  self              = true
+  protocol          = "tcp"
+  from_port         = 9090
+  to_port           = 9090
+  description       = "Allow ADOT to scrape runner metrics"
+}
+
+resource "aws_security_group_rule" "ecs_proxy_metrics_self" {
+  type              = "ingress"
+  security_group_id = aws_security_group.ecs.id
+  self              = true
+  protocol          = "tcp"
+  from_port         = 9094
+  to_port           = 9094
+  description       = "Allow ADOT to scrape proxy metrics"
+}
+
 resource "aws_security_group" "environment" {
   name_prefix = "${local.name_prefix}-env-"
   description = "Default security group for Ona environment instances"
