@@ -60,8 +60,16 @@ locals {
 
   runner_token_secret_name = "${data.aws_region.current.name}-${var.runner_id}-runner-token"
   runner_token_secret_arn  = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${local.runner_token_secret_name}-??????"
-  redis_parameter_name     = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
-  runner_config_key        = "/gitpod/runner/${var.runner_id}"
+
+  # Legacy name-based runner token secret. The daemon is launched with
+  # --old-runner-token-secret pointing here (see ecs.tf) and reads it on startup
+  # to migrate the token to the new runner_id-based secret. The CloudFormation
+  # deployment grants the task role access to this ARN (see EcsRoles in
+  # runner/ec2/deploy/pkg/ecs/ecs.go, "kept so the daemon retains access during
+  # rollback or partial migration"); this keeps the Terraform module at parity.
+  old_runner_token_secret_arn = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${data.aws_region.current.name}-${local.name_prefix}-runner-token-??????"
+  redis_parameter_name        = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
+  runner_config_key           = "/gitpod/runner/${var.runner_id}"
 
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",

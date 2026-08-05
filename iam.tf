@@ -78,6 +78,22 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
+    # The daemon migrates the runner token from the legacy name-based secret to
+    # the runner_id-based secret on startup (--old-runner-token-secret in
+    # ecs.tf): it reads the old secret and, after copying, deletes it. Without
+    # this grant a fresh runner whose name contains neither "gitpod" nor "ona"
+    # (so it matches no wildcard in EnvironmentSecrets below) gets
+    # AccessDeniedException on the read and crash-loops. CloudFormation grants
+    # the task role access to this ARN for the same reason.
+    sid = "MigrateLegacyRunnerToken"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DeleteSecret",
+    ]
+    resources = [local.old_runner_token_secret_arn]
+  }
+
+  statement {
     sid = "DynamoResourcesTable"
     actions = [
       "dynamodb:DescribeTable",
