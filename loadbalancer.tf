@@ -13,17 +13,17 @@ resource "aws_lb" "proxy" {
 
 resource "aws_lb_target_group" "proxy" {
   name                 = "${local.target_group_name_prefix}-proxy"
-  port                 = 443
+  port                 = 8443
   protocol             = "TLS"
-  target_type          = "instance"
+  target_type          = "ip"
   vpc_id               = var.vpc_id
   deregistration_delay = 120
   preserve_client_ip   = true
 
   health_check {
     enabled             = true
-    protocol            = "HTTPS"
-    port                = "traffic-port"
+    protocol            = "HTTP"
+    port                = "5000"
     path                = "/_health"
     healthy_threshold   = 5
     unhealthy_threshold = 2

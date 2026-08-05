@@ -89,13 +89,23 @@ output "ecs_cluster_name" {
 }
 
 output "ecs_service_name" {
-  description = "ECS service name for the runner task."
+  description = "ECS service name for the Fargate runner task."
   value       = aws_ecs_service.runner.name
 }
 
-output "ecs_auto_scaling_group_name" {
-  description = "Auto Scaling Group name for ECS instances."
-  value       = aws_autoscaling_group.ecs.name
+output "proxy_ecs_service_name" {
+  description = "ECS service name for the Fargate proxy task."
+  value       = aws_ecs_service.proxy.name
+}
+
+output "adot_ecs_service_name" {
+  description = "ECS service name for the Fargate telemetry task."
+  value       = aws_ecs_service.adot.name
+}
+
+output "release_version" {
+  description = "Runner template build version installed by this module."
+  value       = var.runner_template_build_version
 }
 
 output "ssh_port" {

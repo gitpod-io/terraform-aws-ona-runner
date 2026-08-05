@@ -1,7 +1,44 @@
-resource "random_password" "cache" {
+resource "random_password" "memorydb_cache" {
+  count            = var.cache_engine == "MemoryDB" ? 1 : 0
   length           = 32
   special          = true
   override_special = "_"
+}
+
+resource "aws_secretsmanager_secret" "memorydb_cache" {
+  count       = var.cache_engine == "MemoryDB" ? 1 : 0
+  name_prefix = "${local.name_prefix}-memorydb-password-"
+  description = "Password for the MemoryDB AI execution user"
+  tags        = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "memorydb_cache" {
+  count         = var.cache_engine == "MemoryDB" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.memorydb_cache[0].id
+  secret_string = random_password.memorydb_cache[0].result
+}
+
+resource "random_password" "elasticache_cache" {
+  count            = var.cache_engine == "ElastiCache" ? 1 : 0
+  length           = 32
+  special          = true
+  override_special = "_"
+}
+
+resource "aws_secretsmanager_secret" "elasticache_cache" {
+  count       = var.cache_engine == "ElastiCache" ? 1 : 0
+  name_prefix = "${local.name_prefix}-redis-credentials-"
+  description = "Credentials for the ElastiCache AI execution user"
+  tags        = local.common_tags
+}
+
+resource "aws_secretsmanager_secret_version" "elasticache_cache" {
+  count     = var.cache_engine == "ElastiCache" ? 1 : 0
+  secret_id = aws_secretsmanager_secret.elasticache_cache[0].id
+  secret_string = jsonencode({
+    username = "default"
+    password = random_password.elasticache_cache[0].result
+  })
 }
 
 resource "aws_security_group" "memorydb" {
@@ -44,7 +81,7 @@ resource "aws_memorydb_user" "this" {
 
   authentication_mode {
     type      = "password"
-    passwords = [random_password.cache.result]
+    passwords = [aws_secretsmanager_secret_version.memorydb_cache[0].secret_string]
   }
 
   tags = local.common_tags
@@ -122,14 +159,23 @@ resource "aws_elasticache_cluster" "this" {
   tags                       = local.common_tags
 }
 
+resource "aws_elasticache_user" "this" {
+  count         = var.cache_engine == "ElastiCache" ? 1 : 0
+  user_id       = "ecu-${var.runner_id}"
+  user_name     = "default"
+  engine        = "REDIS"
+  access_string = "on ~* +@all"
+  passwords     = [random_password.elasticache_cache[0].result]
+}
+
 locals {
-  cache_connection_string = var.cache_engine == "MemoryDB" ? "redis://${aws_memorydb_user.this[0].user_name}:${random_password.cache.result}@${aws_memorydb_cluster.this[0].cluster_endpoint[0].address}:6379/0" : "redis://default:${random_password.cache.result}@${aws_elasticache_cluster.this[0].cache_nodes[0].address}:${aws_elasticache_cluster.this[0].cache_nodes[0].port}/0"
+  cache_connection_string = var.cache_engine == "MemoryDB" ? "redis://${aws_memorydb_user.this[0].user_name}:${aws_secretsmanager_secret_version.memorydb_cache[0].secret_string}@${aws_memorydb_cluster.this[0].cluster_endpoint[0].address}:6379/0" : "redis://default:${random_password.elasticache_cache[0].result}@${aws_elasticache_cluster.this[0].cache_nodes[0].address}:${aws_elasticache_cluster.this[0].cache_nodes[0].port}/0"
 }
 
 resource "aws_ssm_parameter" "redis_connection" {
   name        = local.redis_parameter_name
   description = "Cache connection string for AI feature"
-  type        = "SecureString"
+  type        = "String"
   value       = local.cache_connection_string
   tags        = local.common_tags
 }

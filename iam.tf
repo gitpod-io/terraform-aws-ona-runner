@@ -9,6 +9,23 @@ data "aws_iam_policy_document" "ecs_assume_role" {
   }
 }
 
+data "aws_iam_policy_document" "fargate_task_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
+    }
+  }
+}
+
 data "aws_iam_policy_document" "ec2_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -38,21 +55,21 @@ resource "aws_iam_role_policy" "ecs_execution" {
 
 data "aws_iam_policy_document" "ecs_execution" {
   statement {
-    sid       = "PrometheusMetricsSecret"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.metrics_config.arn]
-  }
-
-  statement {
     sid       = "PullThroughCache"
     actions   = ["ecr:BatchImportUpstreamImage"]
     resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadADOTConfig"
+    actions   = ["ssm:GetParameter", "ssm:GetParameters"]
+    resources = [aws_ssm_parameter.adot_config.arn]
   }
 }
 
 resource "aws_iam_role" "ecs_task" {
   name_prefix        = "${local.iam_role_name_prefix}-ecs-task-"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json
+  assume_role_policy = data.aws_iam_policy_document.fargate_task_assume_role.json
   tags               = local.common_tags
 }
 
@@ -340,26 +357,67 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 }
 
-resource "aws_iam_role" "ecs_instance" {
-  name_prefix        = "${local.iam_role_name_prefix}-ecs-instance-"
-  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+resource "aws_iam_role" "proxy" {
+  name_prefix        = "${local.iam_role_name_prefix}-proxy-"
+  assume_role_policy = data.aws_iam_policy_document.fargate_task_assume_role.json
   tags               = local.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_instance_ecs" {
-  role       = aws_iam_role.ecs_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+resource "aws_iam_role_policy" "proxy" {
+  role   = aws_iam_role.proxy.id
+  policy = data.aws_iam_policy_document.proxy.json
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_instance_ssm" {
-  role       = aws_iam_role.ecs_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+data "aws_iam_policy_document" "proxy" {
+  statement {
+    sid       = "DescribeInstances"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadCABundles"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::gitpod-*/*"]
+  }
 }
 
-resource "aws_iam_instance_profile" "ecs" {
-  name_prefix = "${local.name_prefix}-ecs-"
-  role        = aws_iam_role.ecs_instance.name
-  tags        = local.common_tags
+resource "aws_iam_role" "adot" {
+  name_prefix        = "${local.iam_role_name_prefix}-adot-"
+  assume_role_policy = data.aws_iam_policy_document.fargate_task_assume_role.json
+  tags               = local.common_tags
+}
+
+resource "aws_iam_role_policy" "adot" {
+  role   = aws_iam_role.adot.id
+  policy = data.aws_iam_policy_document.adot.json
+}
+
+data "aws_iam_policy_document" "adot" {
+  statement {
+    sid = "DiscoverECSTargets"
+    actions = [
+      "ecs:ListTasks",
+      "ecs:ListServices",
+      "ecs:DescribeTasks",
+      "ecs:DescribeTaskDefinition",
+      "ecs:DescribeServices",
+      "ecs:DescribeContainerInstances",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadCABundles"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::gitpod-*/*"]
+  }
+
+  statement {
+    sid       = "WriteMetricsAudit"
+    actions   = ["s3:PutObject", "s3:GetBucketLocation"]
+    resources = [aws_s3_bucket.logs.arn, "${aws_s3_bucket.logs.arn}/metrics/runner/*"]
+  }
 }
 
 resource "aws_iam_role" "environment" {
