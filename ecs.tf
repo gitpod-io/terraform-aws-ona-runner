@@ -117,6 +117,51 @@ locals {
   ca_mount      = [{ sourceVolume = "ca-certificates", containerPath = "/etc/ssl/certs", readOnly = true }]
   ca_dependency = [{ containerName = "init-container", condition = "SUCCESS" }]
 
+  adot_container = {
+    name                   = "aws-otel-collector"
+    image                  = var.adot_image
+    essential              = true
+    user                   = "0"
+    readonlyRootFilesystem = true
+    secrets                = [{ name = "AOT_CONFIG_CONTENT", valueFrom = aws_ssm_parameter.adot_config.arn }]
+    mountPoints            = concat([{ sourceVolume = "adot-tmp", containerPath = "/config", readOnly = false }], local.ca_mount, [{ sourceVolume = "audit", containerPath = "/audit", readOnly = false }])
+    dependsOn              = local.ca_dependency
+    environment = [for item in local.proxy_env : {
+      name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
+    }]
+    healthCheck = { command = ["CMD", "/healthcheck"], retries = 3, timeout = 5, interval = 30, startPeriod = 15 }
+  }
+
+  metrics_audit_sync_container = {
+    name                   = "metrics-audit-sync"
+    image                  = var.metrics_audit_sync_image
+    essential              = false
+    memoryReservation      = 64
+    readonlyRootFilesystem = true
+    entryPoint             = ["/bin/sh", "-c"]
+    command = [<<-EOT
+      while true; do
+        for f in /audit/metrics-*.json; do
+          [ -f "$$f" ] || continue
+          key="metrics/runner/$${RUNNER_ID}/$$(date -u +%Y/%m/%d)/$$(basename "$$f")"
+          if aws s3 cp "$$f" "s3://$${AUDIT_BUCKET}/$${key}" --quiet; then
+            rm -f "$$f"
+          fi
+        done
+        sleep 60
+      done
+    EOT
+    ]
+    mountPoints = [
+      { sourceVolume = "audit", containerPath = "/audit", readOnly = false },
+      { sourceVolume = "audit-tmp", containerPath = "/tmp", readOnly = false },
+    ]
+    environment = [
+      { name = "AUDIT_BUCKET", value = aws_s3_bucket.logs.bucket },
+      { name = "RUNNER_ID", value = var.runner_id },
+    ]
+  }
+
   runner_container = {
     name                   = "ec2-runner"
     image                  = var.runner_image
@@ -271,15 +316,15 @@ resource "aws_ecs_task_definition" "adot" {
   execution_role_arn       = aws_iam_role.ecs_execution.arn
   task_role_arn            = aws_iam_role.adot.arn
   container_definitions = jsonencode([
-    {
-      name             = "aws-otel-collector", image = var.adot_image, essential = true, user = "0", readonlyRootFilesystem = true,
-      secrets          = [{ name = "AOT_CONFIG_CONTENT", valueFrom = aws_ssm_parameter.adot_config.arn }],
-      mountPoints      = [{ sourceVolume = "adot-tmp", containerPath = "/config", readOnly = false }],
-      healthCheck      = { command = ["CMD", "/healthcheck"], retries = 3, timeout = 5, interval = 30, startPeriod = 15 },
-      logConfiguration = { logDriver = "awslogs", options = local.adot_log_options },
-    },
+    merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.adot_log_options } }),
+    merge(local.adot_container, { logConfiguration = { logDriver = "awslogs", options = local.adot_log_options } }),
+    merge(local.metrics_audit_sync_container, { logConfiguration = { logDriver = "awslogs", options = merge(local.adot_log_options, { awslogs-stream-prefix = "metrics-audit-sync" }) } }),
   ])
   volume { name = "adot-tmp" }
+  dynamic "volume" {
+    for_each = concat(local.ca_volumes, [{ name = "audit" }, { name = "audit-tmp" }])
+    content { name = volume.value.name }
+  }
   tags = local.common_tags
 }
 
@@ -386,8 +431,7 @@ resource "aws_ecs_service" "adot" {
   }
   service_connect_configuration { enabled = true }
   depends_on = [aws_ecs_service.runner, aws_ssm_parameter.adot_config]
-  lifecycle { ignore_changes = [task_definition] }
-  tags = local.common_tags
+  tags       = local.common_tags
 }
 
 resource "aws_appautoscaling_target" "runner" {
