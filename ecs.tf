@@ -138,6 +138,7 @@ locals {
     environment = concat([
       { name = "AWS_REGION", value = data.aws_region.current.name },
       { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "__GITPOD_PRIVATE_ECR_PREFIX__" },
+      { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
       { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
@@ -319,6 +320,10 @@ resource "aws_ecs_service" "runner" {
       }
     }
   }
+  depends_on = [
+    aws_ssm_parameter.runner_config,
+    aws_ssm_parameter.redis_connection,
+  ]
   lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
@@ -349,7 +354,12 @@ resource "aws_ecs_service" "proxy" {
     container_name   = "proxy"
     container_port   = 8443
   }
-  depends_on = [aws_ecs_service.runner, aws_lb_listener.proxy_tls]
+  depends_on = [
+    aws_ecs_service.runner,
+    aws_lb_listener.proxy_tls,
+    aws_ssm_parameter.runner_config,
+    aws_ssm_parameter.redis_connection,
+  ]
   lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
