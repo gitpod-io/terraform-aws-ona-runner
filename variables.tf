@@ -103,15 +103,33 @@ variable "default_ami" {
 }
 
 variable "runner_image" {
-  description = "Container image for the EC2 runner."
+  description = "Tested container image for the runner. Obtain it from the runner release manifest."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+
+  validation {
+    condition     = trimspace(var.runner_image) != "" && !strcontains(var.runner_image, "__")
+    error_message = "runner_image must be a tested, resolved image reference without placeholder tokens."
+  }
 }
 
 variable "proxy_image" {
-  description = "Container image for the runner proxy."
+  description = "Tested container image for the runner proxy. Obtain it from the same runner release manifest as runner_image."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:__EC2_RUNNER_VERSION__"
+
+  validation {
+    condition     = trimspace(var.proxy_image) != "" && !strcontains(var.proxy_image, "__")
+    error_message = "proxy_image must be a tested, resolved image reference without placeholder tokens."
+  }
+}
+
+variable "private_ecr_prefix" {
+  description = "Private ECR registry prefix from the runner release manifest."
+  type        = string
+
+  validation {
+    condition     = trimspace(var.private_ecr_prefix) != "" && !strcontains(var.private_ecr_prefix, "__")
+    error_message = "private_ecr_prefix must be a resolved registry prefix without placeholder tokens."
+  }
 }
 
 variable "adot_image" {
@@ -139,9 +157,13 @@ variable "development_version" {
 }
 
 variable "runner_template_build_version" {
-  description = "Runner template build version recorded in the runner SSM config. Release automation should set this to the EC2 runner release version."
+  description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
-  default     = "__EC2_RUNNER_VERSION__"
+
+  validation {
+    condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")
+    error_message = "runner_template_build_version must be a resolved release version without placeholder tokens."
+  }
 }
 
 variable "proxy_config" {

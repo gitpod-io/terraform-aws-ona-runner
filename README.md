@@ -15,6 +15,15 @@ private-ECR installation path.
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 
+### Release compatibility inputs
+
+The module requires a tested runner release tuple: `runner_image`,
+`proxy_image`, `private_ecr_prefix`, and `runner_template_build_version`. Obtain
+all four values from the same runner release manifest. The CloudFormation
+release process resolves these values while packaging a template; Terraform
+release automation has not yet been published, so the module intentionally does
+not provide unsafe placeholder defaults.
+
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
 Terraform to own runner custom-domain DNS resources.
