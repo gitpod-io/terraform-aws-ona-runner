@@ -1,10 +1,6 @@
 resource "aws_s3_bucket" "container_registry" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-registry-"
   tags          = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "container_registry" {
@@ -49,10 +45,6 @@ resource "aws_s3_bucket_policy" "container_registry" {
 resource "aws_s3_bucket" "logs" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-logs-"
   tags          = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
@@ -97,10 +89,6 @@ resource "aws_s3_bucket_policy" "logs" {
 resource "aws_s3_bucket" "agent" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-agent-"
   tags          = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "agent" {

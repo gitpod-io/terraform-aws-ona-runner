@@ -44,3 +44,9 @@ The module implements the supported Fargate runner infrastructure path:
 
 See [AWS Runner CloudFormation Parity](./docs/parity.md) for the current parity
 map and first-release migration notes.
+
+## Destroy
+
+`terraform destroy` removes the module\'s log groups and empty S3 buckets.
+Empty the cache, logs, and agent buckets first when they contain objects; this
+module does not force-delete customer data.
