@@ -67,6 +67,11 @@ reject_unsupported_input 'disable_resource_policies'
 reject_unsupported_input 'disable_s3_tls_enforcement'
 reject_unsupported_input 'permissions_boundary_arn'
 
+if grep -Fq -- 'ignore_changes = [task_definition]' ecs.tf; then
+  echo "ECS service task definitions must remain Terraform-managed to match CloudFormation updates" >&2
+  exit 1
+fi
+
 if grep -Fq -- '"defaultAMI"' locals.tf; then
   echo "Unsupported CloudFormation configuration field: defaultAMI" >&2
   exit 1

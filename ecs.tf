@@ -386,7 +386,6 @@ resource "aws_ecs_service" "runner" {
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
-  lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
 
@@ -434,7 +433,6 @@ resource "aws_ecs_service" "proxy" {
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
-  lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
 
