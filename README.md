@@ -8,9 +8,6 @@ This module manages native AWS resources directly. It does not wrap the
 CloudFormation runner stack, and follows its single supported Fargate
 private-ECR installation path.
 
-Use Terraform 1.15 or later. The module ships Terraform tests that use the
-provider-mocking features introduced in that release line.
-
 > AWS Runners require an Enterprise plan.
 
 ## Example
@@ -18,20 +15,19 @@ provider-mocking features introduced in that release line.
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 
-## Release compatibility inputs
+## Release compatibility
 
-The module requires a tested runner release tuple: `runner_image`,
-`proxy_image`, and `runner_template_build_version`. Obtain all three values
-from the same runner release manifest. The CloudFormation
-release process resolves these values while packaging a template; Terraform
-release automation has not yet been published, so the module intentionally does
-not provide unsafe placeholder defaults.
+The module pins `runner_image`, `proxy_image`, and
+`runner_template_build_version` to one tested stable runner release, matching
+the release pinning used by the GCP Terraform module. Override all three values
+together when selecting another published runner release manifest; the module
+rejects image tags that do not match the configured build version.
 
 | Input | Purpose |
 | --- | --- |
 | `runner_image` | Tested EC2 runner image from the release manifest. |
 | `proxy_image` | Tested runner proxy image from that same manifest. |
-| `runner_template_build_version` | Version written to the runner configuration. |
+| `runner_template_build_version` | Matching version written to the runner configuration. |
 
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify

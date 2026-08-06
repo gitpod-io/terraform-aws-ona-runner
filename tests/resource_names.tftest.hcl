@@ -21,16 +21,13 @@ mock_provider "aws" {
 mock_provider "random" {}
 
 variables {
-  runner_id                     = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
-  runner_token                  = "test-token"
-  runner_image                  = "public.ecr.aws/ona/gitpod-ec2-runner:v2026.08.0"
-  proxy_image                   = "public.ecr.aws/ona/gitpod-proxy:v2026.08.0"
-  runner_template_build_version = "v2026.08.0"
-  runner_domain                 = "runner.example.com"
-  certificate_arn               = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-  vpc_id                        = "vpc-00000000000000000"
-  runner_subnet_ids             = ["subnet-00000000000000000"]
-  load_balancer_subnet_ids      = ["subnet-00000000000000000"]
+  runner_id                = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_token             = "test-token"
+  runner_domain            = "runner.example.com"
+  certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+  vpc_id                   = "vpc-00000000000000000"
+  runner_subnet_ids        = ["subnet-00000000000000000"]
+  load_balancer_subnet_ids = ["subnet-00000000000000000"]
 }
 
 run "runner_image_rejects_placeholder" {
@@ -61,6 +58,16 @@ run "runner_template_build_version_rejects_placeholder" {
   }
 
   expect_failures = [var.runner_template_build_version]
+}
+
+run "release_images_must_match_build_version" {
+  command = plan
+
+  variables {
+    proxy_image = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260806.660"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
 }
 
 run "runner_id_hash_distinguishes_same_timestamp_prefix" {

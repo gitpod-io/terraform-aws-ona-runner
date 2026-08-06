@@ -19,6 +19,13 @@ resource "aws_cloudwatch_log_group" "adot" {
 resource "aws_ecs_cluster" "this" {
   name = "${local.name_prefix}-ona-cluster"
 
+  lifecycle {
+    precondition {
+      condition     = local.release_inputs_are_consistent
+      error_message = "runner_image and proxy_image must use the runner_template_build_version tag from the same release manifest."
+    }
+  }
+
   setting {
     name  = "containerInsights"
     value = "enabled"

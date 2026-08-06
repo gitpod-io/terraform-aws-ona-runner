@@ -51,6 +51,8 @@ locals {
   redis_parameter_name = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
   runner_config_key    = "/gitpod/runner/${var.runner_id}"
 
+  release_inputs_are_consistent = endswith(var.runner_image, ":${var.runner_template_build_version}") && endswith(var.proxy_image, ":${var.runner_template_build_version}")
+
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",
     try(var.proxy_config.https_proxy, "") == "" ? "" : "https_proxy=${var.proxy_config.https_proxy}",

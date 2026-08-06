@@ -121,6 +121,7 @@ variable "default_ami" {
 variable "runner_image" {
   description = "Tested container image for the runner. Obtain it from the runner release manifest."
   type        = string
+  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:20260805.559"
 
   validation {
     condition     = trimspace(var.runner_image) != "" && !strcontains(var.runner_image, "__")
@@ -131,6 +132,7 @@ variable "runner_image" {
 variable "proxy_image" {
   description = "Tested container image for the runner proxy. Obtain it from the same runner release manifest as runner_image."
   type        = string
+  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260805.559"
 
   validation {
     condition     = trimspace(var.proxy_image) != "" && !strcontains(var.proxy_image, "__")
@@ -171,6 +173,7 @@ variable "development_version" {
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
+  default     = "20260805.559"
 
   validation {
     condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")
