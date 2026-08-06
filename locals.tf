@@ -60,6 +60,11 @@ locals {
   )
   release_inputs_are_consistent = endswith(local.release_runner_image, ":${var.runner_template_build_version}") && endswith(local.release_proxy_image, ":${var.runner_template_build_version}")
 
+  # CloudFormation private-ECR templates replace the runner image with this
+  # prefix. Derive it from that existing release input so private-ECR users do
+  # not need a Terraform-only configuration value for runner updates.
+  private_ecr_prefix = can(regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)) ? regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)[0] : ""
+
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",
     try(var.proxy_config.https_proxy, "") == "" ? "" : "https_proxy=${var.proxy_config.https_proxy}",

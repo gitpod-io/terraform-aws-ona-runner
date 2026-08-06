@@ -37,8 +37,8 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   command = plan
 
   assert {
-    condition     = aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0
-    error_message = "the default deployment must use an internal Network Load Balancer and MemoryDB."
+    condition     = aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0 && local.private_ecr_prefix == ""
+    error_message = "the default deployment must use an internal Network Load Balancer, MemoryDB, and public image updates."
   }
 
   assert {
@@ -104,5 +104,19 @@ run "proxy_and_custom_ca_configuration_reaches_task_contract" {
   assert {
     condition     = one([for item in local.ca_init_container.environment : item if item.name == "GITPOD_CUSTOM_CA_BUNDLE"]).value == "https://example.com/runner-ca.pem"
     error_message = "the custom CA input must be passed to the runner CA initialization container."
+  }
+}
+
+run "private_ecr_release_image_derives_runner_update_prefix" {
+  command = plan
+
+  variables {
+    runner_image = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-ec2-runner:v2026.08.0"
+    proxy_image  = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-proxy:v2026.08.0"
+  }
+
+  assert {
+    condition     = local.private_ecr_prefix == "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr"
+    error_message = "private-ECR runner images must preserve the CloudFormation update prefix."
   }
 }

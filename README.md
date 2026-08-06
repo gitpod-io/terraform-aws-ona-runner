@@ -27,6 +27,12 @@ derives the standard runner and proxy images from that version.
 | `runner_image` | Optional custom image with a tag matching the release version. |
 | `proxy_image` | Optional custom proxy image with a tag matching the release version. |
 
+For the CloudFormation private-ECR release template, supply its private release
+image references for `runner_image`, `proxy_image`, `adot_image`, and
+`metrics_audit_sync_image`. The module derives the runner update prefix from
+the existing private runner image; it does not introduce a separate
+private-registry input.
+
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify
 it against the release manifest before an upgrade.
