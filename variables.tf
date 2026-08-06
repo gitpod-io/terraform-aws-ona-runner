@@ -140,18 +140,6 @@ variable "proxy_image" {
   }
 }
 
-variable "adot_image" {
-  description = "Container image for the AWS Distro for OpenTelemetry collector."
-  type        = string
-  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
-}
-
-variable "metrics_audit_sync_image" {
-  description = "Container image for the metrics audit S3 sync sidecar."
-  type        = string
-  default     = "public.ecr.aws/aws-cli/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7"
-}
-
 variable "assign_public_ip" {
   description = "Assign public IP addresses to the Fargate runner, proxy, and ADOT tasks. Use only when the runner subnets have internet-gateway egress."
   type        = bool

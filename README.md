@@ -27,6 +27,12 @@ derives the standard runner and proxy images from that version.
 | `runner_image` | Optional custom image with a tag matching the release version. |
 | `proxy_image` | Optional custom proxy image with a tag matching the release version. |
 
+The published manifest contains public ECR image references. To match the
+CloudFormation private-ECR template, the module maps those references into the
+release's regional private ECR mirror, including the mirrored telemetry and
+metrics-audit sidecars. Custom private image references remain supported when
+both runner images use the same `gitpod/ecr` prefix.
+
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify
 it against the release manifest before an upgrade.

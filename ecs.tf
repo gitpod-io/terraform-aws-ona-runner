@@ -24,6 +24,11 @@ resource "aws_ecs_cluster" "this" {
       condition     = local.release_inputs_are_consistent
       error_message = "runner_image and proxy_image must use the runner_template_build_version tag from the same release manifest."
     }
+
+    precondition {
+      condition     = local.private_ecr_images_are_consistent
+      error_message = "runner_image and proxy_image must either both be public or use the same private ECR prefix, matching the CloudFormation private-ECR template."
+    }
   }
 
   setting {
@@ -95,7 +100,7 @@ locals {
 
   ca_init_container = {
     name                   = "init-container"
-    image                  = local.release_runner_image
+    image                  = local.runner_image
     essential              = false
     memoryReservation      = 64
     readonlyRootFilesystem = true
@@ -114,7 +119,7 @@ locals {
 
   adot_container = {
     name                   = "aws-otel-collector"
-    image                  = var.adot_image
+    image                  = local.adot_image
     essential              = true
     user                   = "0"
     readonlyRootFilesystem = true
@@ -129,7 +134,7 @@ locals {
 
   metrics_audit_sync_container = {
     name                   = "metrics-audit-sync"
-    image                  = var.metrics_audit_sync_image
+    image                  = local.metrics_audit_sync_image
     essential              = false
     memoryReservation      = 64
     readonlyRootFilesystem = true
@@ -163,7 +168,7 @@ locals {
 
   runner_container = {
     name                   = "ec2-runner"
-    image                  = local.release_runner_image
+    image                  = local.runner_image
     essential              = true
     memoryReservation      = local.runner_is_large ? 14336 : 128
     readonlyRootFilesystem = true
@@ -180,7 +185,7 @@ locals {
     ]
     environment = concat([
       { name = "AWS_REGION", value = data.aws_region.current.name },
-      { name = "GITPOD_PRIVATE_ECR_PREFIX", value = "" },
+      { name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix },
       { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
@@ -204,7 +209,7 @@ locals {
 
   proxy_container = {
     name                   = "proxy"
-    image                  = local.release_proxy_image
+    image                  = local.proxy_image
     essential              = true
     memoryReservation      = 128
     readonlyRootFilesystem = true

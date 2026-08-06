@@ -73,7 +73,7 @@ run "release_images_must_match_build_version" {
   command = plan
 
   variables {
-    proxy_image = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260806.660"
+    proxy_image = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:mismatched-version"
   }
 
   expect_failures = [aws_ecs_cluster.this]

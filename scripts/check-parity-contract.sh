@@ -28,7 +28,10 @@ require_pattern 'resource "aws_ecs_service" "proxy"' ecs.tf
 require_pattern 'resource "aws_ecs_service" "adot"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "runner"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "proxy"' ecs.tf
-require_pattern '{ name = "GITPOD_PRIVATE_ECR_PREFIX", value = "" }' ecs.tf
+require_pattern '{ name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix }' ecs.tf
+require_pattern 'private_ecr_prefix' locals.tf
+require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3' locals.tf
+require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7' locals.tf
 require_pattern 'target_type          = "ip"' loadbalancer.tf
 require_pattern '\"runnerTemplateBuildVersion\":' locals.tf
 

@@ -60,6 +60,30 @@ locals {
   )
   release_inputs_are_consistent = endswith(local.release_runner_image, ":${var.runner_template_build_version}") && endswith(local.release_proxy_image, ":${var.runner_template_build_version}")
 
+  # Keep these paths aligned with the private-ECR template renderer in
+  # gitpod-next/dev/ci-jobs/tasks/ec2-runner/releasebundle.
+  release_private_ecr_prefix = "025066274397.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/gitpod/ecr"
+  runner_image = startswith(local.release_runner_image, "${local.release_public_ecr_prefix}/") ? (
+    "${local.release_private_ecr_prefix}/${trimprefix(local.release_runner_image, "public.ecr.aws/")}"
+  ) : local.release_runner_image
+  proxy_image = startswith(local.release_proxy_image, "${local.release_public_ecr_prefix}/") ? (
+    "${local.release_private_ecr_prefix}/${trimprefix(local.release_proxy_image, "public.ecr.aws/")}"
+  ) : local.release_proxy_image
+
+  private_ecr_prefix_pattern = "^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/"
+  runner_private_ecr_prefix  = can(regex(local.private_ecr_prefix_pattern, local.runner_image)) ? regex(local.private_ecr_prefix_pattern, local.runner_image)[0] : ""
+  proxy_private_ecr_prefix   = can(regex(local.private_ecr_prefix_pattern, local.proxy_image)) ? regex(local.private_ecr_prefix_pattern, local.proxy_image)[0] : ""
+  private_ecr_prefix         = local.runner_private_ecr_prefix
+  private_ecr_images_are_consistent = (
+    local.runner_private_ecr_prefix == local.proxy_private_ecr_prefix
+  )
+  adot_image = local.private_ecr_prefix == "" ? (
+    "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
+  ) : "${local.private_ecr_prefix}/k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3"
+  metrics_audit_sync_image = local.private_ecr_prefix == "" ? (
+    "public.ecr.aws/aws-cli/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7"
+  ) : "${local.private_ecr_prefix}/k5t9d3j5/application/gitpod-next/external/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7"
+
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",
     try(var.proxy_config.https_proxy, "") == "" ? "" : "https_proxy=${var.proxy_config.https_proxy}",
