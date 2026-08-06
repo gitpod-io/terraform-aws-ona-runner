@@ -17,21 +17,22 @@ how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 
 ## Release compatibility
 
-The module pins `runner_image`, `proxy_image`, and
-`runner_template_build_version` to one tested stable runner release, matching
-the release pinning used by the GCP Terraform module. Override all three values
-together when selecting another published runner release manifest; the module
-rejects image tags that do not match the configured build version.
+The module pins `runner_template_build_version` to one tested stable runner
+release, matching the release pinning used by the GCP Terraform module. It
+derives the standard runner and proxy images from that version.
 
 | Input | Purpose |
 | --- | --- |
-| `runner_image` | Tested EC2 runner image from the release manifest. |
-| `proxy_image` | Tested runner proxy image from that same manifest. |
-| `runner_template_build_version` | Matching version written to the runner configuration. |
+| `runner_template_build_version` | Stable release used for the standard images and runner configuration. |
+| `runner_image` | Optional custom image with a tag matching the release version. |
+| `proxy_image` | Optional custom proxy image with a tag matching the release version. |
 
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify
 it against the release manifest before an upgrade.
+
+The scheduled release workflow checks the published stable manifest and opens
+an update pull request when a new stable runner version is available.
 
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want

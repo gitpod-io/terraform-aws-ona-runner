@@ -119,24 +119,24 @@ variable "default_ami" {
 }
 
 variable "runner_image" {
-  description = "Tested container image for the runner. Obtain it from the runner release manifest."
+  description = "Optional custom runner image. Leave empty to use the image derived from runner_template_build_version."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:20260805.559"
+  default     = ""
 
   validation {
-    condition     = trimspace(var.runner_image) != "" && !strcontains(var.runner_image, "__")
-    error_message = "runner_image must be a tested, resolved image reference without placeholder tokens."
+    condition     = !strcontains(var.runner_image, "__")
+    error_message = "runner_image must not contain placeholder tokens."
   }
 }
 
 variable "proxy_image" {
-  description = "Tested container image for the runner proxy. Obtain it from the same runner release manifest as runner_image."
+  description = "Optional custom runner proxy image. Leave empty to use the image derived from runner_template_build_version."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260805.559"
+  default     = ""
 
   validation {
-    condition     = trimspace(var.proxy_image) != "" && !strcontains(var.proxy_image, "__")
-    error_message = "proxy_image must be a tested, resolved image reference without placeholder tokens."
+    condition     = !strcontains(var.proxy_image, "__")
+    error_message = "proxy_image must not contain placeholder tokens."
   }
 }
 

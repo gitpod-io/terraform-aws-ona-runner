@@ -95,7 +95,7 @@ locals {
 
   ca_init_container = {
     name                   = "init-container"
-    image                  = var.runner_image
+    image                  = local.release_runner_image
     essential              = false
     memoryReservation      = 64
     readonlyRootFilesystem = true
@@ -163,7 +163,7 @@ locals {
 
   runner_container = {
     name                   = "ec2-runner"
-    image                  = var.runner_image
+    image                  = local.release_runner_image
     essential              = true
     memoryReservation      = local.runner_is_large ? 14336 : 128
     readonlyRootFilesystem = true
@@ -204,7 +204,7 @@ locals {
 
   proxy_container = {
     name                   = "proxy"
-    image                  = var.proxy_image
+    image                  = local.release_proxy_image
     essential              = true
     memoryReservation      = 128
     readonlyRootFilesystem = true

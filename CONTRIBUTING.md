@@ -15,7 +15,7 @@ needed to validate and deploy the module.
 
 If you prefer a manual setup, install the following:
 
-- [Terraform](https://terraform.io/) >= 1.5
+- [Terraform](https://terraform.io/) >= 1.7 (required for provider-mocked tests)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [pre-commit](https://pre-commit.com/)
 - [terraform-docs](https://github.com/terraform-docs/terraform-docs)
