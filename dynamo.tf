@@ -17,7 +17,6 @@ resource "aws_dynamodb_table" "resources" {
 }
 
 resource "aws_dynamodb_resource_policy" "resources" {
-  count        = var.disable_resource_policies ? 0 : 1
   resource_arn = aws_dynamodb_table.resources.arn
   policy       = data.aws_iam_policy_document.dynamodb_resource.json
 }
