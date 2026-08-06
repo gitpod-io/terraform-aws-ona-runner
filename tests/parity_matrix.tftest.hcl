@@ -73,7 +73,7 @@ run "public_elasticache_large_matches_cloudformation_options" {
   }
 
   assert {
-    condition     = aws_ecs_task_definition.proxy.cpu == "2048" && aws_ecs_task_definition.proxy.memory == "4096" && aws_appautoscaling_target.runner.min_capacity == 2 && aws_appautoscaling_target.runner.max_capacity == 16
+    condition     = aws_ecs_task_definition.proxy.cpu == "2048" && aws_ecs_task_definition.proxy.memory == "4096" && aws_appautoscaling_target.runner.min_capacity == 2 && aws_appautoscaling_target.runner.max_capacity == 16 && aws_appautoscaling_target.proxy.min_capacity == 2 && aws_appautoscaling_target.proxy.max_capacity == 16
     error_message = "large runners must scale the proxy and runner autoscaling bounds together."
   }
 
