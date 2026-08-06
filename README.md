@@ -40,6 +40,11 @@ it against the release manifest before an upgrade.
 The scheduled release workflow checks the published stable manifest and opens
 an update pull request when a new stable runner version is available.
 
+Terraform module versions are published as immutable semantic-version tags and
+GitHub releases after the pinned runner version passes the deployment checks in
+[`docs/parity.md`](./docs/parity.md). See [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+for the release procedure.
+
 Terraform remains authoritative for the runner and proxy task definitions. A
 Terraform apply deploys the configured release and task settings, reconciling
 any task-definition change made by the runner's runtime updater between applies.

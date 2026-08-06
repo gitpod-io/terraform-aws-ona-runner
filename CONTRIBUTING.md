@@ -72,3 +72,42 @@ for example_dir in examples/*/; do
   (cd "$example_dir" && terraform init -backend=false && terraform validate)
 done
 ```
+
+## Releases
+
+Module releases use semantic versions and immutable Git tags. `VERSION` holds
+the module version to publish; runner application versions remain pinned
+separately by `runner_template_build_version`. Bump `VERSION` in a pull request
+before publishing the next module release.
+
+Before publishing a release:
+
+1. Merge a pull request that sets `VERSION` to the intended module version and
+   pins a tested stable EC2 runner release.
+2. Complete the deployment checks in [`docs/parity.md`](docs/parity.md) from the
+   release commit in an AWS test account.
+3. Run the same checks used by CI:
+
+   ```bash
+   terraform fmt -check -recursive
+   bash scripts/check-parity-contract.sh
+   terraform init -backend=false
+   terraform validate
+   terraform test
+   bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
+   ```
+
+4. Create and push an immutable tag from the validated commit:
+
+   ```bash
+   version="$(tr -d '[:space:]' < VERSION)"
+   git tag -a "v${version}" -m "Release v${version}"
+   git push origin "v${version}"
+   ```
+
+The release workflow verifies that the tag matches `VERSION`, belongs to
+`main`, references a coherent immutable EC2 release manifest, and passes all
+Terraform checks. It then publishes a GitHub release containing the pinned
+runner artifacts, security-sensitive changes, and module changelog. Re-run a
+failed publication with the workflow's manual trigger and the existing tag;
+never move or replace a published tag.
