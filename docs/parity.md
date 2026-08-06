@@ -58,3 +58,24 @@ runner path defined in `gitpod-next/runner/ec2/deploy`.
 - Confirm runner bootstrap using a published runner release tuple.
 - Run the IAM permissions audit against `runner/ec2/deploy/pkg/iam` after the
   first AWS test deployment to trim any broader Terraform bootstrap permissions.
+
+## Source-level contract coverage
+
+`tests/parity_matrix.tftest.hcl` protects the supported configuration branches
+that can be checked without an AWS account. It maps the Fargate CloudFormation
+parameters to their Terraform inputs and verifies the resulting resource and
+output contract.
+
+| CloudFormation capability | Terraform input | Source-level evidence |
+| --- | --- | --- |
+| Internal or public load balancer | `load_balancer_scheme` | Internal and internet-facing NLB plans |
+| Public Fargate tasks | `assign_public_ip` | Runner, proxy, and ADOT network configuration |
+| MemoryDB or ElastiCache | `cache_engine` | Exactly one cache-resource branch |
+| Small or large runner | `runner_size` | Fargate task sizes, desired count, and autoscaling bounds |
+| HTTP(S), all, and no proxy | `proxy_config` | Shared task environment contract |
+| Custom CA trust bundle | `custom_ca_trust_bundle` | CA initialization container input |
+| SSH output | none | `ssh_port` output remains `29222` |
+
+These tests do not replace AWS deployment evidence. Private networking,
+cache connectivity, metrics audit uploads, and upgrade behavior require the
+end-to-end tests described in the parity plan.
