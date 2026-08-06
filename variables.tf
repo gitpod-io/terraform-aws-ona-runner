@@ -119,15 +119,25 @@ variable "default_ami" {
 }
 
 variable "runner_image" {
-  description = "Container image for the EC2 runner."
+  description = "Optional custom runner image. Leave empty to use the image derived from runner_template_build_version."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+  default     = ""
+
+  validation {
+    condition     = !strcontains(var.runner_image, "__")
+    error_message = "runner_image must not contain placeholder tokens."
+  }
 }
 
 variable "proxy_image" {
-  description = "Container image for the runner proxy."
+  description = "Optional custom runner proxy image. Leave empty to use the image derived from runner_template_build_version."
   type        = string
-  default     = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:__EC2_RUNNER_VERSION__"
+  default     = ""
+
+  validation {
+    condition     = !strcontains(var.proxy_image, "__")
+    error_message = "proxy_image must not contain placeholder tokens."
+  }
 }
 
 variable "adot_image" {
@@ -161,9 +171,14 @@ variable "development_version" {
 }
 
 variable "runner_template_build_version" {
-  description = "Runner template build version recorded in the runner SSM config. Release automation should set this to the EC2 runner release version."
+  description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
-  default     = "__EC2_RUNNER_VERSION__"
+  default     = "20260805.559"
+
+  validation {
+    condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")
+    error_message = "runner_template_build_version must be a resolved release version without placeholder tokens."
+  }
 }
 
 variable "proxy_config" {

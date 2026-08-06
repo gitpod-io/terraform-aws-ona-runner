@@ -45,6 +45,9 @@ runner path defined in `gitpod-next/runner/ec2/deploy`.
 - The ElastiCache fallback follows the CloudFormation stack's single
   `AWS::ElastiCache::CacheCluster` shape. It uses a non-clustered Redis
   connection while MemoryDB remains the default cache engine.
+- Operators must supply the three release compatibility inputs from one tested
+  runner release manifest until Terraform module release automation is
+  available.
 
 ## Open Parity Checks
 
@@ -52,7 +55,6 @@ runner path defined in `gitpod-next/runner/ec2/deploy`.
   ECS services reach steady state.
 - Enable metrics auditing and confirm rotated ADOT files reach the logs bucket
   when proxy and custom CA settings are configured.
-- Confirm runner bootstrap against the current production runner images once the
-  image version placeholders are replaced by the release automation.
+- Confirm runner bootstrap using a published runner release tuple.
 - Run the IAM permissions audit against `runner/ec2/deploy/pkg/iam` after the
   first AWS test deployment to trim any broader Terraform bootstrap permissions.

@@ -18,10 +18,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
         with:
-          terraform_version: "1.7.5"
+          terraform_version: "1.15.8"
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
+
+      - name: Check Fargate parity contract
+        run: bash scripts/check-parity-contract.sh
 
       - name: Terraform Init
         run: terraform init -backend=false
@@ -31,6 +34,12 @@ jobs:
 
       - name: Terraform Test
         run: terraform test
+
+      - name: Validate custom domain helper
+        run: |
+          terraform -chdir=modules/custom-domain-client-infra init -backend=false
+          terraform -chdir=modules/custom-domain-client-infra validate
+          terraform -chdir=modules/custom-domain-client-infra test
 
       - name: Validate Examples
         run: |

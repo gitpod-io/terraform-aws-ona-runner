@@ -51,6 +51,15 @@ locals {
   redis_parameter_name = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
   runner_config_key    = "/gitpod/runner/${var.runner_id}"
 
+  release_public_ecr_prefix = "public.ecr.aws/k5t9d3j5/application/gitpod-next"
+  release_runner_image = var.runner_image != "" ? var.runner_image : (
+    "${local.release_public_ecr_prefix}/gitpod-ec2-runner:${var.runner_template_build_version}"
+  )
+  release_proxy_image = var.proxy_image != "" ? var.proxy_image : (
+    "${local.release_public_ecr_prefix}/gitpod-proxy:${var.runner_template_build_version}"
+  )
+  release_inputs_are_consistent = endswith(local.release_runner_image, ":${var.runner_template_build_version}") && endswith(local.release_proxy_image, ":${var.runner_template_build_version}")
+
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",
     try(var.proxy_config.https_proxy, "") == "" ? "" : "https_proxy=${var.proxy_config.https_proxy}",

@@ -30,6 +30,55 @@ variables {
   load_balancer_subnet_ids = ["subnet-00000000000000000"]
 }
 
+run "runner_image_rejects_placeholder" {
+  command = plan
+
+  variables {
+    runner_image = "public.ecr.aws/ona/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.runner_image]
+}
+
+run "proxy_image_rejects_placeholder" {
+  command = plan
+
+  variables {
+    proxy_image = "public.ecr.aws/ona/gitpod-proxy:__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.proxy_image]
+}
+
+run "runner_template_build_version_rejects_placeholder" {
+  command = plan
+
+  variables {
+    runner_template_build_version = "__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.runner_template_build_version]
+}
+
+run "default_release_images_derive_from_build_version" {
+  command = plan
+
+  assert {
+    condition     = local.release_runner_image == "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:${var.runner_template_build_version}" && local.release_proxy_image == "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:${var.runner_template_build_version}"
+    error_message = "default runner images must derive from the configured stable release version"
+  }
+}
+
+run "release_images_must_match_build_version" {
+  command = plan
+
+  variables {
+    proxy_image = "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260806.660"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
 run "runner_id_hash_distinguishes_same_timestamp_prefix" {
   command = plan
 
