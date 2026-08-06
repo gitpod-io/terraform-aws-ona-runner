@@ -26,8 +26,8 @@ resource "aws_ecs_cluster" "this" {
     }
 
     precondition {
-      condition     = local.private_ecr_image_set_is_consistent
-      error_message = "A private runner_image requires proxy_image, adot_image, and metrics_audit_sync_image from the same private ECR prefix, matching the CloudFormation private-ECR template."
+      condition     = local.private_ecr_proxy_image_is_consistent
+      error_message = "A private runner_image requires proxy_image from the same private ECR prefix, matching the CloudFormation private-ECR template."
     }
   }
 
@@ -119,7 +119,7 @@ locals {
 
   adot_container = {
     name                   = "aws-otel-collector"
-    image                  = var.adot_image
+    image                  = local.adot_image
     essential              = true
     user                   = "0"
     readonlyRootFilesystem = true
@@ -134,7 +134,7 @@ locals {
 
   metrics_audit_sync_container = {
     name                   = "metrics-audit-sync"
-    image                  = var.metrics_audit_sync_image
+    image                  = local.metrics_audit_sync_image
     essential              = false
     memoryReservation      = 64
     readonlyRootFilesystem = true

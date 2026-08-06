@@ -63,11 +63,11 @@ locals {
   # CloudFormation private-ECR templates replace the runner image with this
   # prefix. Derive it from that existing release input so private-ECR users do
   # not need a Terraform-only configuration value for runner updates.
-  private_ecr_prefix = can(regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)) ? regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)[0] : ""
-  private_ecr_image_set_is_consistent = local.private_ecr_prefix == "" || alltrue([
-    for image in [var.proxy_image, var.adot_image, var.metrics_audit_sync_image] :
-    startswith(image, "${local.private_ecr_prefix}/")
-  ])
+  private_ecr_prefix                    = can(regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)) ? regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)[0] : ""
+  private_ecr_proxy_image_is_consistent = local.private_ecr_prefix == "" || startswith(var.proxy_image, "${local.private_ecr_prefix}/")
+  ecr_image_prefix                      = local.private_ecr_prefix == "" ? "public.ecr.aws" : local.private_ecr_prefix
+  adot_image                            = "${local.ecr_image_prefix}/aws-observability/aws-otel-collector:v0.43.3"
+  metrics_audit_sync_image              = "${local.ecr_image_prefix}/aws-cli/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7"
 
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",

@@ -74,7 +74,7 @@ output contract.
 | Small or large runner | `runner_size` | Fargate task sizes, desired count, and autoscaling bounds |
 | HTTP(S), all, and no proxy | `proxy_config` | Shared task environment contract |
 | Custom CA trust bundle | `custom_ca_trust_bundle` | CA initialization container input |
-| Private ECR release template | private `runner_image`, `proxy_image`, `adot_image`, and `metrics_audit_sync_image` | Derived runner update prefix without a Terraform-only input |
+| Private ECR release template | private `runner_image` and `proxy_image` | Derived sidecar images and runner update prefix without Terraform-only inputs |
 | SSH output | none | `ssh_port` output remains `29222` |
 
 These tests do not replace AWS deployment evidence. Private networking,
