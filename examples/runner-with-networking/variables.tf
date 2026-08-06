@@ -24,11 +24,6 @@ variable "proxy_image" {
   type        = string
 }
 
-variable "private_ecr_prefix" {
-  description = "Private ECR registry prefix from the runner release manifest."
-  type        = string
-}
-
 variable "runner_template_build_version" {
   description = "Runner template build version from the runner release manifest."
   type        = string

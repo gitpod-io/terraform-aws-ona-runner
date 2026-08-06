@@ -18,8 +18,8 @@ how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 ## Release compatibility inputs
 
 The module requires a tested runner release tuple: `runner_image`,
-`proxy_image`, `private_ecr_prefix`, and `runner_template_build_version`. Obtain
-all four values from the same runner release manifest. The CloudFormation
+`proxy_image`, and `runner_template_build_version`. Obtain all three values
+from the same runner release manifest. The CloudFormation
 release process resolves these values while packaging a template; Terraform
 release automation has not yet been published, so the module intentionally does
 not provide unsafe placeholder defaults.
@@ -28,8 +28,11 @@ not provide unsafe placeholder defaults.
 | --- | --- |
 | `runner_image` | Tested EC2 runner image from the release manifest. |
 | `proxy_image` | Tested runner proxy image from that same manifest. |
-| `private_ecr_prefix` | Private ECR registry prefix from that same manifest. |
 | `runner_template_build_version` | Version written to the runner configuration. |
+
+`private_ecr_prefix` is optional. Set it only when your installation mirrors
+public ECR images into a private ECR registry; leave it empty to use the public
+image references from the release manifest.
 
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify

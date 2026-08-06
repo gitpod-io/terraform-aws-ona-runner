@@ -9,7 +9,6 @@ module "runner" {
   runner_token                  = var.runner_token
   runner_image                  = var.runner_image
   proxy_image                   = var.proxy_image
-  private_ecr_prefix            = var.private_ecr_prefix
   runner_template_build_version = var.runner_template_build_version
   runner_name                   = "ona-runner"
   runner_domain                 = var.runner_domain

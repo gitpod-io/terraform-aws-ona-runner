@@ -45,9 +45,10 @@ runner path defined in `gitpod-next/runner/ec2/deploy`.
 - The ElastiCache fallback follows the CloudFormation stack's single
   `AWS::ElastiCache::CacheCluster` shape. It uses a non-clustered Redis
   connection while MemoryDB remains the default cache engine.
-- Operators must supply the four release compatibility inputs from one tested
+- Operators must supply the three release compatibility inputs from one tested
   runner release manifest until Terraform module release automation is
-  available.
+  available. An optional private ECR mirror prefix retains the CloudFormation
+  image-mirroring behavior.
 
 ## Open Parity Checks
 
