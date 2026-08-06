@@ -49,6 +49,11 @@ resource "aws_ecs_cluster" "this" {
   tags = local.common_tags
 }
 
+resource "aws_ecs_cluster_capacity_providers" "this" {
+  cluster_name       = aws_ecs_cluster.this.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+}
+
 resource "aws_service_discovery_http_namespace" "this" {
   name = "ona-${var.runner_id}"
   tags = local.common_tags
@@ -172,6 +177,7 @@ locals {
     essential              = true
     memoryReservation      = local.runner_is_large ? 14336 : 128
     readonlyRootFilesystem = true
+    stopTimeout            = 120
     command = [
       "daemon",
       "--ssm-key=${local.runner_config_key}",
@@ -211,6 +217,7 @@ locals {
     essential              = true
     memoryReservation      = 128
     readonlyRootFilesystem = true
+    stopTimeout            = 120
     command = [
       "run-runner-proxy",
       "--runner-id=${var.runner_id}",
@@ -340,6 +347,7 @@ resource "aws_ecs_service" "runner" {
   enable_ecs_managed_tags            = true
   propagate_tags                     = "SERVICE"
   enable_execute_command             = false
+  wait_for_steady_state              = true
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -351,6 +359,14 @@ resource "aws_ecs_service" "runner" {
   }
   service_connect_configuration {
     enabled = true
+    log_configuration {
+      log_driver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.runner.name
+        awslogs-region        = data.aws_region.current.name
+        awslogs-stream-prefix = "service-connect-runner"
+      }
+    }
     service {
       port_name = "runner-api"
       client_alias {
@@ -370,7 +386,6 @@ resource "aws_ecs_service" "runner" {
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
-  lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
 
@@ -385,6 +400,8 @@ resource "aws_ecs_service" "proxy" {
   enable_ecs_managed_tags            = true
   propagate_tags                     = "SERVICE"
   enable_execute_command             = false
+  health_check_grace_period_seconds  = 60
+  wait_for_steady_state              = true
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -394,7 +411,17 @@ resource "aws_ecs_service" "proxy" {
     security_groups  = local.task_network_configuration.security_groups
     assign_public_ip = local.task_network_configuration.assign_public_ip
   }
-  service_connect_configuration { enabled = true }
+  service_connect_configuration {
+    enabled = true
+    log_configuration {
+      log_driver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.proxy.name
+        awslogs-region        = data.aws_region.current.name
+        awslogs-stream-prefix = "service-connect-proxy"
+      }
+    }
+  }
   load_balancer {
     target_group_arn = aws_lb_target_group.proxy.arn
     container_name   = "proxy"
@@ -406,7 +433,6 @@ resource "aws_ecs_service" "proxy" {
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
-  lifecycle { ignore_changes = [task_definition] }
   tags = local.common_tags
 }
 
@@ -421,6 +447,7 @@ resource "aws_ecs_service" "adot" {
   enable_ecs_managed_tags            = true
   propagate_tags                     = "SERVICE"
   enable_execute_command             = false
+  wait_for_steady_state              = true
   deployment_circuit_breaker {
     enable   = true
     rollback = true

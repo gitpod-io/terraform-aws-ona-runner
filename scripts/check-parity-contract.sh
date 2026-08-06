@@ -37,6 +37,18 @@ require_pattern 'resource "aws_ecs_service" "proxy"' ecs.tf
 require_pattern 'resource "aws_ecs_service" "adot"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "runner"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "proxy"' ecs.tf
+require_pattern 'resource "aws_ecs_cluster_capacity_providers" "this"' ecs.tf
+require_pattern 'health_check_grace_period_seconds  = 60' ecs.tf
+require_pattern 'stopTimeout            = 120' ecs.tf
+require_pattern 'dns_record_client_routing_policy = "availability_zone_affinity"' loadbalancer.tf
+require_pattern '"ecs:ListServices"' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.ecs_execution_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.ecs_task_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.proxy_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.adot_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.environment_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.s3_access_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.devcontainer_cache_boundary.arn' iam.tf
 require_pattern '{ name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix }' ecs.tf
 require_pattern 'private_ecr_prefix' locals.tf
 require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3' locals.tf
@@ -53,6 +65,12 @@ reject_unsupported_input 'default_ami'
 reject_unsupported_input 'development_version'
 reject_unsupported_input 'disable_resource_policies'
 reject_unsupported_input 'disable_s3_tls_enforcement'
+reject_unsupported_input 'permissions_boundary_arn'
+
+if grep -Fq -- 'ignore_changes = [task_definition]' ecs.tf; then
+  echo "ECS service task definitions must remain Terraform-managed to match CloudFormation updates" >&2
+  exit 1
+fi
 
 if grep -Fq -- '"defaultAMI"' locals.tf; then
   echo "Unsupported CloudFormation configuration field: defaultAMI" >&2
