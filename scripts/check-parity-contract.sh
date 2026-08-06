@@ -51,7 +51,6 @@ reject_placeholder '__GITPOD_PRIVATE_ECR_PREFIX__'
 reject_unsupported_input 'gateway_api_endpoint'
 reject_unsupported_input 'default_ami'
 reject_unsupported_input 'development_version'
-reject_unsupported_input 'permissions_boundary_arn'
 reject_unsupported_input 'disable_resource_policies'
 reject_unsupported_input 'disable_s3_tls_enforcement'
 

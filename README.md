@@ -47,8 +47,9 @@ identity and release tuple, VPC and subnet placement, load balancer visibility
 and certificate, custom load-balancer security group, Fargate public IP,
 runner size, cache engine, proxy settings, and custom CA trust bundle. It does
 not expose CloudFormation-internal or unsupported overrides for the gateway
-endpoint, environment AMI, development version, IAM permissions boundaries, or
-resource security policies.
+endpoint, environment AMI, development version, or resource security policies.
+The optional `permissions_boundary_arn` remains available as a security bridge
+until the CloudFormation role-specific boundaries are implemented natively.
 
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want

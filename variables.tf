@@ -134,6 +134,12 @@ variable "assign_public_ip" {
   default     = false
 }
 
+variable "permissions_boundary_arn" {
+  description = "Optional organization-managed IAM permissions boundary applied to every runner-managed role. Retained until the CloudFormation role-specific boundaries are implemented natively."
+  type        = string
+  default     = null
+}
+
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string

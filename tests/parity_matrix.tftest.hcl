@@ -118,6 +118,27 @@ run "runner_configuration_matches_cloudformation_fixed_contract" {
   }
 }
 
+run "organization_boundary_applies_to_every_runner_role" {
+  command = plan
+
+  variables {
+    permissions_boundary_arn = "arn:aws:iam::123456789012:policy/organization-boundary"
+  }
+
+  assert {
+    condition = alltrue([
+      aws_iam_role.ecs_execution.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.ecs_task.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.proxy.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.adot.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.environment.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.s3_access.permissions_boundary == var.permissions_boundary_arn,
+      aws_iam_role.devcontainer_cache_registry_access.permissions_boundary == var.permissions_boundary_arn,
+    ])
+    error_message = "the organization permissions boundary must protect every runner-managed IAM role."
+  }
+}
+
 run "private_ecr_release_image_derives_runner_update_prefix" {
   command = plan
 
