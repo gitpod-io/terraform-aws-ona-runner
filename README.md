@@ -86,9 +86,6 @@ The module implements the supported Fargate runner infrastructure path:
 - IAM roles for ECS tasks, ECS instances, environment instances, S3 cache access,
   and devcontainer cache registry access.
 
-See [AWS Runner CloudFormation Parity](./docs/parity.md) for the current parity
-map and first-release migration notes.
-
 ## Destroy
 
 `terraform destroy` removes the module\'s log groups and empty S3 buckets.
