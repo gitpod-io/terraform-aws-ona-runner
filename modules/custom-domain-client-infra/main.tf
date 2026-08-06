@@ -1,5 +1,5 @@
 locals {
-  create_alias_records = var.create_alias_records && var.load_balancer_dns_name != ""
+  create_alias_records = var.create_alias_records && var.load_balancer_dns_name != "" && var.load_balancer_zone_id != ""
 
   validation_options_by_record_name = {
     for option in aws_acm_certificate.runner.domain_validation_options :
@@ -24,6 +24,11 @@ resource "aws_acm_certificate" "runner" {
 
   lifecycle {
     create_before_destroy = true
+
+    precondition {
+      condition     = !var.create_alias_records || ((var.load_balancer_dns_name == "") == (var.load_balancer_zone_id == ""))
+      error_message = "load_balancer_dns_name and load_balancer_zone_id must either both be set or both be empty when create_alias_records is true."
+    }
   }
 }
 

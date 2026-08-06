@@ -28,7 +28,9 @@ require_pattern 'resource "aws_ecs_service" "proxy"' ecs.tf
 require_pattern 'resource "aws_ecs_service" "adot"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "runner"' ecs.tf
 require_pattern 'resource "aws_appautoscaling_target" "proxy"' ecs.tf
+require_pattern '{ name = "GITPOD_PRIVATE_ECR_PREFIX", value = var.private_ecr_prefix }' ecs.tf
 require_pattern 'target_type          = "ip"' loadbalancer.tf
+require_pattern '\"runnerTemplateBuildVersion\":' locals.tf
 
 reject_placeholder '__EC2_RUNNER_VERSION__'
 reject_placeholder '__GITPOD_PRIVATE_ECR_PREFIX__'

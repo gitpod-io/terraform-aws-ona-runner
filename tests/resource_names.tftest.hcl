@@ -21,13 +21,57 @@ mock_provider "aws" {
 mock_provider "random" {}
 
 variables {
-  runner_id                = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
-  runner_token             = "test-token"
-  runner_domain            = "runner.example.com"
-  certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-  vpc_id                   = "vpc-00000000000000000"
-  runner_subnet_ids        = ["subnet-00000000000000000"]
-  load_balancer_subnet_ids = ["subnet-00000000000000000"]
+  runner_id                     = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_token                  = "test-token"
+  runner_image                  = "public.ecr.aws/ona/gitpod-ec2-runner:v2026.08.0"
+  proxy_image                   = "public.ecr.aws/ona/gitpod-proxy:v2026.08.0"
+  private_ecr_prefix            = "123456789012.dkr.ecr.us-east-1.amazonaws.com/ona"
+  runner_template_build_version = "v2026.08.0"
+  runner_domain                 = "runner.example.com"
+  certificate_arn               = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+  vpc_id                        = "vpc-00000000000000000"
+  runner_subnet_ids             = ["subnet-00000000000000000"]
+  load_balancer_subnet_ids      = ["subnet-00000000000000000"]
+}
+
+run "runner_image_rejects_placeholder" {
+  command = plan
+
+  variables {
+    runner_image = "public.ecr.aws/ona/gitpod-ec2-runner:__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.runner_image]
+}
+
+run "proxy_image_rejects_placeholder" {
+  command = plan
+
+  variables {
+    proxy_image = "public.ecr.aws/ona/gitpod-proxy:__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.proxy_image]
+}
+
+run "private_ecr_prefix_rejects_placeholder" {
+  command = plan
+
+  variables {
+    private_ecr_prefix = "__GITPOD_PRIVATE_ECR_PREFIX__"
+  }
+
+  expect_failures = [var.private_ecr_prefix]
+}
+
+run "runner_template_build_version_rejects_placeholder" {
+  command = plan
+
+  variables {
+    runner_template_build_version = "__EC2_RUNNER_VERSION__"
+  }
+
+  expect_failures = [var.runner_template_build_version]
 }
 
 run "runner_id_hash_distinguishes_same_timestamp_prefix" {

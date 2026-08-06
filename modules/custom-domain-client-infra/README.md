@@ -14,6 +14,15 @@ Use this module separately from the runner module when you want Terraform to own
 the certificate and DNS records. The root runner module still accepts
 `certificate_arn` directly so customers can bring an existing ACM certificate.
 
+## Inputs and outputs
+
+Set `domain_name` and `hosted_zone_id` for every helper deployment. To create
+alias records, set both `load_balancer_dns_name` and
+`load_balancer_zone_id`; leave both empty when the helper should create only a
+validated certificate. The helper returns `certificate_arn` for the root
+runner module, as well as the validation and alias record FQDNs for DNS
+verification.
+
 ## Usage
 
 ```hcl
