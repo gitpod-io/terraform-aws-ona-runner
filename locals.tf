@@ -70,8 +70,13 @@ locals {
     "${local.release_private_ecr_prefix}/${trimprefix(local.release_proxy_image, "public.ecr.aws/")}"
   ) : local.release_proxy_image
 
-  private_ecr_prefix                    = can(regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", local.runner_image)) ? regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", local.runner_image)[0] : ""
-  private_ecr_proxy_image_is_consistent = local.private_ecr_prefix == "" || startswith(local.proxy_image, "${local.private_ecr_prefix}/")
+  private_ecr_prefix_pattern = "^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/"
+  runner_private_ecr_prefix  = can(regex(local.private_ecr_prefix_pattern, local.runner_image)) ? regex(local.private_ecr_prefix_pattern, local.runner_image)[0] : ""
+  proxy_private_ecr_prefix   = can(regex(local.private_ecr_prefix_pattern, local.proxy_image)) ? regex(local.private_ecr_prefix_pattern, local.proxy_image)[0] : ""
+  private_ecr_prefix         = local.runner_private_ecr_prefix
+  private_ecr_images_are_consistent = (
+    local.runner_private_ecr_prefix == local.proxy_private_ecr_prefix
+  )
   adot_image = local.private_ecr_prefix == "" ? (
     "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
   ) : "${local.private_ecr_prefix}/k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3"

@@ -139,3 +139,27 @@ run "private_ecr_release_image_rejects_mixed_image_sources" {
 
   expect_failures = [aws_ecs_cluster.this]
 }
+
+run "public_runner_image_rejects_private_proxy_image" {
+  command = plan
+
+  variables {
+    runner_template_build_version = "test-release"
+    runner_image                  = "public.ecr.aws/example/custom-runner:test-release"
+    proxy_image                   = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/example/custom-proxy:test-release"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "private_runner_image_rejects_public_proxy_image" {
+  command = plan
+
+  variables {
+    runner_template_build_version = "test-release"
+    runner_image                  = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/example/custom-runner:test-release"
+    proxy_image                   = "public.ecr.aws/example/custom-proxy:test-release"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}

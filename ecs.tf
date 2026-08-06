@@ -26,8 +26,8 @@ resource "aws_ecs_cluster" "this" {
     }
 
     precondition {
-      condition     = local.private_ecr_proxy_image_is_consistent
-      error_message = "A private runner_image requires proxy_image from the same private ECR prefix, matching the CloudFormation private-ECR template."
+      condition     = local.private_ecr_images_are_consistent
+      error_message = "runner_image and proxy_image must either both be public or use the same private ECR prefix, matching the CloudFormation private-ECR template."
     }
   }
 
