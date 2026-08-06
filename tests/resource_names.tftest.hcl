@@ -53,25 +53,6 @@ run "proxy_image_rejects_placeholder" {
   expect_failures = [var.proxy_image]
 }
 
-run "private_ecr_prefix_is_optional_but_rejects_placeholder" {
-  command = plan
-
-  variables {
-    private_ecr_prefix = "__GITPOD_PRIVATE_ECR_PREFIX__"
-  }
-
-  expect_failures = [var.private_ecr_prefix]
-}
-
-run "private_ecr_prefix_defaults_to_public_images" {
-  command = plan
-
-  assert {
-    condition     = var.private_ecr_prefix == ""
-    error_message = "private_ecr_prefix must default to an empty value so public image references are preserved."
-  }
-}
-
 run "runner_template_build_version_rejects_placeholder" {
   command = plan
 

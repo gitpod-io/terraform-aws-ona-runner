@@ -47,8 +47,7 @@ runner path defined in `gitpod-next/runner/ec2/deploy`.
   connection while MemoryDB remains the default cache engine.
 - Operators must supply the three release compatibility inputs from one tested
   runner release manifest until Terraform module release automation is
-  available. An optional private ECR mirror prefix retains the CloudFormation
-  image-mirroring behavior.
+  available.
 
 ## Open Parity Checks
 

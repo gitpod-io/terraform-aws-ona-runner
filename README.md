@@ -33,10 +33,6 @@ not provide unsafe placeholder defaults.
 | `proxy_image` | Tested runner proxy image from that same manifest. |
 | `runner_template_build_version` | Version written to the runner configuration. |
 
-`private_ecr_prefix` is optional. Set it only when your installation mirrors
-public ECR images into a private ECR registry; leave it empty to use the public
-image references from the release manifest.
-
 The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify
 it against the release manifest before an upgrade.

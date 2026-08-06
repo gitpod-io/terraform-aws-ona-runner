@@ -138,17 +138,6 @@ variable "proxy_image" {
   }
 }
 
-variable "private_ecr_prefix" {
-  description = "Optional private ECR registry prefix used to mirror public ECR images. Leave empty to retain public ECR image references."
-  type        = string
-  default     = ""
-
-  validation {
-    condition     = !strcontains(var.private_ecr_prefix, "__")
-    error_message = "private_ecr_prefix must be empty or a resolved registry prefix without placeholder tokens."
-  }
-}
-
 variable "adot_image" {
   description = "Container image for the AWS Distro for OpenTelemetry collector."
   type        = string
