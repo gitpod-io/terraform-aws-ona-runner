@@ -1,4 +1,6 @@
 mock_provider "aws" {
+  override_during = plan
+
   mock_data "aws_caller_identity" {
     defaults = {
       account_id = "123456789012"
@@ -51,6 +53,11 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   assert {
     condition     = aws_appautoscaling_target.runner.min_capacity == 1 && aws_appautoscaling_target.runner.max_capacity == 8 && output.ssh_port == 29222
     error_message = "small runners must retain their supported autoscaling and SSH output contract."
+  }
+
+  assert {
+    condition     = aws_lb.proxy.dns_record_client_routing_policy == "availability_zone_affinity" && aws_lb_target_group.proxy.health_check[0].matcher == "200"
+    error_message = "the Network Load Balancer must retain the CloudFormation routing and health-check contract."
   }
 }
 
@@ -118,24 +125,47 @@ run "runner_configuration_matches_cloudformation_fixed_contract" {
   }
 }
 
-run "organization_boundary_applies_to_every_runner_role" {
+run "runtime_services_match_cloudformation_lifecycle" {
   command = plan
 
-  variables {
-    permissions_boundary_arn = "arn:aws:iam::123456789012:policy/organization-boundary"
+  assert {
+    condition     = aws_ecs_service.proxy.health_check_grace_period_seconds == 60 && aws_ecs_service.runner.wait_for_steady_state && aws_ecs_service.proxy.wait_for_steady_state && aws_ecs_service.adot.wait_for_steady_state
+    error_message = "ECS services must wait for steady state and preserve the proxy load-balancer health grace period."
+  }
+
+  assert {
+    condition     = toset(aws_ecs_cluster_capacity_providers.this.capacity_providers) == toset(["FARGATE", "FARGATE_SPOT"])
+    error_message = "the ECS cluster must register the CloudFormation Fargate capacity providers."
+  }
+
+  assert {
+    condition     = aws_ecs_service.runner.service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-runner" && aws_ecs_service.proxy.service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-proxy"
+    error_message = "runner and proxy Service Connect traffic must use the CloudFormation log streams."
+  }
+
+  assert {
+    condition     = local.runner_container.stopTimeout == 120 && local.proxy_container.stopTimeout == 120
+    error_message = "runner and proxy containers must retain the CloudFormation shutdown timeout."
+  }
+
+  assert {
+    condition     = contains(local.ecs_runtime_discovery_actions, "ecs:DescribeClusters") && contains(local.ecs_runtime_discovery_actions, "ecs:ListServices")
+    error_message = "the runner role must be able to discover the proxy and ADOT services."
   }
 
   assert {
     condition = alltrue([
-      aws_iam_role.ecs_execution.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.ecs_task.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.proxy.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.adot.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.environment.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.s3_access.permissions_boundary == var.permissions_boundary_arn,
-      aws_iam_role.devcontainer_cache_registry_access.permissions_boundary == var.permissions_boundary_arn,
+      for policy in [
+        local.ecs_execution_boundary_policy,
+        local.ecs_task_boundary_policy,
+        local.proxy_boundary_policy,
+        local.adot_boundary_policy,
+        local.environment_boundary_policy,
+        local.s3_access_boundary_policy,
+        local.devcontainer_cache_boundary_policy,
+      ] : length(jsonencode(policy)) <= 6144
     ])
-    error_message = "the organization permissions boundary must protect every runner-managed IAM role."
+    error_message = "each generated permission boundary must fit the AWS managed-policy size limit."
   }
 }
 

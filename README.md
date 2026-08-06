@@ -48,8 +48,9 @@ and certificate, custom load-balancer security group, Fargate public IP,
 runner size, cache engine, proxy settings, and custom CA trust bundle. It does
 not expose CloudFormation-internal or unsupported overrides for the gateway
 endpoint, environment AMI, development version, or resource security policies.
-The optional `permissions_boundary_arn` remains available as a security bridge
-until the CloudFormation role-specific boundaries are implemented natively.
+Terraform creates the same role-specific permission-boundary classes as the
+CloudFormation path for execution, runner, proxy, telemetry, environment, S3,
+and devcontainer-cache roles.
 
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
@@ -85,6 +86,9 @@ The module implements the supported Fargate runner infrastructure path:
 - Secrets Manager runner token and metrics configuration secrets.
 - IAM roles for ECS tasks, ECS instances, environment instances, S3 cache access,
   and devcontainer cache registry access.
+
+See [AWS Runner CloudFormation parity](./docs/parity.md) for the source contract
+and the deployment evidence required before release.
 
 ## Destroy
 

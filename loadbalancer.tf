@@ -7,6 +7,7 @@ resource "aws_lb" "proxy" {
   ip_address_type    = "ipv4"
 
   enable_cross_zone_load_balancing = true
+  dns_record_client_routing_policy = "availability_zone_affinity"
 
   tags = local.common_tags
 }
@@ -25,6 +26,7 @@ resource "aws_lb_target_group" "proxy" {
     protocol            = "HTTP"
     port                = "5000"
     path                = "/_health"
+    matcher             = "200"
     healthy_threshold   = 5
     unhealthy_threshold = 2
     interval            = 30
