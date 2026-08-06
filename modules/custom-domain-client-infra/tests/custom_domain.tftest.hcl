@@ -1,4 +1,6 @@
 mock_provider "aws" {
+  override_during = plan
+
   mock_resource "aws_acm_certificate" {
     defaults = {
       arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
@@ -21,21 +23,6 @@ variables {
 run "certificate_only_configuration_does_not_create_alias_records" {
   command = plan
 
-  override_resource {
-    target          = aws_acm_certificate.runner
-    override_during = plan
-    values = {
-      arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-      domain_validation_options = [
-        {
-          resource_record_name  = "_abc123.runner.example.com."
-          resource_record_type  = "CNAME"
-          resource_record_value = "_validation.acm-validations.aws."
-        },
-      ]
-    }
-  }
-
   variables {
     create_alias_records = false
   }
@@ -48,21 +35,6 @@ run "certificate_only_configuration_does_not_create_alias_records" {
 
 run "alias_records_use_both_load_balancer_values" {
   command = plan
-
-  override_resource {
-    target          = aws_acm_certificate.runner
-    override_during = plan
-    values = {
-      arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-      domain_validation_options = [
-        {
-          resource_record_name  = "_abc123.runner.example.com."
-          resource_record_type  = "CNAME"
-          resource_record_value = "_validation.acm-validations.aws."
-        },
-      ]
-    }
-  }
 
   variables {
     load_balancer_dns_name = "internal-runner-123.us-east-1.elb.amazonaws.com"
@@ -77,21 +49,6 @@ run "alias_records_use_both_load_balancer_values" {
 
 run "alias_records_reject_incomplete_load_balancer_inputs" {
   command = plan
-
-  override_resource {
-    target          = aws_acm_certificate.runner
-    override_during = plan
-    values = {
-      arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-      domain_validation_options = [
-        {
-          resource_record_name  = "_abc123.runner.example.com."
-          resource_record_type  = "CNAME"
-          resource_record_value = "_validation.acm-validations.aws."
-        },
-      ]
-    }
-  }
 
   variables {
     load_balancer_dns_name = "internal-runner-123.us-east-1.elb.amazonaws.com"
