@@ -8,6 +8,9 @@ This module manages native AWS resources directly. It does not wrap the
 CloudFormation runner stack, and follows its single supported Fargate
 private-ECR installation path.
 
+Use Terraform 1.15 or later. The module ships Terraform tests that use the
+provider-mocking features introduced in that release line.
+
 > AWS Runners require an Enterprise plan.
 
 ## Example
