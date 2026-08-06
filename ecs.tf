@@ -24,6 +24,11 @@ resource "aws_ecs_cluster" "this" {
       condition     = local.release_inputs_are_consistent
       error_message = "runner_image and proxy_image must use the runner_template_build_version tag from the same release manifest."
     }
+
+    precondition {
+      condition     = local.private_ecr_image_set_is_consistent
+      error_message = "A private runner_image requires proxy_image, adot_image, and metrics_audit_sync_image from the same private ECR prefix, matching the CloudFormation private-ECR template."
+    }
   }
 
   setting {

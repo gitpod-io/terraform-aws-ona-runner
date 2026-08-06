@@ -64,6 +64,10 @@ locals {
   # prefix. Derive it from that existing release input so private-ECR users do
   # not need a Terraform-only configuration value for runner updates.
   private_ecr_prefix = can(regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)) ? regex("^([^/]+\\.dkr\\.ecr\\.[^.]+\\.amazonaws\\.com/gitpod/ecr)/", var.runner_image)[0] : ""
+  private_ecr_image_set_is_consistent = local.private_ecr_prefix == "" || alltrue([
+    for image in [var.proxy_image, var.adot_image, var.metrics_audit_sync_image] :
+    startswith(image, "${local.private_ecr_prefix}/")
+  ])
 
   proxy_env = compact([
     try(var.proxy_config.http_proxy, "") == "" ? "" : "http_proxy=${var.proxy_config.http_proxy}",

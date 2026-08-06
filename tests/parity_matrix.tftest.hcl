@@ -111,12 +111,24 @@ run "private_ecr_release_image_derives_runner_update_prefix" {
   command = plan
 
   variables {
-    runner_image = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-ec2-runner:v2026.08.0"
-    proxy_image  = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-proxy:v2026.08.0"
+    runner_image             = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-ec2-runner:v2026.08.0"
+    proxy_image              = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-proxy:v2026.08.0"
+    adot_image               = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/aws-observability/aws-otel-collector:v0.43.3"
+    metrics_audit_sync_image = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/aws-cli/aws-cli:2.27.22"
   }
 
   assert {
     condition     = local.private_ecr_prefix == "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr"
     error_message = "private-ECR runner images must preserve the CloudFormation update prefix."
   }
+}
+
+run "private_ecr_release_image_rejects_mixed_image_sources" {
+  command = plan
+
+  variables {
+    runner_image = "123456789012.dkr.ecr.eu-central-1.amazonaws.com/gitpod/ecr/application/gitpod-next/gitpod-ec2-runner:v2026.08.0"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
 }
