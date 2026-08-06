@@ -25,7 +25,6 @@ variables {
   runner_token                  = "test-token"
   runner_image                  = "public.ecr.aws/ona/gitpod-ec2-runner:v2026.08.0"
   proxy_image                   = "public.ecr.aws/ona/gitpod-proxy:v2026.08.0"
-  private_ecr_prefix            = "123456789012.dkr.ecr.us-east-1.amazonaws.com/ona"
   runner_template_build_version = "v2026.08.0"
   runner_domain                 = "runner.example.com"
   certificate_arn               = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
