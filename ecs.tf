@@ -192,8 +192,6 @@ locals {
       { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
       { name = "ADOT_CONFIG_SSM_PARAM", value = aws_ssm_parameter.adot_config.name },
       { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle },
-      ], var.development_version == "" ? [] : [
-      { name = "GITPOD_DEVELOPMENT_VERSION", value = var.development_version },
       ], [for item in local.proxy_env : {
         name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
     }])

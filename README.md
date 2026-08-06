@@ -40,6 +40,16 @@ it against the release manifest before an upgrade.
 The scheduled release workflow checks the published stable manifest and opens
 an update pull request when a new stable runner version is available.
 
+## Supported configuration
+
+Terraform accepts the supported CloudFormation runner settings: runner
+identity and release tuple, VPC and subnet placement, load balancer visibility
+and certificate, custom load-balancer security group, Fargate public IP,
+runner size, cache engine, proxy settings, and custom CA trust bundle. It does
+not expose CloudFormation-internal or unsupported overrides for the gateway
+endpoint, environment AMI, development version, IAM permissions boundaries, or
+resource security policies.
+
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
 Terraform to own runner custom-domain DNS resources.

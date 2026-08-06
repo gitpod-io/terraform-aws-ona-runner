@@ -75,6 +75,7 @@ output contract.
 | HTTP(S), all, and no proxy | `proxy_config` | Shared task environment contract |
 | Custom CA trust bundle | `custom_ca_trust_bundle` | CA initialization container input |
 | Private ECR release template | published `runner_image` and `proxy_image` | Regional private mirror mapping, derived sidecar images, and runner update prefix without Terraform-only inputs |
+| Fixed gateway, AMI, development, IAM, and resource-policy behavior | none | Unsupported Terraform overrides are rejected by the source contract |
 | SSH output | none | `ssh_port` output remains `29222` |
 
 These tests do not replace AWS deployment evidence. Private networking,

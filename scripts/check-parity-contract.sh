@@ -20,6 +20,15 @@ reject_placeholder() {
   fi
 }
 
+reject_unsupported_input() {
+  local input="$1"
+
+  if grep -Fq -- "variable \"${input}\"" variables.tf; then
+    echo "Unsupported CloudFormation configuration input: ${input}" >&2
+    exit 1
+  fi
+}
+
 # This deliberately small source-level fixture protects the released Fargate
 # topology until a generated CloudFormation-versus-plan comparison runs in CI.
 require_pattern 'requires_compatibilities = ["FARGATE"]' ecs.tf
@@ -34,6 +43,19 @@ require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0
 require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7' locals.tf
 require_pattern 'target_type          = "ip"' loadbalancer.tf
 require_pattern '\"runnerTemplateBuildVersion\":' locals.tf
+require_pattern '\"gatewayAPIEndpoint\":\"\"' locals.tf
 
 reject_placeholder '__EC2_RUNNER_VERSION__'
 reject_placeholder '__GITPOD_PRIVATE_ECR_PREFIX__'
+
+reject_unsupported_input 'gateway_api_endpoint'
+reject_unsupported_input 'default_ami'
+reject_unsupported_input 'development_version'
+reject_unsupported_input 'permissions_boundary_arn'
+reject_unsupported_input 'disable_resource_policies'
+reject_unsupported_input 'disable_s3_tls_enforcement'
+
+if grep -Fq -- '"defaultAMI"' locals.tf; then
+  echo "Unsupported CloudFormation configuration field: defaultAMI" >&2
+  exit 1
+fi

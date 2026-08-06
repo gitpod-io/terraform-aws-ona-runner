@@ -109,6 +109,15 @@ run "proxy_and_custom_ca_configuration_reaches_task_contract" {
   }
 }
 
+run "runner_configuration_matches_cloudformation_fixed_contract" {
+  command = plan
+
+  assert {
+    condition     = length([for item in local.runner_container.environment : item if item.name == "GITPOD_DEVELOPMENT_VERSION"]) == 0
+    error_message = "the runner task must not expose a Terraform-only development-version override."
+  }
+}
+
 run "private_ecr_release_image_derives_runner_update_prefix" {
   command = plan
 

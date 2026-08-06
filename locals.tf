@@ -108,10 +108,7 @@ locals {
     ",\"environmentRoleArn\":", jsonencode(aws_iam_role.environment.arn),
     ",\"apiEndpoint\":", jsonencode(var.api_endpoint),
     ",\"exchangeToken\":", jsonencode(var.runner_token),
-    ], var.default_ami == "" ? [] : [
-    ",\"defaultAMI\":", jsonencode(var.default_ami),
-    ], [
-    ",\"gatewayAPIEndpoint\":", jsonencode(var.gateway_api_endpoint),
+    ",\"gatewayAPIEndpoint\":\"\"",
     ",\"infrastructureVersion\":\"terraform\"",
     ",\"sshPort\":29222",
     ",\"resourceTags\":", jsonencode(local.runner_resource_tags),

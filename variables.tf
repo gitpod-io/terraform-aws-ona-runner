@@ -42,12 +42,6 @@ variable "api_endpoint" {
   default     = "https://app.gitpod.io/api"
 }
 
-variable "gateway_api_endpoint" {
-  description = "Gateway API endpoint. Leave empty for the default Ona gateway behavior."
-  type        = string
-  default     = ""
-}
-
 variable "runner_domain" {
   description = "Domain name used by the runner proxy."
   type        = string
@@ -112,12 +106,6 @@ variable "cache_engine" {
   }
 }
 
-variable "default_ami" {
-  description = "Default AMI for environments launched by the runner. Leave empty to use runner defaults."
-  type        = string
-  default     = ""
-}
-
 variable "runner_image" {
   description = "Optional custom runner image. Leave empty to use the image derived from runner_template_build_version."
   type        = string
@@ -146,18 +134,6 @@ variable "assign_public_ip" {
   default     = false
 }
 
-variable "permissions_boundary_arn" {
-  description = "Optional IAM permissions boundary applied to every runner-managed role. Set this to the enterprise boundary approved for the AWS account."
-  type        = string
-  default     = null
-}
-
-variable "development_version" {
-  description = "Optional development version passed to the runner."
-  type        = string
-  default     = ""
-}
-
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
@@ -184,18 +160,6 @@ variable "custom_ca_trust_bundle" {
   description = "Optional custom CA trust bundle content or URL understood by the runner."
   type        = string
   default     = ""
-}
-
-variable "disable_resource_policies" {
-  description = "Disable restrictive read-scoping S3 and DynamoDB resource policies. TLS-only S3 policies remain enabled unless disable_s3_tls_enforcement is true."
-  type        = bool
-  default     = false
-}
-
-variable "disable_s3_tls_enforcement" {
-  description = "Disable S3 bucket policies that deny non-TLS requests. Intended only for organizations that cannot use S3 bucket policies."
-  type        = bool
-  default     = false
 }
 
 variable "tags" {
