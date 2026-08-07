@@ -1,13 +1,10 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing semantic-version tag to publish
+        description: Semantic-version tag to publish
         required: true
         type: string
 
@@ -15,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -23,24 +20,46 @@ jobs:
     name: Publish Terraform module release
     runs-on: ubuntu-latest
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag }}
 
     steps:
-      - name: Checkout release tag
+      - name: Checkout release candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag || github.ref }}
+          ref: main
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: "1.15.8"
 
-      - name: Verify release tag
+      - name: Resolve release target
+        id: target
         run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must be a semantic version with a v prefix, got: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
           git fetch origin main:refs/remotes/origin/main
-          git merge-base --is-ancestor "${RELEASE_TAG}^{commit}" origin/main
+          git fetch origin --tags
+
+          tag_exists=false
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
+            release_sha="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+            git checkout --detach "$release_sha"
+            tag_exists=true
+          else
+            release_sha="$(git rev-parse HEAD)"
+          fi
+
+          git merge-base --is-ancestor "$release_sha" origin/main
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "tag_exists=$tag_exists" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release
+        run: |
           bash scripts/validate-release.sh "$RELEASE_TAG"
 
       - name: Validate Terraform module
@@ -65,13 +84,24 @@ jobs:
           git diff --exit-code
 
       - name: Build release notes
-        run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md
+        run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md HEAD
 
-      - name: Publish GitHub release
+      - name: Publish tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.target.outputs.release_sha }}
+          TAG_EXISTS: ${{ steps.target.outputs.tag_exists }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            --verify-tag \
-            --title "$RELEASE_TAG" \
-            --notes-file release-body.md
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_TAG already exists"
+          elif [[ "$TAG_EXISTS" == "true" ]]; then
+            gh release create "$RELEASE_TAG" \
+              --verify-tag \
+              --title "$RELEASE_TAG" \
+              --notes-file release-body.md
+          else
+            gh release create "$RELEASE_TAG" \
+              --target "$RELEASE_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes-file release-body.md
+          fi

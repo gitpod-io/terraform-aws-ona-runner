@@ -97,17 +97,25 @@ Before publishing a release:
    bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
    ```
 
-4. Create and push an immutable tag from the validated commit:
+4. Dispatch the release workflow from `main`. It validates the release commit
+   before creating the immutable tag and GitHub release:
 
    ```bash
    version="$(tr -d '[:space:]' < VERSION)"
-   git tag -a "v${version}" -m "Release v${version}"
-   git push origin "v${version}"
+   gh workflow run release.yml --ref main -f tag="v${version}"
    ```
 
-The release workflow verifies that the tag matches `VERSION`, belongs to
-`main`, references a coherent immutable EC2 release manifest, and passes all
-Terraform checks. It then publishes a GitHub release containing the pinned
-runner artifacts, security-sensitive changes, and module changelog. Re-run a
-failed publication with the workflow's manual trigger and the existing tag;
-never move or replace a published tag.
+The release workflow verifies that the requested tag matches `VERSION`, the
+release commit belongs to `main`, the immutable EC2 release manifest is
+coherent, and all Terraform checks pass. Only then does it create the tag and a
+GitHub release containing the pinned runner artifacts, security-sensitive
+changes, and module changelog.
+
+For the initial release, connect this public repository to the Terraform
+Registry after the workflow creates the first tag. The Registry imports that
+tag and installs a webhook that discovers later module versions when their
+validated tags are created.
+
+If GitHub release publication fails after the tag is created, dispatch the
+workflow again with the same tag. It validates the tagged commit and completes
+the missing GitHub release. Never move or replace a published tag.

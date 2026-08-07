@@ -5,6 +5,7 @@ set -euo pipefail
 
 release_tag="${1:-}"
 output_file="${2:-release-body.md}"
+release_ref="${3:-$release_tag}"
 
 bash scripts/validate-release.sh "$release_tag" >/dev/null
 
@@ -27,12 +28,12 @@ while IFS= read -r candidate; do
     previous_tag="$candidate"
     break
   fi
-done < <(git tag --merged "$release_tag" --sort=-version:refname)
+done < <(git tag --merged "$release_ref" --sort=-version:refname)
 
 if [[ -n "$previous_tag" ]]; then
-  change_range="${previous_tag}..${release_tag}"
+  change_range="${previous_tag}..${release_ref}"
 else
-  change_range="$release_tag"
+  change_range="$release_ref"
 fi
 
 changelog="$(git log --no-merges --pretty=format:'- %s (`%h`)' "$change_range" \
