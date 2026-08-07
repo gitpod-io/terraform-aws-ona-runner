@@ -42,16 +42,13 @@ if [[ -z "$changelog" ]]; then
   changelog="- No user-facing module changes in this release."
 fi
 
-security_files=(
-  iam.tf
-  permission-boundaries.tf
-  s3.tf
-  secrets.tf
-  security-groups.tf
+security_paths=(
+  ':(glob)*.tf'
+  ':(glob)modules/**/*.tf'
 )
 security_changes=""
-if [[ -n "$previous_tag" ]] && ! git diff --quiet "$change_range" -- "${security_files[@]}"; then
-  security_changes="$(git log --no-merges --pretty=format:'- %s (`%h`)' "$change_range" -- "${security_files[@]}")"
+if [[ -n "$previous_tag" ]] && ! git diff --quiet "$change_range" -- "${security_paths[@]}"; then
+  security_changes="$(git log --no-merges --pretty=format:'- %s (`%h`)' "$change_range" -- "${security_paths[@]}")"
 fi
 
 {
@@ -67,8 +64,8 @@ fi
     printf '## IAM and security configuration\n\n'
     printf 'This is the initial module release. Review the IAM roles, permission boundaries, bucket policies, secrets, and security groups before deployment.\n\n'
   elif [[ -n "$security_changes" ]]; then
-    printf '## IAM and security configuration changes\n\n'
-    printf 'This release changes security-sensitive Terraform configuration. Review these commits before upgrading:\n\n'
+    printf '## Infrastructure and security configuration changes\n\n'
+    printf 'This release changes Terraform infrastructure or security configuration. Review these commits before upgrading:\n\n'
     printf '%s\n\n' "$security_changes"
   fi
 

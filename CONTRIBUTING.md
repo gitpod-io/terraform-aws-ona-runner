@@ -84,8 +84,16 @@ Before publishing a release:
 
 1. Merge a pull request that sets `VERSION` to the intended module version and
    pins a tested stable EC2 runner release.
-2. Complete the deployment checks in [`docs/parity.md`](docs/parity.md) from the
-   release commit in an AWS test account.
+2. Fetch `main`, record the exact release commit, and complete the deployment
+   checks in [`docs/parity.md`](docs/parity.md) from that commit in an AWS test
+   account:
+
+   ```bash
+   git fetch origin main
+   git switch --detach origin/main
+   release_sha="$(git rev-parse HEAD)"
+   ```
+
 3. Run the same checks used by CI:
 
    ```bash
@@ -102,14 +110,22 @@ Before publishing a release:
 
    ```bash
    version="$(tr -d '[:space:]' < VERSION)"
-   gh workflow run release.yml --ref main -f tag="v${version}"
+   gh workflow run release.yml --ref main \
+     -f tag="v${version}" \
+     -f release_sha="${release_sha}"
    ```
 
 The release workflow verifies that the requested tag matches `VERSION`, the
-release commit belongs to `main`, the immutable EC2 release manifest is
-coherent, and all Terraform checks pass. Only then does it create the tag and a
-GitHub release containing the pinned runner artifacts, security-sensitive
-changes, and module changelog.
+exact release commit belongs to `main`, the immutable EC2 release manifest is
+coherent, and all Terraform checks pass. The publish job then waits for approval
+through the `terraform-registry-release` GitHub environment before creating the
+tag and a GitHub release containing the pinned runner artifacts, infrastructure
+and security changes, and module changelog.
+
+Before the first release, a repository administrator must configure the
+`terraform-registry-release` environment with required reviewers and prevent
+self-approval. Reviewers approve publication only after confirming that the
+workflow's `release_sha` is the commit that passed the AWS deployment checks.
 
 For the initial release, connect this public repository to the Terraform
 Registry after the workflow creates the first tag. The Registry imports that
@@ -117,5 +133,6 @@ tag and installs a webhook that discovers later module versions when their
 validated tags are created.
 
 If GitHub release publication fails after the tag is created, dispatch the
-workflow again with the same tag. It validates the tagged commit and completes
-the missing GitHub release. Never move or replace a published tag.
+workflow again with the same tag and release commit SHA. It validates the tagged
+commit and completes the missing GitHub release. Never move or replace a
+published tag.

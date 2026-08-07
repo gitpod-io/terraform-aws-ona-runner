@@ -7,19 +7,26 @@ on:
         description: Semantic-version tag to publish
         required: true
         type: string
+      release_sha:
+        description: Full commit SHA validated in AWS and to publish
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Publish Terraform module release
+  validate:
+    name: Validate Terraform module release
     runs-on: ubuntu-latest
+    outputs:
+      release_sha: ${{ steps.target.outputs.release_sha }}
     env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
       RELEASE_TAG: ${{ inputs.tag }}
 
     steps:
@@ -27,7 +34,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
-          ref: main
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
@@ -37,30 +44,14 @@ jobs:
       - name: Resolve release target
         id: target
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must be a semantic version with a v prefix, got: $RELEASE_TAG" >&2
-            exit 1
-          fi
-
           git fetch origin main:refs/remotes/origin/main
           git fetch origin --tags
 
-          tag_exists=false
-          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
-            release_sha="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
-            git checkout --detach "$release_sha"
-            tag_exists=true
-          else
-            release_sha="$(git rev-parse HEAD)"
-          fi
-
-          git merge-base --is-ancestor "$release_sha" origin/main
+          release_sha="$(bash scripts/validate-release-target.sh "$RELEASE_SHA" origin/main "$RELEASE_TAG")"
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
-          echo "tag_exists=$tag_exists" >> "$GITHUB_OUTPUT"
 
       - name: Verify release
-        run: |
-          bash scripts/validate-release.sh "$RELEASE_TAG"
+        run: bash scripts/validate-release.sh "$RELEASE_TAG"
 
       - name: Validate Terraform module
         run: |
@@ -86,15 +77,40 @@ jobs:
       - name: Build release notes
         run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md HEAD
 
+  publish:
+    name: Publish Terraform module release
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: terraform-registry-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_SHA: ${{ needs.validate.outputs.release_sha }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Checkout validated release candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.validate.outputs.release_sha }}
+
+      - name: Recheck release target
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          git fetch origin --tags
+          bash scripts/validate-release-target.sh "$RELEASE_SHA" origin/main "$RELEASE_TAG" >/dev/null
+
+      - name: Build release notes
+        run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md HEAD
+
       - name: Publish tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ steps.target.outputs.release_sha }}
-          TAG_EXISTS: ${{ steps.target.outputs.tag_exists }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "GitHub release $RELEASE_TAG already exists"
-          elif [[ "$TAG_EXISTS" == "true" ]]; then
+          elif git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
             gh release create "$RELEASE_TAG" \
               --verify-tag \
               --title "$RELEASE_TAG" \

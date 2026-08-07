@@ -29,6 +29,7 @@ jobs:
           trap 'rm -f "$release_notes"' EXIT
 
           shellcheck scripts/*.sh
+          bash scripts/test-release-tools.sh
           bash scripts/validate-release.sh "$release_tag"
           bash scripts/build-release-notes.sh "$release_tag" "$release_notes" HEAD
           test -s "$release_notes"
