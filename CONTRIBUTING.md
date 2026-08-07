@@ -91,6 +91,7 @@ Before publishing a release:
    ```bash
    git fetch origin main
    git switch --detach origin/main
+   test -z "$(git status --porcelain --untracked-files=all)"
    release_sha="$(git rev-parse HEAD)"
    ```
 
@@ -103,7 +104,14 @@ Before publishing a release:
    terraform validate
    terraform test
    bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
+   test "$(git rev-parse HEAD)" = "$release_sha"
+   test -z "$(git status --porcelain --untracked-files=all)"
    ```
+
+   The final two checks confirm that the live deployment used the recorded
+   commit without tracked or untracked source changes. The repository ignores
+   Terraform variable and state files, so these checks bind the module source,
+   not the deployment inputs or state.
 
 4. Dispatch the release workflow from `main`. It validates the release commit
    before creating the immutable tag and GitHub release:

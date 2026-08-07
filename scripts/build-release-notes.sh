@@ -21,6 +21,7 @@ manifest="$(curl --fail --location --retry 3 --silent --show-error "$manifest_ur
 runner_image="$(jq -er '.image' <<<"$manifest")"
 proxy_image="$(jq -er '.proxy_image' <<<"$manifest")"
 template_url="$(jq -er '.cloudformation_template_url' <<<"$manifest")"
+release_notes_anchor="${runner_version//./-}"
 
 previous_tag=""
 while IFS= read -r candidate; do
@@ -42,17 +43,36 @@ if [[ -z "$changelog" ]]; then
   changelog="- No user-facing module changes in this release."
 fi
 
-security_paths=(
+infrastructure_paths=(
   ':(glob)*.tf'
   ':(glob)modules/**/*.tf'
 )
+security_paths=(
+  'iam.tf'
+  'permission-boundaries.tf'
+  'security-groups.tf'
+  'secrets.tf'
+  's3.tf'
+  'dynamo.tf'
+  ':(glob)modules/**/iam*.tf'
+  ':(glob)modules/**/permission-boundaries*.tf'
+  ':(glob)modules/**/security-groups*.tf'
+  ':(glob)modules/**/secrets*.tf'
+  ':(glob)modules/**/s3*.tf'
+  ':(glob)modules/**/dynamo*.tf'
+)
+infrastructure_changes=""
 security_changes=""
+if [[ -n "$previous_tag" ]] && ! git diff --quiet "$change_range" -- "${infrastructure_paths[@]}"; then
+  infrastructure_changes="$(git log --no-merges --pretty=format:'- %s (`%h`)' "$change_range" -- "${infrastructure_paths[@]}")"
+fi
 if [[ -n "$previous_tag" ]] && ! git diff --quiet "$change_range" -- "${security_paths[@]}"; then
   security_changes="$(git log --no-merges --pretty=format:'- %s (`%h`)' "$change_range" -- "${security_paths[@]}")"
 fi
 
 {
   printf 'This module release pins EC2 runner `%s`, matching the supported CloudFormation Fargate private-ECR release.\n\n' "$runner_version"
+  printf 'For application changes in the runner itself, see the [AWS runner release notes](https://ona.com/docs/release-notes/aws-runner#%s).\n\n' "$release_notes_anchor"
   printf '## Runner artifacts\n\n'
   printf '| Component | Artifact |\n'
   printf '| --- | --- |\n'
@@ -63,10 +83,18 @@ fi
   if [[ -z "$previous_tag" ]]; then
     printf '## IAM and security configuration\n\n'
     printf 'This is the initial module release. Review the IAM roles, permission boundaries, bucket policies, secrets, and security groups before deployment.\n\n'
-  elif [[ -n "$security_changes" ]]; then
-    printf '## Infrastructure and security configuration changes\n\n'
-    printf 'This release changes Terraform infrastructure or security configuration. Review these commits before upgrading:\n\n'
-    printf '%s\n\n' "$security_changes"
+  else
+    if [[ -n "$infrastructure_changes" ]]; then
+      printf '## Infrastructure configuration changes\n\n'
+      printf 'This release changes Terraform infrastructure. Review these commits before upgrading:\n\n'
+      printf '%s\n\n' "$infrastructure_changes"
+    fi
+
+    if [[ -n "$security_changes" ]]; then
+      printf '## IAM and security configuration changes\n\n'
+      printf 'This release changes IAM permissions or security-sensitive resources. Review these commits before upgrading:\n\n'
+      printf '%s\n\n' "$security_changes"
+    fi
   fi
 
   printf '## Terraform module changes\n\n'
