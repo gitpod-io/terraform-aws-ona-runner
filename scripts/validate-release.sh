@@ -4,7 +4,7 @@ set -euo pipefail
 release_tag="${1:-}"
 module_version="$(tr -d '[:space:]' < VERSION)"
 
-if [[ ! "$module_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ! "$module_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "VERSION must contain a semantic version without a v prefix, got: ${module_version}" >&2
   exit 1
 fi

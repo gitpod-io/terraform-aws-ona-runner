@@ -10,7 +10,7 @@ if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
   exit 1
 fi
 
-if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ! "$release_tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "Release tag must be a semantic version with a v prefix, got: ${release_tag:-<empty>}" >&2
   exit 1
 fi

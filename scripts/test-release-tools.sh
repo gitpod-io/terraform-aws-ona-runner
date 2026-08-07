@@ -26,6 +26,10 @@ cp "${repo_root}/VERSION" "${repo_root}/variables.tf" "$validation_root/"
   expect_failure "a release tag that does not match VERSION" \
     bash scripts/validate-release.sh v9.9.9
 
+  printf '01.2.3\n' > VERSION
+  expect_failure "a version with a leading zero" \
+    bash scripts/validate-release.sh v01.2.3
+
   printf 'not-a-version\n' > VERSION
   expect_failure "a malformed VERSION file" \
     bash scripts/validate-release.sh v0.1.0
@@ -51,6 +55,9 @@ git init --quiet "$target_repo"
 
   expect_failure "a shortened release SHA" \
     bash "${repo_root}/scripts/validate-release-target.sh" "${main_sha:0:12}" HEAD v0.1.0
+
+  expect_failure "a release tag with a leading zero" \
+    bash "${repo_root}/scripts/validate-release-target.sh" "$main_sha" HEAD v01.2.3
 
   empty_tree="$(git mktree </dev/null)"
   unrelated_sha="$(printf 'unrelated commit\n' | git commit-tree "$empty_tree")"
