@@ -72,3 +72,75 @@ for example_dir in examples/*/; do
   (cd "$example_dir" && terraform init -backend=false && terraform validate)
 done
 ```
+
+## Releases
+
+Module releases use semantic versions and immutable Git tags. `VERSION` holds
+the module version to publish; runner application versions remain pinned
+separately by `runner_template_build_version`. Bump `VERSION` in a pull request
+before publishing the next module release.
+
+Before publishing a release:
+
+1. Merge a pull request that sets `VERSION` to the intended module version and
+   pins a tested stable EC2 runner release.
+2. Fetch `main`, record the exact release commit, and complete the deployment
+   checks in [`docs/parity.md`](docs/parity.md) from that commit in an AWS test
+   account:
+
+   ```bash
+   git fetch origin main
+   git switch --detach origin/main
+   test -z "$(git status --porcelain --untracked-files=all)"
+   release_sha="$(git rev-parse HEAD)"
+   ```
+
+3. Run the same checks used by CI:
+
+   ```bash
+   terraform fmt -check -recursive
+   bash scripts/check-parity-contract.sh
+   terraform init -backend=false
+   terraform validate
+   terraform test
+   bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
+   test "$(git rev-parse HEAD)" = "$release_sha"
+   test -z "$(git status --porcelain --untracked-files=all)"
+   ```
+
+   The final two checks confirm that the live deployment used the recorded
+   commit without tracked or untracked source changes. The repository ignores
+   Terraform variable and state files, so these checks bind the module source,
+   not the deployment inputs or state.
+
+4. Dispatch the release workflow from `main`. It validates the release commit
+   before creating the immutable tag and GitHub release:
+
+   ```bash
+   version="$(tr -d '[:space:]' < VERSION)"
+   gh workflow run release.yml --ref main \
+     -f tag="v${version}" \
+     -f release_sha="${release_sha}"
+   ```
+
+The release workflow verifies that the requested tag matches `VERSION`, the
+exact release commit belongs to `main`, the immutable EC2 release manifest is
+coherent, and all Terraform checks pass. The publish job then waits for approval
+through the `terraform-registry-release` GitHub environment before creating the
+tag and a GitHub release containing the pinned runner artifacts, infrastructure
+and security changes, and module changelog.
+
+Before the first release, a repository administrator must configure the
+`terraform-registry-release` environment with required reviewers and prevent
+self-approval. Reviewers approve publication only after confirming that the
+workflow's `release_sha` is the commit that passed the AWS deployment checks.
+
+For the initial release, connect this public repository to the Terraform
+Registry after the workflow creates the first tag. The Registry imports that
+tag and installs a webhook that discovers later module versions when their
+validated tags are created.
+
+If GitHub release publication fails after the tag is created, dispatch the
+workflow again with the same tag and release commit SHA. It validates the tagged
+commit and completes the missing GitHub release. Never move or replace a
+published tag.

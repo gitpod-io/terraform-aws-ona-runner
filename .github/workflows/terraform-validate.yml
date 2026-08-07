@@ -13,12 +13,26 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 0
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3.1.2
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "1.15.8"
+
+      - name: Validate release tooling
+        run: |
+          release_tag="v$(tr -d '[:space:]' < VERSION)"
+          release_notes="$(mktemp)"
+          trap 'rm -f "$release_notes"' EXIT
+
+          shellcheck scripts/*.sh
+          bash scripts/test-release-tools.sh
+          bash scripts/validate-release.sh "$release_tag"
+          bash scripts/build-release-notes.sh "$release_tag" "$release_notes" HEAD
+          test -s "$release_notes"
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive

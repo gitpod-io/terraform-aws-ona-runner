@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Semantic-version tag to publish
+        required: true
+        type: string
+      release_sha:
+        description: Full commit SHA validated in AWS and to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Terraform module release
+    runs-on: ubuntu-latest
+    outputs:
+      release_sha: ${{ steps.target.outputs.release_sha }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Checkout release candidate
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_sha }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Resolve release target
+        id: target
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          git fetch origin --tags
+
+          release_sha="$(bash scripts/validate-release-target.sh "$RELEASE_SHA" origin/main "$RELEASE_TAG")"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release
+        run: bash scripts/validate-release.sh "$RELEASE_TAG"
+
+      - name: Validate Terraform module
+        run: |
+          terraform fmt -check -recursive
+          bash scripts/check-parity-contract.sh
+          terraform init -backend=false
+          terraform validate
+          terraform test
+
+          terraform -chdir=modules/custom-domain-client-infra init -backend=false
+          terraform -chdir=modules/custom-domain-client-infra validate
+          terraform -chdir=modules/custom-domain-client-infra test
+
+          for example_dir in examples/*/; do
+            if [[ -f "${example_dir}/main.tf" ]]; then
+              terraform -chdir="$example_dir" init -backend=false
+              terraform -chdir="$example_dir" validate
+            fi
+          done
+
+          git diff --exit-code
+
+      - name: Build release notes
+        run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md HEAD
+
+  publish:
+    name: Publish Terraform module release
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: terraform-registry-release
+    permissions:
+      contents: write
+    env:
+      RELEASE_SHA: ${{ needs.validate.outputs.release_sha }}
+      RELEASE_TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Checkout validated release candidate
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.validate.outputs.release_sha }}
+
+      - name: Recheck release target
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          git fetch origin --tags
+          bash scripts/validate-release-target.sh "$RELEASE_SHA" origin/main "$RELEASE_TAG" >/dev/null
+
+      - name: Build release notes
+        run: bash scripts/build-release-notes.sh "$RELEASE_TAG" release-body.md HEAD
+
+      - name: Publish tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_TAG already exists"
+          elif git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
+            gh release create "$RELEASE_TAG" \
+              --verify-tag \
+              --title "$RELEASE_TAG" \
+              --notes-file release-body.md
+          else
+            gh release create "$RELEASE_TAG" \
+              --target "$RELEASE_SHA" \
+              --title "$RELEASE_TAG" \
+              --notes-file release-body.md
+          fi
