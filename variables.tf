@@ -134,6 +134,12 @@ variable "assign_public_ip" {
   default     = false
 }
 
+variable "manage_s3_bucket_public_access_block" {
+  description = "Manage bucket-level S3 Public Access Block settings for the container registry, logs, and agent buckets. Disable only when equivalent protection is enforced outside this module."
+  type        = bool
+  default     = true
+}
+
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
