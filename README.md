@@ -61,6 +61,12 @@ Terraform creates the same role-specific permission-boundary classes as the
 CloudFormation path for execution, runner, proxy, telemetry, environment, S3,
 and devcontainer-cache roles.
 
+By default, Terraform also manages bucket-level S3 Public Access Block settings
+for the container registry, logs, and agent buckets. Set
+`manage_s3_bucket_public_access_block = false` only when equivalent protection
+is enforced outside this module and an AWS Organizations policy denies
+`s3:PutBucketPublicAccessBlock`.
+
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
 Terraform to own runner custom-domain DNS resources.

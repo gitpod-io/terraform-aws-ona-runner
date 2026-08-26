@@ -13,7 +13,14 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "container_registr
   }
 }
 
+moved {
+  from = aws_s3_bucket_public_access_block.container_registry
+  to   = aws_s3_bucket_public_access_block.container_registry[0]
+}
+
 resource "aws_s3_bucket_public_access_block" "container_registry" {
+  count = var.manage_s3_bucket_public_access_block ? 1 : 0
+
   bucket                  = aws_s3_bucket.container_registry.id
   block_public_acls       = true
   block_public_policy     = true
@@ -56,7 +63,14 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
   }
 }
 
+moved {
+  from = aws_s3_bucket_public_access_block.logs
+  to   = aws_s3_bucket_public_access_block.logs[0]
+}
+
 resource "aws_s3_bucket_public_access_block" "logs" {
+  count = var.manage_s3_bucket_public_access_block ? 1 : 0
+
   bucket                  = aws_s3_bucket.logs.id
   block_public_acls       = true
   block_public_policy     = true
@@ -99,7 +113,14 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "agent" {
   }
 }
 
+moved {
+  from = aws_s3_bucket_public_access_block.agent
+  to   = aws_s3_bucket_public_access_block.agent[0]
+}
+
 resource "aws_s3_bucket_public_access_block" "agent" {
+  count = var.manage_s3_bucket_public_access_block ? 1 : 0
+
   bucket                  = aws_s3_bucket.agent.id
   block_public_acls       = true
   block_public_policy     = true
