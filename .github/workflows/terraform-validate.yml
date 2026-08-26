@@ -49,11 +49,15 @@ jobs:
       - name: Terraform Test
         run: terraform test
 
-      - name: Validate custom domain helper
+      - name: Validate submodules
         run: |
-          terraform -chdir=modules/custom-domain-client-infra init -backend=false
-          terraform -chdir=modules/custom-domain-client-infra validate
-          terraform -chdir=modules/custom-domain-client-infra test
+          for module_dir in modules/*/; do
+            if [ -f "${module_dir}/versions.tf" ]; then
+              terraform -chdir="$module_dir" init -backend=false
+              terraform -chdir="$module_dir" validate
+              terraform -chdir="$module_dir" test
+            fi
+          done
 
       - name: Validate Examples
         run: |
