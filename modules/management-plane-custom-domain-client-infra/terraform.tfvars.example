@@ -1,0 +1,15 @@
+vpc_id = "vpc-00000000000000000"
+
+subnet_ids = [
+  "subnet-00000000000000001",
+  "subnet-00000000000000002",
+]
+
+domain_name     = "ona.example.com"
+certificate_arn = "arn:aws:acm:us-west-2:123456789012:certificate/example"
+
+# Restrict this to the networks that should reach the custom domain.
+allowed_ipv4_cidr_blocks = ["10.0.0.0/8"]
+
+# Use internet-facing only when the domain should be publicly reachable.
+# load_balancer_scheme = "internet-facing"

@@ -63,6 +63,12 @@ terraform fmt -recursive
 terraform init -backend=false
 terraform validate
 terraform test
+
+for module_dir in modules/*/; do
+  terraform -chdir="$module_dir" init -backend=false
+  terraform -chdir="$module_dir" validate
+  terraform -chdir="$module_dir" test
+done
 ```
 
 Validate examples separately:

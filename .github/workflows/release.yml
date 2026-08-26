@@ -61,9 +61,13 @@ jobs:
           terraform validate
           terraform test
 
-          terraform -chdir=modules/custom-domain-client-infra init -backend=false
-          terraform -chdir=modules/custom-domain-client-infra validate
-          terraform -chdir=modules/custom-domain-client-infra test
+          for module_dir in modules/*/; do
+            if [[ -f "${module_dir}/versions.tf" ]]; then
+              terraform -chdir="$module_dir" init -backend=false
+              terraform -chdir="$module_dir" validate
+              terraform -chdir="$module_dir" test
+            fi
+          done
 
           for example_dir in examples/*/; do
             if [[ -f "${example_dir}/main.tf" ]]; then

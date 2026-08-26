@@ -69,7 +69,10 @@ is enforced outside this module and an AWS Organizations policy denies
 
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
-Terraform to own runner custom-domain DNS resources.
+Terraform to own runner-domain DNS resources. The separate
+[`management-plane-custom-domain-client-infra`](./modules/management-plane-custom-domain-client-infra/)
+module deploys the Network Load Balancer and VPC endpoint needed to access the
+Ona management plane through a custom domain.
 
 ## Resource names
 
