@@ -41,6 +41,11 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   }
 
   assert {
+    condition     = aws_ssm_parameter.redis_connection.type == "SecureString"
+    error_message = "the cache connection string must remain encrypted in Parameter Store."
+  }
+
+  assert {
     condition     = local.runner_container.image == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:${var.runner_template_build_version}" && local.proxy_container.image == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr/k5t9d3j5/application/gitpod-next/gitpod-proxy:${var.runner_template_build_version}"
     error_message = "public manifest images must map to the regional private ECR release mirror."
   }

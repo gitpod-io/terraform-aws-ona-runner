@@ -175,7 +175,7 @@ locals {
 resource "aws_ssm_parameter" "redis_connection" {
   name        = local.redis_parameter_name
   description = "Cache connection string for AI feature"
-  type        = "String"
+  type        = "SecureString"
   value       = local.cache_connection_string
   tags        = local.common_tags
 }
