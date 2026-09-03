@@ -107,9 +107,9 @@ resource "aws_security_group" "environment" {
   ingress {
     security_groups = [aws_security_group.ecs.id]
     protocol        = "tcp"
-    from_port       = 1024
-    to_port         = 65535
-    description     = "Allow runner ECS tasks to connect to environments"
+    from_port       = var.restrict_ingress ? 22999 : 1024
+    to_port         = var.restrict_ingress ? 22999 : 65535
+    description     = var.restrict_ingress ? "Allow runner ECS tasks to connect to environment supervisors" : "Allow runner ECS tasks to connect to environments"
   }
 
   egress {

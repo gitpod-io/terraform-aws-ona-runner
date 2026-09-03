@@ -64,6 +64,11 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
     condition     = aws_lb.proxy.dns_record_client_routing_policy == "availability_zone_affinity" && aws_lb_target_group.proxy.health_check[0].matcher == "200"
     error_message = "the Network Load Balancer must retain the CloudFormation routing and health-check contract."
   }
+
+  assert {
+    condition     = one(aws_security_group.environment.ingress).from_port == 1024 && one(aws_security_group.environment.ingress).to_port == 65535
+    error_message = "omitting restrict_ingress must preserve the standard environment ingress range."
+  }
 }
 
 run "explicit_unrestricted_ingress_preserves_default_topology" {
@@ -77,9 +82,14 @@ run "explicit_unrestricted_ingress_preserves_default_topology" {
     condition     = !var.restrict_ingress && aws_lb.proxy.internal && aws_ecs_service.runner.desired_count == 1 && aws_ecs_service.proxy.desired_count == 2 && aws_ecs_service.adot.desired_count == 1
     error_message = "explicitly disabling restrict_ingress must preserve the standard runner topology."
   }
+
+  assert {
+    condition     = one(aws_security_group.environment.ingress).from_port == 1024 && one(aws_security_group.environment.ingress).to_port == 65535
+    error_message = "explicitly disabling restrict_ingress must preserve the standard environment ingress range."
+  }
 }
 
-run "restricted_ingress_opt_in_is_currently_topology_neutral" {
+run "restricted_ingress_limits_environment_access_to_supervisor" {
   command = plan
 
   variables {
@@ -87,8 +97,13 @@ run "restricted_ingress_opt_in_is_currently_topology_neutral" {
   }
 
   assert {
-    condition     = var.restrict_ingress && aws_lb.proxy.internal && aws_ecs_service.runner.desired_count == 1 && aws_ecs_service.proxy.desired_count == 2 && aws_ecs_service.adot.desired_count == 1
-    error_message = "enabling restrict_ingress must be accepted without changing the runner topology at this stage."
+    condition     = var.restrict_ingress && one(aws_security_group.environment.ingress).protocol == "tcp" && one(aws_security_group.environment.ingress).from_port == 22999 && one(aws_security_group.environment.ingress).to_port == 22999
+    error_message = "enabling restrict_ingress must allow runner-to-environment TCP traffic only on supervisor control port 22999."
+  }
+
+  assert {
+    condition     = output.ssh_port == 29222
+    error_message = "restricting supervisor ingress must not change the separate SSH port setting."
   }
 }
 
