@@ -38,3 +38,9 @@ variable "load_balancer_subnet_ids" {
   description = "Existing subnet IDs for the Network Load Balancer."
   type        = list(string)
 }
+
+variable "restrict_ingress" {
+  description = "Whether to restrict inbound network access to runner and environment infrastructure."
+  type        = bool
+  default     = false
+}

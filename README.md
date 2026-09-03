@@ -15,6 +15,14 @@ private-ECR installation path.
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 how to call the module with existing VPC, subnet, DNS, and certificate inputs.
 
+## Restricted ingress
+
+Set `restrict_ingress = true` to opt into restricted inbound network access for
+runner and environment infrastructure. Omitting it or setting it to `false`
+preserves the standard ingress behavior. The
+[`runner-with-networking`](./examples/runner-with-networking/) example exposes
+the flag for customer deployments.
+
 ## Release compatibility
 
 The module pins `runner_template_build_version` to one tested stable runner

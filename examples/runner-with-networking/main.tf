@@ -13,6 +13,7 @@ module "runner" {
   vpc_id                   = var.vpc_id
   runner_subnet_ids        = var.runner_subnet_ids
   load_balancer_subnet_ids = var.load_balancer_subnet_ids
+  restrict_ingress         = var.restrict_ingress
 
   load_balancer_scheme = "internal"
 }
