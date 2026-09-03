@@ -134,6 +134,12 @@ variable "assign_public_ip" {
   default     = false
 }
 
+variable "restrict_ingress" {
+  description = "Whether to restrict inbound network access to runner and environment infrastructure."
+  type        = bool
+  default     = false
+}
+
 variable "manage_s3_bucket_public_access_block" {
   description = "Manage bucket-level S3 Public Access Block settings for the container registry, logs, and agent buckets. Disable only when equivalent protection is enforced outside this module."
   type        = bool

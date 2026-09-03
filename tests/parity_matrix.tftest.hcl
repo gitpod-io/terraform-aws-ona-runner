@@ -36,8 +36,8 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   command = plan
 
   assert {
-    condition     = aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0 && local.private_ecr_prefix == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr"
-    error_message = "the default deployment must use an internal Network Load Balancer, MemoryDB, and the released private ECR mirror."
+    condition     = !var.restrict_ingress && aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0 && local.private_ecr_prefix == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr"
+    error_message = "the default deployment must be a standard runner using an internal Network Load Balancer, MemoryDB, and the released private ECR mirror."
   }
 
   assert {
@@ -63,6 +63,32 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   assert {
     condition     = aws_lb.proxy.dns_record_client_routing_policy == "availability_zone_affinity" && aws_lb_target_group.proxy.health_check[0].matcher == "200"
     error_message = "the Network Load Balancer must retain the CloudFormation routing and health-check contract."
+  }
+}
+
+run "explicit_unrestricted_ingress_preserves_default_topology" {
+  command = plan
+
+  variables {
+    restrict_ingress = false
+  }
+
+  assert {
+    condition     = !var.restrict_ingress && aws_lb.proxy.internal && aws_ecs_service.runner.desired_count == 1 && aws_ecs_service.proxy.desired_count == 2 && aws_ecs_service.adot.desired_count == 1
+    error_message = "explicitly disabling restrict_ingress must preserve the standard runner topology."
+  }
+}
+
+run "restricted_ingress_opt_in_is_currently_topology_neutral" {
+  command = plan
+
+  variables {
+    restrict_ingress = true
+  }
+
+  assert {
+    condition     = var.restrict_ingress && aws_lb.proxy.internal && aws_ecs_service.runner.desired_count == 1 && aws_ecs_service.proxy.desired_count == 2 && aws_ecs_service.adot.desired_count == 1
+    error_message = "enabling restrict_ingress must be accepted without changing the runner topology at this stage."
   }
 }
 
