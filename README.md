@@ -14,6 +14,11 @@ private-ECR installation path.
 
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 how to call the module with existing VPC, subnet, DNS, and certificate inputs.
+The
+[`restricted-networking`](./examples/restricted-networking/)
+example creates runner egress VPC networking without load-balancer subnets. It
+supports optional AWS Network Firewall and either managed NAT gateways or a
+customer-provided Transit Gateway.
 
 ## Restricted ingress
 
@@ -81,6 +86,11 @@ Terraform to own runner-domain DNS resources. The separate
 [`management-plane-custom-domain-client-infra`](./modules/management-plane-custom-domain-client-infra/)
 module deploys the Network Load Balancer and VPC endpoint needed to access the
 Ona management plane through a custom domain.
+
+The [`restricted-networking`](./modules/restricted-networking/) helper module
+creates the VPC, runner and egress subnets, optional AWS Network Firewall, and
+VPC, firewall, and Route 53 Resolver logs used by the restricted networking
+example.
 
 ## Resource names
 
