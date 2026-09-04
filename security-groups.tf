@@ -99,6 +99,18 @@ resource "aws_security_group_rule" "ecs_proxy_metrics_self" {
   description       = "Allow ADOT to scrape proxy metrics"
 }
 
+resource "aws_security_group_rule" "ecs_from_environment_llm" {
+  count = var.restrict_ingress ? 1 : 0
+
+  type                     = "ingress"
+  security_group_id        = aws_security_group.ecs.id
+  source_security_group_id = aws_security_group.environment.id
+  protocol                 = "tcp"
+  from_port                = var.internal_llm_proxy_port
+  to_port                  = var.internal_llm_proxy_port
+  description              = "Allow environments to reach the internal LLM proxy"
+}
+
 resource "aws_security_group" "environment" {
   name_prefix = "${local.name_prefix}-env-"
   description = "Default security group for Ona environment instances"

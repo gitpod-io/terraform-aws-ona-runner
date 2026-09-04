@@ -23,6 +23,15 @@ preserves the standard ingress behavior. The
 [`runner-with-networking`](./examples/runner-with-networking/) example exposes
 the flag for customer deployments.
 
+Restricted ingress also creates a private Cloud Map DNS service for the runner
+tasks and enables direct HTTPS traffic from environment instances to the
+runner's LLM-only listener. The runner stores its generated self-signed
+certificate and private key in Secrets Manager, and environment access to the
+runner security group is limited to `internal_llm_proxy_port` (default `8089`).
+Task rotation updates the Cloud Map records without changing the internal URL.
+The selected VPC must have DNS support and DNS hostnames enabled so environment
+instances can resolve the private Cloud Map namespace.
+
 ## Release compatibility
 
 The module pins `runner_template_build_version` to one tested stable runner

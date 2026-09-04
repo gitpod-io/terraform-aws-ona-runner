@@ -51,6 +51,14 @@ locals {
   redis_parameter_name = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
   runner_config_key    = "/gitpod/runner/${var.runner_id}"
 
+  internal_runner_namespace = "${local.name_prefix}.internal"
+  internal_runner_endpoint  = "https://runner.${local.internal_runner_namespace}:${var.internal_llm_proxy_port}"
+  internal_runner_config_fragments = var.restrict_ingress ? [
+    ",\"internalRunnerEndpoint\":", jsonencode(local.internal_runner_endpoint),
+    ",\"internalRunnerLLMPort\":", jsonencode(var.internal_llm_proxy_port),
+    ",\"internalRunnerTLSSecretARN\":", jsonencode(aws_secretsmanager_secret.internal_llm_tls[0].arn),
+  ] : []
+
   release_public_ecr_prefix = "public.ecr.aws/k5t9d3j5/application/gitpod-next"
   release_runner_image = var.runner_image != "" ? var.runner_image : (
     "${local.release_public_ecr_prefix}/gitpod-ec2-runner:${var.runner_template_build_version}"
@@ -93,36 +101,41 @@ locals {
 
   # Keep this order aligned with config.Runner in gitpod-next. The runner
   # rewrites this SSM value with encoding/json and Terraform compares raw bytes.
-  runner_config = join("", concat([
-    "{",
-    "\"awsAccountId\":", jsonencode(data.aws_caller_identity.current.account_id),
-    ",\"resourceTableName\":", jsonencode(aws_dynamodb_table.resources.name),
-    ",\"vpcId\":", jsonencode(var.vpc_id),
-    ",\"stackName\":", jsonencode(local.name_prefix),
-    ",\"runnerLogGroup\":", jsonencode(aws_cloudwatch_log_group.runner.name),
-    ",\"proxyLogGroup\":", jsonencode(aws_cloudwatch_log_group.proxy.name),
-    ",\"adotLogGroup\":", jsonencode(aws_cloudwatch_log_group.adot.name),
-    ",\"subnetIDs\":", jsonencode(join(" ", var.runner_subnet_ids)),
-    ",\"securityGroupId\":", jsonencode(aws_security_group.environment.id),
-    ",\"instanceProfileName\":", jsonencode(aws_iam_instance_profile.environment.name),
-    ",\"environmentRoleArn\":", jsonencode(aws_iam_role.environment.arn),
-    ",\"apiEndpoint\":", jsonencode(var.api_endpoint),
-    ",\"exchangeToken\":", jsonencode(var.runner_token),
-    ",\"gatewayAPIEndpoint\":\"\"",
-    ",\"infrastructureVersion\":\"terraform\"",
-    ",\"sshPort\":29222",
-    ",\"resourceTags\":", jsonencode(local.runner_resource_tags),
-    ",\"cacheBucketName\":", jsonencode(aws_s3_bucket.container_registry.bucket),
-    ",\"logsBucket\":", jsonencode(aws_s3_bucket.logs.bucket),
-    ",\"agentBucketName\":", jsonencode(aws_s3_bucket.agent.bucket),
-    ",\"logLevel\":\"info\"",
-    ",\"devContainerCacheRegistryAccessRoleArn\":", jsonencode(aws_iam_role.devcontainer_cache_registry_access.arn),
-    ",\"sshOverGateway\":\"true\"",
-    ",\"runnerProxyDomain\":", jsonencode(var.runner_domain),
-    ",\"runnerPackage\":\"Enterprise\"",
-    ",\"runnerTemplateBuildVersion\":", jsonencode(var.runner_template_build_version),
-    ",\"asgWarmPoolEnabled\":true",
-    ",\"horizontalScalingEnabled\":true",
-    "}",
-  ]))
+  runner_config = join("", concat(
+    [
+      "{",
+      "\"awsAccountId\":", jsonencode(data.aws_caller_identity.current.account_id),
+      ",\"resourceTableName\":", jsonencode(aws_dynamodb_table.resources.name),
+      ",\"vpcId\":", jsonencode(var.vpc_id),
+      ",\"stackName\":", jsonencode(local.name_prefix),
+      ",\"runnerLogGroup\":", jsonencode(aws_cloudwatch_log_group.runner.name),
+      ",\"proxyLogGroup\":", jsonencode(aws_cloudwatch_log_group.proxy.name),
+      ",\"adotLogGroup\":", jsonencode(aws_cloudwatch_log_group.adot.name),
+      ",\"subnetIDs\":", jsonencode(join(" ", var.runner_subnet_ids)),
+      ",\"securityGroupId\":", jsonencode(aws_security_group.environment.id),
+      ",\"instanceProfileName\":", jsonencode(aws_iam_instance_profile.environment.name),
+      ",\"environmentRoleArn\":", jsonencode(aws_iam_role.environment.arn),
+      ",\"apiEndpoint\":", jsonencode(var.api_endpoint),
+      ",\"exchangeToken\":", jsonencode(var.runner_token),
+      ",\"gatewayAPIEndpoint\":\"\"",
+      ",\"infrastructureVersion\":\"terraform\"",
+      ",\"sshPort\":29222",
+      ",\"resourceTags\":", jsonencode(local.runner_resource_tags),
+      ",\"cacheBucketName\":", jsonencode(aws_s3_bucket.container_registry.bucket),
+      ",\"logsBucket\":", jsonencode(aws_s3_bucket.logs.bucket),
+      ",\"agentBucketName\":", jsonencode(aws_s3_bucket.agent.bucket),
+      ",\"logLevel\":\"info\"",
+      ",\"devContainerCacheRegistryAccessRoleArn\":", jsonencode(aws_iam_role.devcontainer_cache_registry_access.arn),
+      ",\"sshOverGateway\":\"true\"",
+      ",\"runnerProxyDomain\":", jsonencode(var.runner_domain),
+    ],
+    local.internal_runner_config_fragments,
+    [
+      ",\"runnerPackage\":\"Enterprise\"",
+      ",\"runnerTemplateBuildVersion\":", jsonencode(var.runner_template_build_version),
+      ",\"asgWarmPoolEnabled\":true",
+      ",\"horizontalScalingEnabled\":true",
+      "}",
+    ],
+  ))
 }

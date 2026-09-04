@@ -59,6 +59,36 @@ resource "aws_service_discovery_http_namespace" "this" {
   tags = local.common_tags
 }
 
+resource "aws_service_discovery_private_dns_namespace" "internal_runner" {
+  count = var.restrict_ingress ? 1 : 0
+
+  name = local.internal_runner_namespace
+  vpc  = var.vpc_id
+  tags = local.common_tags
+}
+
+resource "aws_service_discovery_service" "internal_runner" {
+  count = var.restrict_ingress ? 1 : 0
+
+  name = "runner"
+
+  dns_config {
+    namespace_id   = aws_service_discovery_private_dns_namespace.internal_runner[0].id
+    routing_policy = "MULTIVALUE"
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+
+  tags = local.common_tags
+}
+
 locals {
   runner_task_cpu    = local.runner_is_large ? 4096 : 1024
   runner_task_memory = local.runner_is_large ? 16384 : 3072
@@ -203,11 +233,16 @@ locals {
     }])
     mountPoints = local.ca_mount
     dependsOn   = local.ca_dependency
-    portMappings = [
-      { name = "metrics", containerPort = 9090, protocol = "tcp" },
-      { name = "runner-api", containerPort = 8081, protocol = "tcp" },
-      { name = "portspec", containerPort = 7070, protocol = "tcp" },
-    ]
+    portMappings = concat(
+      [
+        { name = "metrics", containerPort = 9090, protocol = "tcp" },
+        { name = "runner-api", containerPort = 8081, protocol = "tcp" },
+        { name = "portspec", containerPort = 7070, protocol = "tcp" },
+      ],
+      var.restrict_ingress ? [
+        { name = "llm-proxy", containerPort = var.internal_llm_proxy_port, protocol = "tcp" },
+      ] : [],
+    )
     healthCheck = { command = ["CMD-SHELL", "/app/gitpod-ec2-runner ping"], retries = 3, timeout = 5, startPeriod = 10 }
   }
 
@@ -357,6 +392,13 @@ resource "aws_ecs_service" "runner" {
     security_groups  = local.task_network_configuration.security_groups
     assign_public_ip = local.task_network_configuration.assign_public_ip
   }
+  dynamic "service_registries" {
+    for_each = aws_service_discovery_service.internal_runner
+
+    content {
+      registry_arn = service_registries.value.arn
+    }
+  }
   service_connect_configuration {
     enabled = true
     log_configuration {
@@ -383,6 +425,7 @@ resource "aws_ecs_service" "runner" {
     }
   }
   depends_on = [
+    aws_iam_role_policy.ecs_task,
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]

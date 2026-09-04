@@ -91,6 +91,20 @@ data "aws_iam_policy_document" "ecs_task" {
     resources = [aws_secretsmanager_secret.metrics_config.arn]
   }
 
+  dynamic "statement" {
+    for_each = aws_secretsmanager_secret.internal_llm_tls
+    iterator = internal_llm_tls_secret
+
+    content {
+      sid = "ManageInternalLLMTLS"
+      actions = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+      ]
+      resources = [internal_llm_tls_secret.value.arn]
+    }
+  }
+
   statement {
     sid = "ReadRunnerSecretsAndConfig"
     actions = [
