@@ -1,0 +1,21 @@
+aws_region         = "eu-central-1"
+availability_zones = ["eu-central-1a", "eu-central-1b"]
+
+routable_vpc_cidr = "10.42.0.0/24"
+runner_cgnat_cidr = "100.64.0.0/16"
+# Egress inspection is enabled by default and recommended.
+enable_firewall   = true
+
+# NAT Gateway mode is self-contained and creates one gateway per availability
+# zone. To use existing centralized egress instead, replace this with:
+# egress = {
+#   mode               = "transit_gateway"
+#   transit_gateway_id = "tgw-0123456789abcdef0"
+# }
+egress = {
+  mode = "nat_gateway"
+}
+
+tags = {
+  Environment = "production"
+}
