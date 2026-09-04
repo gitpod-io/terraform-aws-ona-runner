@@ -13,20 +13,20 @@ private-ECR installation path.
 ## Example
 
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
-both standard and restricted calls with existing VPC and runner subnets.
-The
-[`restricted-networking`](./examples/restricted-networking/)
-example creates runner egress VPC networking without load-balancer subnets. It
-supports optional AWS Network Firewall and either managed NAT gateways or a
-customer-provided Transit Gateway.
+a standard deployment with an existing VPC and runner and load-balancer
+subnets. The [`restricted-networking`](./examples/restricted-networking/)
+example creates runner egress VPC networking without load-balancer subnets and
+passes its outputs to a restricted runner deployment. It supports optional AWS
+Network Firewall and either managed NAT gateways or a customer-provided Transit
+Gateway.
 
 ## Restricted ingress
 
 Set `restrict_ingress = true` to opt into restricted inbound network access for
 runner and environment infrastructure. Omitting it or setting it to `false`
 preserves the standard ingress behavior. The
-[`runner-with-networking`](./examples/runner-with-networking/) example exposes
-the flag for customer deployments.
+[`restricted-networking`](./examples/restricted-networking/) example shows the
+restricted deployment composition.
 
 Restricted ingress omits the ingress proxy service, Network Load Balancer,
 load-balancer security group, public runner endpoint, and their IAM and

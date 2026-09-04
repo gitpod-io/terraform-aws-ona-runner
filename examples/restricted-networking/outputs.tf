@@ -32,3 +32,13 @@ output "cloudwatch_log_group_names" {
   description = "CloudWatch log groups for Network Firewall, VPC, and Resolver telemetry."
   value       = module.restricted_networking.cloudwatch_log_group_names
 }
+
+output "runner_config_parameter_name" {
+  description = "SSM runner config parameter name."
+  value       = module.runner.runner_config_parameter_name
+}
+
+output "environment_instance_profile_name" {
+  description = "Instance profile used by environment instances."
+  value       = module.runner.environment_instance_profile_name
+}

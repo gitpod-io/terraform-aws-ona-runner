@@ -1,6 +1,10 @@
 aws_region         = "eu-central-1"
 availability_zones = ["eu-central-1a", "eu-central-1b"]
 
+runner_id     = "runner-id-from-ona"
+runner_token  = "runner-token-from-ona"
+runner_name   = "ona-runner"
+
 routable_vpc_cidr = "10.42.0.0/24"
 runner_cgnat_cidr = "100.64.0.0/16"
 # Egress inspection is enabled by default and recommended.

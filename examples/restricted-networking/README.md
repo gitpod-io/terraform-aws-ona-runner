@@ -1,12 +1,15 @@
 # Restricted networking
 
-This example creates networking for Ona AWS runner egress. Runner subnets have
-no public IP addresses, and the VPC has no load-balancer or other inbound
-endpoint subnets. It supports either module-managed NAT Gateways or a
-customer-provided Transit Gateway.
+This example creates networking for Ona AWS runner egress and passes its VPC
+and subnet outputs to a restricted runner deployment. Runner subnets have no
+public IP addresses, and the VPC has no load-balancer or other inbound endpoint
+subnets. It supports either module-managed NAT Gateways or a customer-provided
+Transit Gateway.
 
-Copy `terraform.tfvars.example` to a `.tfvars` file and provide the CIDR,
-region, and availability-zone values.
+Copy `terraform.tfvars.example` to a `.tfvars` file and provide the runner
+credentials, CIDR, region, and availability-zone values. The runner module is
+called with `restrict_ingress = true` and does not require a runner domain, ACM
+certificate, or load-balancer subnets.
 
 ## NAT Gateway mode
 
@@ -47,5 +50,6 @@ Set `enable_firewall = false` to omit Network Firewall and route runner traffic
 directly to the selected egress target. This removes egress inspection and is
 supported but not recommended.
 
-The example does not create workload security groups. The follow-up runner
-deployment must deny unsolicited ingress to workloads that use these subnets.
+The runner module creates the workload security groups and limits environment
+ingress to the supervisor control and private LLM paths required by the
+restricted topology.

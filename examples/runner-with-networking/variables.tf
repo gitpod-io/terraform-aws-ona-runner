@@ -15,15 +15,13 @@ variable "runner_token" {
 }
 
 variable "runner_domain" {
-  description = "Runner custom domain. Required for standard ingress."
+  description = "Runner custom domain."
   type        = string
-  default     = null
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate ARN for runner_domain. Required for standard ingress."
+  description = "ACM certificate ARN for runner_domain."
   type        = string
-  default     = null
 }
 
 variable "vpc_id" {
@@ -37,9 +35,8 @@ variable "runner_subnet_ids" {
 }
 
 variable "load_balancer_subnet_ids" {
-  description = "Existing subnet IDs for the Network Load Balancer. Required for standard ingress."
+  description = "Existing subnet IDs for the Network Load Balancer."
   type        = list(string)
-  default     = []
 }
 
 variable "restrict_ingress" {

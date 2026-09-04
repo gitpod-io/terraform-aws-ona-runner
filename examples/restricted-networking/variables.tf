@@ -3,6 +3,29 @@ variable "aws_region" {
   type        = string
 }
 
+variable "runner_id" {
+  description = "Ona runner ID."
+  type        = string
+}
+
+variable "runner_token" {
+  description = "Ona runner token."
+  type        = string
+  sensitive   = true
+}
+
+variable "runner_name" {
+  description = "Human-readable runner name used in AWS resource names."
+  type        = string
+  default     = "ona-runner"
+}
+
+variable "internal_llm_proxy_port" {
+  description = "Port for direct environment-to-runner LLM proxy traffic."
+  type        = number
+  default     = 8089
+}
+
 variable "availability_zones" {
   description = "Two or three availability zones for the runner deployment."
   type        = list(string)
