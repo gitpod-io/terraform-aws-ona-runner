@@ -140,6 +140,22 @@ variable "restrict_ingress" {
   default     = false
 }
 
+variable "internal_llm_proxy_port" {
+  description = "Port for direct environment-to-runner LLM proxy traffic when restrict_ingress is enabled."
+  type        = number
+  default     = 8089
+
+  validation {
+    condition = (
+      var.internal_llm_proxy_port == floor(var.internal_llm_proxy_port) &&
+      var.internal_llm_proxy_port >= 1 &&
+      var.internal_llm_proxy_port <= 65535 &&
+      !contains([7070, 7071, 8081, 9090, 9091], var.internal_llm_proxy_port)
+    )
+    error_message = "internal_llm_proxy_port must be an integer between 1 and 65535 and must not conflict with runner ports 7070, 7071, 8081, 9090, or 9091."
+  }
+}
+
 variable "manage_s3_bucket_public_access_block" {
   description = "Manage bucket-level S3 Public Access Block settings for the container registry, logs, and agent buckets. Disable only when equivalent protection is enforced outside this module."
   type        = bool

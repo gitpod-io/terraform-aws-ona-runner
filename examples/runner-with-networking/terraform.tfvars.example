@@ -5,7 +5,8 @@ runner_token  = "runner-token-from-ona"
 runner_domain = "runner.example.com"
 
 # Set to true to opt into restricted ingress behavior.
-restrict_ingress = false
+restrict_ingress        = false
+internal_llm_proxy_port = 8089
 
 certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/example"
 

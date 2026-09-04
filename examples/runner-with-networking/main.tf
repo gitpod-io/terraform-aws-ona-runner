@@ -14,6 +14,7 @@ module "runner" {
   runner_subnet_ids        = var.runner_subnet_ids
   load_balancer_subnet_ids = var.load_balancer_subnet_ids
   restrict_ingress         = var.restrict_ingress
+  internal_llm_proxy_port  = var.internal_llm_proxy_port
 
   load_balancer_scheme = "internal"
 }

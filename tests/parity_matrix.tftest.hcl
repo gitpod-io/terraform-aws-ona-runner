@@ -18,9 +18,37 @@ mock_provider "aws" {
       name = "us-east-1"
     }
   }
+
+  mock_resource "aws_service_discovery_service" {
+    defaults = {
+      arn = "arn:aws:servicediscovery:us-east-1:123456789012:service/srv-internal-runner"
+    }
+  }
+
+  mock_resource "aws_secretsmanager_secret" {
+    defaults = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:internal-runner-tls"
+    }
+  }
 }
 
 mock_provider "random" {}
+
+override_resource {
+  target          = aws_security_group.ecs
+  override_during = plan
+  values = {
+    id = "sg-00000000000000001"
+  }
+}
+
+override_resource {
+  target          = aws_security_group.environment
+  override_during = plan
+  values = {
+    id = "sg-00000000000000002"
+  }
+}
 
 variables {
   runner_id                = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
@@ -69,6 +97,19 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
     condition     = one(aws_security_group.environment.ingress).from_port == 1024 && one(aws_security_group.environment.ingress).to_port == 65535
     error_message = "omitting restrict_ingress must preserve the standard environment ingress range."
   }
+
+  assert {
+    condition = (
+      length(aws_service_discovery_private_dns_namespace.internal_runner) == 0 &&
+      length(aws_service_discovery_service.internal_runner) == 0 &&
+      length(aws_secretsmanager_secret.internal_llm_tls) == 0 &&
+      length(aws_security_group_rule.ecs_from_environment_llm) == 0 &&
+      length(aws_ecs_service.runner.service_registries) == 0 &&
+      length([for mapping in local.runner_container.portMappings : mapping if mapping.name == "llm-proxy"]) == 0 &&
+      length(local.internal_runner_config_fragments) == 0
+    )
+    error_message = "omitting restrict_ingress must not create or configure the internal LLM route."
+  }
 }
 
 run "explicit_unrestricted_ingress_preserves_default_topology" {
@@ -105,6 +146,78 @@ run "restricted_ingress_limits_environment_access_to_supervisor" {
     condition     = output.ssh_port == 29222
     error_message = "restricting supervisor ingress must not change the separate SSH port setting."
   }
+
+  assert {
+    condition = (
+      length(aws_service_discovery_private_dns_namespace.internal_runner) == 1 &&
+      one(aws_service_discovery_private_dns_namespace.internal_runner).name == local.internal_runner_namespace &&
+      one(aws_service_discovery_private_dns_namespace.internal_runner).vpc == var.vpc_id &&
+      length(aws_service_discovery_service.internal_runner) == 1 &&
+      one(aws_service_discovery_service.internal_runner).name == "runner" &&
+      one(one(aws_service_discovery_service.internal_runner).dns_config).routing_policy == "MULTIVALUE" &&
+      one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).type == "A" &&
+      one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).ttl == 10 &&
+      one(aws_ecs_service.runner.service_registries).registry_arn == one(aws_service_discovery_service.internal_runner).arn
+    )
+    error_message = "restricted ingress must register rotating runner tasks in a private Cloud Map A-record service."
+  }
+
+  assert {
+    condition = (
+      length(aws_security_group_rule.ecs_from_environment_llm) == 1 &&
+      one(aws_security_group_rule.ecs_from_environment_llm).security_group_id == aws_security_group.ecs.id &&
+      one(aws_security_group_rule.ecs_from_environment_llm).source_security_group_id == aws_security_group.environment.id &&
+      one(aws_security_group_rule.ecs_from_environment_llm).from_port == var.internal_llm_proxy_port &&
+      one(aws_security_group_rule.ecs_from_environment_llm).to_port == var.internal_llm_proxy_port &&
+      one([for mapping in local.runner_container.portMappings : mapping if mapping.name == "llm-proxy"]).containerPort == var.internal_llm_proxy_port
+    )
+    error_message = "restricted ingress must allow environments to reach only the runner's configured LLM listener port."
+  }
+
+  assert {
+    condition = (
+      length(aws_secretsmanager_secret.internal_llm_tls) == 1 &&
+      length(local.internal_runner_config_fragments) == 6 &&
+      local.internal_runner_config_fragments[0] == ",\"internalRunnerEndpoint\":" &&
+      local.internal_runner_config_fragments[1] == jsonencode(local.internal_runner_endpoint) &&
+      local.internal_runner_config_fragments[2] == ",\"internalRunnerLLMPort\":" &&
+      local.internal_runner_config_fragments[3] == jsonencode(var.internal_llm_proxy_port) &&
+      local.internal_runner_config_fragments[4] == ",\"internalRunnerTLSSecretARN\":" &&
+      local.internal_runner_config_fragments[5] == jsonencode(one(aws_secretsmanager_secret.internal_llm_tls).arn)
+    )
+    error_message = "restricted ingress must configure the HTTPS endpoint and provision its TLS secret."
+  }
+}
+
+run "restricted_ingress_keeps_custom_llm_port_in_sync" {
+  command = plan
+
+  variables {
+    restrict_ingress        = true
+    internal_llm_proxy_port = 9443
+  }
+
+  assert {
+    condition = (
+      local.internal_runner_endpoint == "https://runner.${local.internal_runner_namespace}:9443" &&
+      one(aws_security_group_rule.ecs_from_environment_llm).from_port == 9443 &&
+      one(aws_security_group_rule.ecs_from_environment_llm).to_port == 9443 &&
+      one([for mapping in local.runner_container.portMappings : mapping if mapping.name == "llm-proxy"]).containerPort == 9443 &&
+      local.internal_runner_config_fragments[3] == "9443"
+    )
+    error_message = "a custom internal LLM port must update the URL, task definition, security group, and runner configuration together."
+  }
+}
+
+run "internal_llm_proxy_port_rejects_runner_port_conflicts" {
+  command = plan
+
+  variables {
+    restrict_ingress        = true
+    internal_llm_proxy_port = 8081
+  }
+
+  expect_failures = [var.internal_llm_proxy_port]
 }
 
 run "public_elasticache_large_matches_cloudformation_options" {

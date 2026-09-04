@@ -44,3 +44,9 @@ variable "restrict_ingress" {
   type        = bool
   default     = false
 }
+
+variable "internal_llm_proxy_port" {
+  description = "Port for direct environment-to-runner LLM proxy traffic when restricted ingress is enabled."
+  type        = number
+  default     = 8089
+}
