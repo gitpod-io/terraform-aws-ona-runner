@@ -5,6 +5,8 @@ resource "aws_cloudwatch_log_group" "runner" {
 }
 
 resource "aws_cloudwatch_log_group" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   name              = "/gitpod/runner-proxy/${local.name_prefix}/${var.runner_id}"
   retention_in_days = 365
   tags              = local.common_tags
@@ -21,12 +23,27 @@ resource "aws_ecs_cluster" "this" {
 
   lifecycle {
     precondition {
-      condition     = local.release_inputs_are_consistent
+      condition     = var.restrict_ingress || (var.runner_domain != null && trimspace(var.runner_domain) != "")
+      error_message = "runner_domain must be provided unless restrict_ingress is true."
+    }
+
+    precondition {
+      condition     = var.restrict_ingress || (var.certificate_arn != null && trimspace(var.certificate_arn) != "")
+      error_message = "certificate_arn must be provided unless restrict_ingress is true."
+    }
+
+    precondition {
+      condition     = var.restrict_ingress || length(var.load_balancer_subnet_ids) > 0
+      error_message = "load_balancer_subnet_ids must contain at least one subnet unless restrict_ingress is true."
+    }
+
+    precondition {
+      condition     = var.restrict_ingress || local.release_inputs_are_consistent
       error_message = "runner_image and proxy_image must use the runner_template_build_version tag from the same release manifest."
     }
 
     precondition {
-      condition     = local.private_ecr_images_are_consistent
+      condition     = var.restrict_ingress || local.private_ecr_images_are_consistent
       error_message = "runner_image and proxy_image must either both be public or use the same private ECR prefix, matching the CloudFormation private-ECR template."
     }
   }
@@ -109,7 +126,7 @@ locals {
 
   proxy_log_options = {
     awslogs-region        = data.aws_region.current.name
-    awslogs-group         = aws_cloudwatch_log_group.proxy.name
+    awslogs-group         = try(aws_cloudwatch_log_group.proxy[0].name, "")
     awslogs-stream-prefix = "/gitpod/runner-proxy/${local.name_prefix}"
   }
 
@@ -236,12 +253,13 @@ locals {
     portMappings = concat(
       [
         { name = "metrics", containerPort = 9090, protocol = "tcp" },
-        { name = "runner-api", containerPort = 8081, protocol = "tcp" },
-        { name = "portspec", containerPort = 7070, protocol = "tcp" },
       ],
       var.restrict_ingress ? [
         { name = "llm-proxy", containerPort = var.internal_llm_proxy_port, protocol = "tcp" },
-      ] : [],
+        ] : [
+        { name = "runner-api", containerPort = 8081, protocol = "tcp" },
+        { name = "portspec", containerPort = 7070, protocol = "tcp" },
+      ],
     )
     healthCheck = { command = ["CMD-SHELL", "/app/gitpod-ec2-runner ping"], retries = 3, timeout = 5, startPeriod = 10 }
   }
@@ -256,7 +274,7 @@ locals {
     command = [
       "run-runner-proxy",
       "--runner-id=${var.runner_id}",
-      "--public-domain=${var.runner_domain}",
+      "--public-domain=${var.runner_domain == null ? "" : var.runner_domain}",
       "--cert-dir=/app/certs",
       "--metrics-addr=:9094",
       "--http-port=8080",
@@ -332,13 +350,15 @@ resource "aws_ecs_task_definition" "runner" {
 }
 
 resource "aws_ecs_task_definition" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   family                   = "${local.name_prefix}-proxy"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = local.proxy_task_cpu
   memory                   = local.proxy_task_memory
   execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.proxy.arn
+  task_role_arn            = aws_iam_role.proxy[0].arn
   container_definitions = jsonencode([
     merge(local.ca_init_container, { command = ["update-ca-certificates && /app/gitpod-ec2-runner setup-ca && chmod 777 /proxy-config"], mountPoints = concat(local.ca_init_mounts, [{ sourceVolume = "proxy-config", containerPath = "/proxy-config", readOnly = false }]), logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
     merge(local.proxy_container, { logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
@@ -409,18 +429,26 @@ resource "aws_ecs_service" "runner" {
         awslogs-stream-prefix = "service-connect-runner"
       }
     }
-    service {
-      port_name = "runner-api"
-      client_alias {
-        dns_name = "runner"
-        port     = 8081
+    dynamic "service" {
+      for_each = var.restrict_ingress ? [] : [1]
+
+      content {
+        port_name = "runner-api"
+        client_alias {
+          dns_name = "runner"
+          port     = 8081
+        }
       }
     }
-    service {
-      port_name = "portspec"
-      client_alias {
-        dns_name = "runner-portspec"
-        port     = 7070
+    dynamic "service" {
+      for_each = var.restrict_ingress ? [] : [1]
+
+      content {
+        port_name = "portspec"
+        client_alias {
+          dns_name = "runner-portspec"
+          port     = 7070
+        }
       }
     }
   }
@@ -433,9 +461,11 @@ resource "aws_ecs_service" "runner" {
 }
 
 resource "aws_ecs_service" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   name                               = "${local.name_prefix}-proxy"
   cluster                            = aws_ecs_cluster.this.id
-  task_definition                    = aws_ecs_task_definition.proxy.arn
+  task_definition                    = aws_ecs_task_definition.proxy[0].arn
   desired_count                      = 2
   launch_type                        = "FARGATE"
   deployment_minimum_healthy_percent = 100
@@ -459,20 +489,20 @@ resource "aws_ecs_service" "proxy" {
     log_configuration {
       log_driver = "awslogs"
       options = {
-        awslogs-group         = aws_cloudwatch_log_group.proxy.name
+        awslogs-group         = aws_cloudwatch_log_group.proxy[0].name
         awslogs-region        = data.aws_region.current.name
         awslogs-stream-prefix = "service-connect-proxy"
       }
     }
   }
   load_balancer {
-    target_group_arn = aws_lb_target_group.proxy.arn
+    target_group_arn = aws_lb_target_group.proxy[0].arn
     container_name   = "proxy"
     container_port   = 8443
   }
   depends_on = [
     aws_ecs_service.runner,
-    aws_lb_listener.proxy_tls,
+    aws_lb_listener.proxy_tls[0],
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
@@ -514,9 +544,11 @@ resource "aws_appautoscaling_target" "runner" {
 }
 
 resource "aws_appautoscaling_target" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   max_capacity       = local.runner_is_large ? 16 : 8
   min_capacity       = 2
-  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.proxy.name}"
+  resource_id        = "service/${aws_ecs_cluster.this.name}/${aws_ecs_service.proxy[0].name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
 }
@@ -577,11 +609,13 @@ resource "aws_appautoscaling_policy" "runner_queue_depth" {
 }
 
 resource "aws_appautoscaling_policy" "proxy_cpu" {
+  count = var.restrict_ingress ? 0 : 1
+
   name               = "${local.name_prefix}-proxy-cpu"
   policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.proxy.resource_id
-  scalable_dimension = aws_appautoscaling_target.proxy.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.proxy.service_namespace
+  resource_id        = aws_appautoscaling_target.proxy[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.proxy[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.proxy[0].service_namespace
   target_tracking_scaling_policy_configuration {
     target_value = 50
     predefined_metric_specification {
@@ -591,11 +625,13 @@ resource "aws_appautoscaling_policy" "proxy_cpu" {
 }
 
 resource "aws_appautoscaling_policy" "proxy_memory" {
+  count = var.restrict_ingress ? 0 : 1
+
   name               = "${local.name_prefix}-proxy-memory"
   policy_type        = "TargetTrackingScaling"
-  resource_id        = aws_appautoscaling_target.proxy.resource_id
-  scalable_dimension = aws_appautoscaling_target.proxy.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.proxy.service_namespace
+  resource_id        = aws_appautoscaling_target.proxy[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.proxy[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.proxy[0].service_namespace
   target_tracking_scaling_policy_configuration {
     target_value       = 70
     scale_in_cooldown  = 300

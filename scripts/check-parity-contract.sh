@@ -44,7 +44,7 @@ require_pattern 'dns_record_client_routing_policy = "availability_zone_affinity"
 require_pattern '"ecs:ListServices"' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.ecs_execution_boundary.arn' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.ecs_task_boundary.arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.proxy_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.proxy_boundary[0].arn' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.adot_boundary.arn' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.environment_boundary.arn' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.s3_access_boundary.arn' iam.tf
@@ -54,6 +54,9 @@ require_pattern 'private_ecr_prefix' locals.tf
 require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3' locals.tf
 require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-cli:2.27.22@sha256:1d5753647df57828762601f4d82790f3441060dbc8671cd01c52df05cfd3b2c7' locals.tf
 require_pattern 'target_type          = "ip"' loadbalancer.tf
+require_pattern 'count = var.restrict_ingress ? 0 : 1' loadbalancer.tf
+require_pattern 'from = aws_lb.proxy' moved.tf
+require_pattern 'to   = aws_lb.proxy[0]' moved.tf
 require_pattern '\"runnerTemplateBuildVersion\":' locals.tf
 require_pattern '\"gatewayAPIEndpoint\":\"\"' locals.tf
 

@@ -64,7 +64,7 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   command = plan
 
   assert {
-    condition     = !var.restrict_ingress && aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0 && local.private_ecr_prefix == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr"
+    condition     = !var.restrict_ingress && one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 1 && length(aws_elasticache_cluster.this) == 0 && local.private_ecr_prefix == "025066274397.dkr.ecr.us-east-1.amazonaws.com/gitpod/ecr"
     error_message = "the default deployment must be a standard runner using an internal Network Load Balancer, MemoryDB, and the released private ECR mirror."
   }
 
@@ -89,13 +89,36 @@ run "internal_memorydb_small_matches_cloudformation_defaults" {
   }
 
   assert {
-    condition     = aws_lb.proxy.dns_record_client_routing_policy == "availability_zone_affinity" && aws_lb_target_group.proxy.health_check[0].matcher == "200"
+    condition     = one(aws_lb.proxy).dns_record_client_routing_policy == "availability_zone_affinity" && one(aws_lb_target_group.proxy).health_check[0].matcher == "200"
     error_message = "the Network Load Balancer must retain the CloudFormation routing and health-check contract."
   }
 
   assert {
     condition     = one(aws_security_group.environment.ingress).from_port == 1024 && one(aws_security_group.environment.ingress).to_port == 65535
     error_message = "omitting restrict_ingress must preserve the standard environment ingress range."
+  }
+
+  assert {
+    condition = (
+      length(aws_lb.proxy) == 1 &&
+      length(aws_lb_target_group.proxy) == 1 &&
+      length(aws_lb_listener.proxy_tls) == 1 &&
+      length(aws_cloudwatch_log_group.proxy) == 1 &&
+      length(aws_ecs_task_definition.proxy) == 1 &&
+      length(aws_ecs_service.proxy) == 1 &&
+      length(aws_appautoscaling_target.proxy) == 1 &&
+      length(aws_appautoscaling_policy.proxy_cpu) == 1 &&
+      length(aws_appautoscaling_policy.proxy_memory) == 1 &&
+      length(aws_iam_role.proxy) == 1 &&
+      length(aws_iam_role_policy.proxy) == 1 &&
+      length(aws_iam_policy.proxy_boundary) == 1 &&
+      length(aws_security_group.load_balancer) == 1 &&
+      length(aws_security_group_rule.ecs_from_load_balancer) == 1 &&
+      length(aws_security_group_rule.ecs_portspec_self) == 1 &&
+      length(aws_security_group_rule.ecs_runner_api_self) == 1 &&
+      length(aws_security_group_rule.ecs_proxy_metrics_self) == 1
+    )
+    error_message = "omitting restrict_ingress must preserve all standard load balancer and proxy resources."
   }
 
   assert {
@@ -120,7 +143,7 @@ run "explicit_unrestricted_ingress_preserves_default_topology" {
   }
 
   assert {
-    condition     = !var.restrict_ingress && aws_lb.proxy.internal && aws_ecs_service.runner.desired_count == 1 && aws_ecs_service.proxy.desired_count == 2 && aws_ecs_service.adot.desired_count == 1
+    condition     = !var.restrict_ingress && one(aws_lb.proxy).internal && aws_ecs_service.runner.desired_count == 1 && one(aws_ecs_service.proxy).desired_count == 2 && aws_ecs_service.adot.desired_count == 1
     error_message = "explicitly disabling restrict_ingress must preserve the standard runner topology."
   }
 
@@ -134,12 +157,67 @@ run "restricted_ingress_limits_environment_access_to_supervisor" {
   command = plan
 
   variables {
-    restrict_ingress = true
+    restrict_ingress                = true
+    runner_domain                   = null
+    certificate_arn                 = null
+    load_balancer_subnet_ids        = []
+    load_balancer_security_group_id = "sg-caller-supplied-but-unused"
   }
 
   assert {
     condition     = var.restrict_ingress && one(aws_security_group.environment.ingress).protocol == "tcp" && one(aws_security_group.environment.ingress).from_port == 22999 && one(aws_security_group.environment.ingress).to_port == 22999
     error_message = "enabling restrict_ingress must allow runner-to-environment TCP traffic only on supervisor control port 22999."
+  }
+
+  assert {
+    condition = (
+      length(aws_lb.proxy) == 0 &&
+      length(aws_lb_target_group.proxy) == 0 &&
+      length(aws_lb_listener.proxy_tls) == 0 &&
+      length(aws_cloudwatch_log_group.proxy) == 0 &&
+      length(aws_ecs_task_definition.proxy) == 0 &&
+      length(aws_ecs_service.proxy) == 0 &&
+      length(aws_appautoscaling_target.proxy) == 0 &&
+      length(aws_appautoscaling_policy.proxy_cpu) == 0 &&
+      length(aws_appautoscaling_policy.proxy_memory) == 0 &&
+      length(aws_iam_role.proxy) == 0 &&
+      length(aws_iam_role_policy.proxy) == 0 &&
+      length(aws_iam_policy.proxy_boundary) == 0
+    )
+    error_message = "restricted ingress must omit the load balancer and proxy ECS, autoscaling, and IAM resources."
+  }
+
+  assert {
+    condition = (
+      coalesce(output.load_balancer_dns_name, "absent") == "absent" &&
+      coalesce(output.load_balancer_arn, "absent") == "absent" &&
+      coalesce(output.load_balancer_zone_id, "absent") == "absent" &&
+      coalesce(output.load_balancer_security_group_id, "absent") == "absent" &&
+      coalesce(output.proxy_ecs_service_name, "absent") == "absent"
+    )
+    error_message = "restricted ingress must report null for omitted load balancer and proxy outputs."
+  }
+
+  assert {
+    condition = (
+      length(aws_security_group.load_balancer) == 0 &&
+      length(aws_security_group_rule.ecs_from_load_balancer) == 0 &&
+      length(aws_security_group_rule.ecs_portspec_self) == 0 &&
+      length(aws_security_group_rule.ecs_runner_api_self) == 0 &&
+      length(aws_security_group_rule.ecs_proxy_metrics_self) == 0 &&
+      length([for mapping in local.runner_container.portMappings : mapping if contains(["runner-api", "portspec"], mapping.name)]) == 0 &&
+      length(aws_ecs_service.runner.service_connect_configuration[0].service) == 0
+    )
+    error_message = "restricted ingress must omit proxy-only security group rules, ports, and Service Connect registrations."
+  }
+
+  assert {
+    condition = (
+      length(local.proxy_log_config_fragments) == 0 &&
+      local.runner_proxy_domain_config_fragments == [",\"runnerProxyDomain\":", "\"\""] &&
+      local.ssh_over_gateway == "false"
+    )
+    error_message = "restricted ingress must omit external endpoint configuration."
   }
 
   assert {
@@ -231,7 +309,7 @@ run "public_elasticache_large_matches_cloudformation_options" {
   }
 
   assert {
-    condition     = !aws_lb.proxy.internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1
+    condition     = !one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1
     error_message = "the public ElastiCache option must create only the supported ElastiCache branch."
   }
 
@@ -241,12 +319,12 @@ run "public_elasticache_large_matches_cloudformation_options" {
   }
 
   assert {
-    condition     = aws_ecs_task_definition.proxy.cpu == "2048" && aws_ecs_task_definition.proxy.memory == "4096" && aws_appautoscaling_target.runner.min_capacity == 2 && aws_appautoscaling_target.runner.max_capacity == 16 && aws_appautoscaling_target.proxy.min_capacity == 2 && aws_appautoscaling_target.proxy.max_capacity == 16
+    condition     = one(aws_ecs_task_definition.proxy).cpu == "2048" && one(aws_ecs_task_definition.proxy).memory == "4096" && aws_appautoscaling_target.runner.min_capacity == 2 && aws_appautoscaling_target.runner.max_capacity == 16 && one(aws_appautoscaling_target.proxy).min_capacity == 2 && one(aws_appautoscaling_target.proxy).max_capacity == 16
     error_message = "large runners must scale the proxy and runner autoscaling bounds together."
   }
 
   assert {
-    condition     = aws_ecs_service.runner.network_configuration[0].assign_public_ip && aws_ecs_service.proxy.network_configuration[0].assign_public_ip && aws_ecs_service.adot.network_configuration[0].assign_public_ip
+    condition     = aws_ecs_service.runner.network_configuration[0].assign_public_ip && one(aws_ecs_service.proxy).network_configuration[0].assign_public_ip && aws_ecs_service.adot.network_configuration[0].assign_public_ip
     error_message = "AssignPublicIp must apply to all supported Fargate services."
   }
 }
@@ -288,7 +366,7 @@ run "runtime_services_match_cloudformation_lifecycle" {
   command = plan
 
   assert {
-    condition     = aws_ecs_service.proxy.health_check_grace_period_seconds == 60 && aws_ecs_service.runner.wait_for_steady_state && aws_ecs_service.proxy.wait_for_steady_state && aws_ecs_service.adot.wait_for_steady_state
+    condition     = one(aws_ecs_service.proxy).health_check_grace_period_seconds == 60 && aws_ecs_service.runner.wait_for_steady_state && one(aws_ecs_service.proxy).wait_for_steady_state && aws_ecs_service.adot.wait_for_steady_state
     error_message = "ECS services must wait for steady state and preserve the proxy load-balancer health grace period."
   }
 
@@ -298,7 +376,7 @@ run "runtime_services_match_cloudformation_lifecycle" {
   }
 
   assert {
-    condition     = aws_ecs_service.runner.service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-runner" && aws_ecs_service.proxy.service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-proxy"
+    condition     = aws_ecs_service.runner.service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-runner" && one(aws_ecs_service.proxy).service_connect_configuration[0].log_configuration[0].options["awslogs-stream-prefix"] == "service-connect-proxy"
     error_message = "runner and proxy Service Connect traffic must use the CloudFormation log streams."
   }
 

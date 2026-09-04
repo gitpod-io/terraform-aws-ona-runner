@@ -5,7 +5,8 @@ This module implements the supported Fargate private-ECR path generated from
 
 ## Source contract
 
-The Terraform plan matches the released CloudFormation path for:
+With `restrict_ingress` omitted or false, the Terraform plan matches the
+released CloudFormation path for:
 
 - runner, proxy, and ADOT task definitions and ECS services;
 - Service Connect endpoints, logs, and sibling-service discovery permissions;
@@ -21,6 +22,11 @@ The Terraform plan matches the released CloudFormation path for:
 
 `tests/parity_matrix.tftest.hcl` and `scripts/check-parity-contract.sh` protect
 this contract without requiring an AWS account.
+
+With `restrict_ingress = true`, the runner and ADOT services remain, while the
+proxy service, Network Load Balancer, proxy-only security-group rules, proxy IAM
+resources, and their autoscaling resources are omitted. The private Cloud Map
+service and authenticated internal LLM listener remain available.
 
 ## Deployment validation
 
@@ -38,6 +44,14 @@ verify:
 6. Both cache-engine options accept runner traffic.
 7. A second `terraform plan` after runtime configuration changes reports only
    intentional drift.
+
+Before publishing restricted ingress, use a runner release containing the
+absent-ingress runtime support and validate a fresh deployment. Verify
+environment startup, repository clone with preconfigured credentials, private
+LLM requests, workload completion and result publication, diagnostic capture,
+runner task rotation, and update without a proxy service. Existing environments
+may not trust the private listener certificate and are not an in-place migration
+target.
 
 These checks require an AWS account and real runner registration; source-level
 tests are not a substitute for them.

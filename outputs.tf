@@ -64,22 +64,22 @@ output "redis_parameter_name" {
 }
 
 output "load_balancer_dns_name" {
-  description = "DNS name of the runner proxy Network Load Balancer."
-  value       = aws_lb.proxy.dns_name
+  description = "DNS name of the runner proxy Network Load Balancer, or null when ingress is restricted."
+  value       = var.restrict_ingress ? null : aws_lb.proxy[0].dns_name
 }
 
 output "load_balancer_arn" {
-  description = "ARN of the runner proxy Network Load Balancer."
-  value       = aws_lb.proxy.arn
+  description = "ARN of the runner proxy Network Load Balancer, or null when ingress is restricted."
+  value       = var.restrict_ingress ? null : aws_lb.proxy[0].arn
 }
 
 output "load_balancer_zone_id" {
-  description = "Canonical hosted zone ID of the runner proxy Network Load Balancer."
-  value       = aws_lb.proxy.zone_id
+  description = "Canonical hosted zone ID of the runner proxy Network Load Balancer, or null when ingress is restricted."
+  value       = var.restrict_ingress ? null : aws_lb.proxy[0].zone_id
 }
 
 output "load_balancer_security_group_id" {
-  description = "Security group ID used by the runner proxy Network Load Balancer."
+  description = "Security group ID used by the runner proxy Network Load Balancer, or null when ingress is restricted."
   value       = local.load_balancer_security_group_id_effective
 }
 
@@ -94,8 +94,8 @@ output "ecs_service_name" {
 }
 
 output "proxy_ecs_service_name" {
-  description = "ECS service name for the Fargate proxy task."
-  value       = aws_ecs_service.proxy.name
+  description = "ECS service name for the Fargate proxy task, or null when ingress is restricted."
+  value       = var.restrict_ingress ? null : aws_ecs_service.proxy[0].name
 }
 
 output "adot_ecs_service_name" {

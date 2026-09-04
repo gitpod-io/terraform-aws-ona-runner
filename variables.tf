@@ -43,13 +43,15 @@ variable "api_endpoint" {
 }
 
 variable "runner_domain" {
-  description = "Domain name used by the runner proxy."
+  description = "Domain name used by the runner proxy. Required unless restrict_ingress is true."
   type        = string
+  default     = null
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate ARN for the runner proxy Network Load Balancer TLS listener."
+  description = "ACM certificate ARN for the runner proxy Network Load Balancer TLS listener. Required unless restrict_ingress is true."
   type        = string
+  default     = null
 }
 
 variable "vpc_id" {
@@ -63,8 +65,9 @@ variable "runner_subnet_ids" {
 }
 
 variable "load_balancer_subnet_ids" {
-  description = "Subnet IDs for the runner proxy Network Load Balancer."
+  description = "Subnet IDs for the runner proxy Network Load Balancer. Required unless restrict_ingress is true."
   type        = list(string)
+  default     = []
 }
 
 variable "load_balancer_scheme" {

@@ -69,6 +69,18 @@ run "default_release_images_derive_from_build_version" {
   }
 }
 
+run "standard_ingress_requires_endpoint_inputs" {
+  command = plan
+
+  variables {
+    runner_domain            = null
+    certificate_arn          = null
+    load_balancer_subnet_ids = []
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
 run "release_images_must_match_build_version" {
   command = plan
 
