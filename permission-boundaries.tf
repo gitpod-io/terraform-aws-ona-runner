@@ -387,6 +387,8 @@ resource "aws_iam_policy" "ecs_task_boundary" {
 }
 
 resource "aws_iam_policy" "proxy_boundary" {
+  count = var.restrict_ingress ? 0 : 1
+
   name_prefix = "${local.iam_role_name_prefix}-proxy-boundary-"
   description = "Permission boundary for the Ona runner proxy role"
   policy      = jsonencode(local.proxy_boundary_policy)

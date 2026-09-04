@@ -58,6 +58,13 @@ locals {
     ",\"internalRunnerLLMPort\":", jsonencode(var.internal_llm_proxy_port),
     ",\"internalRunnerTLSSecretARN\":", jsonencode(aws_secretsmanager_secret.internal_llm_tls[0].arn),
   ] : []
+  proxy_log_config_fragments = var.restrict_ingress ? [] : [
+    ",\"proxyLogGroup\":", jsonencode(aws_cloudwatch_log_group.proxy[0].name),
+  ]
+  runner_proxy_domain_config_fragments = [
+    ",\"runnerProxyDomain\":", jsonencode(var.runner_domain == null ? "" : var.runner_domain),
+  ]
+  ssh_over_gateway = var.restrict_ingress ? "false" : "true"
 
   release_public_ecr_prefix = "public.ecr.aws/k5t9d3j5/application/gitpod-next"
   release_runner_image = var.runner_image != "" ? var.runner_image : (
@@ -109,7 +116,9 @@ locals {
       ",\"vpcId\":", jsonencode(var.vpc_id),
       ",\"stackName\":", jsonencode(local.name_prefix),
       ",\"runnerLogGroup\":", jsonencode(aws_cloudwatch_log_group.runner.name),
-      ",\"proxyLogGroup\":", jsonencode(aws_cloudwatch_log_group.proxy.name),
+    ],
+    local.proxy_log_config_fragments,
+    [
       ",\"adotLogGroup\":", jsonencode(aws_cloudwatch_log_group.adot.name),
       ",\"subnetIDs\":", jsonencode(join(" ", var.runner_subnet_ids)),
       ",\"securityGroupId\":", jsonencode(aws_security_group.environment.id),
@@ -126,9 +135,9 @@ locals {
       ",\"agentBucketName\":", jsonencode(aws_s3_bucket.agent.bucket),
       ",\"logLevel\":\"info\"",
       ",\"devContainerCacheRegistryAccessRoleArn\":", jsonencode(aws_iam_role.devcontainer_cache_registry_access.arn),
-      ",\"sshOverGateway\":\"true\"",
-      ",\"runnerProxyDomain\":", jsonencode(var.runner_domain),
+      ",\"sshOverGateway\":", jsonencode(local.ssh_over_gateway),
     ],
+    local.runner_proxy_domain_config_fragments,
     local.internal_runner_config_fragments,
     [
       ",\"runnerPackage\":\"Enterprise\"",

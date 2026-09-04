@@ -14,7 +14,7 @@ resource "aws_security_group" "ecs" {
 }
 
 resource "aws_security_group" "load_balancer" {
-  count       = var.load_balancer_security_group_id == "" ? 1 : 0
+  count       = !var.restrict_ingress && var.load_balancer_security_group_id == "" ? 1 : 0
   name_prefix = "${local.name_prefix}-nlb-"
   description = "Security group for the Ona Runner Network Load Balancer"
   vpc_id      = var.vpc_id
@@ -46,10 +46,12 @@ resource "aws_security_group" "load_balancer" {
 }
 
 locals {
-  load_balancer_security_group_id_effective = var.load_balancer_security_group_id == "" ? aws_security_group.load_balancer[0].id : var.load_balancer_security_group_id
+  load_balancer_security_group_id_effective = var.restrict_ingress ? null : (var.load_balancer_security_group_id == "" ? aws_security_group.load_balancer[0].id : var.load_balancer_security_group_id)
 }
 
 resource "aws_security_group_rule" "ecs_from_load_balancer" {
+  count = var.restrict_ingress ? 0 : 1
+
   type                     = "ingress"
   security_group_id        = aws_security_group.ecs.id
   source_security_group_id = local.load_balancer_security_group_id_effective
@@ -60,6 +62,8 @@ resource "aws_security_group_rule" "ecs_from_load_balancer" {
 }
 
 resource "aws_security_group_rule" "ecs_portspec_self" {
+  count = var.restrict_ingress ? 0 : 1
+
   type              = "ingress"
   security_group_id = aws_security_group.ecs.id
   self              = true
@@ -70,6 +74,8 @@ resource "aws_security_group_rule" "ecs_portspec_self" {
 }
 
 resource "aws_security_group_rule" "ecs_runner_api_self" {
+  count = var.restrict_ingress ? 0 : 1
+
   type              = "ingress"
   security_group_id = aws_security_group.ecs.id
   self              = true
@@ -90,6 +96,8 @@ resource "aws_security_group_rule" "ecs_runner_metrics_self" {
 }
 
 resource "aws_security_group_rule" "ecs_proxy_metrics_self" {
+  count = var.restrict_ingress ? 0 : 1
+
   type              = "ingress"
   security_group_id = aws_security_group.ecs.id
   self              = true

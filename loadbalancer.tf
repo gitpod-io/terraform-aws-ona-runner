@@ -1,4 +1,6 @@
 resource "aws_lb" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   name               = "${local.load_balancer_name_prefix}-runner"
   load_balancer_type = "network"
   internal           = var.load_balancer_scheme == "internal"
@@ -13,6 +15,8 @@ resource "aws_lb" "proxy" {
 }
 
 resource "aws_lb_target_group" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   name                 = "${local.target_group_name_prefix}-proxy"
   port                 = 8443
   protocol             = "TLS"
@@ -36,7 +40,9 @@ resource "aws_lb_target_group" "proxy" {
 }
 
 resource "aws_lb_listener" "proxy_tls" {
-  load_balancer_arn = aws_lb.proxy.arn
+  count = var.restrict_ingress ? 0 : 1
+
+  load_balancer_arn = aws_lb.proxy[0].arn
   port              = 443
   protocol          = "TLS"
   certificate_arn   = var.certificate_arn
@@ -45,7 +51,7 @@ resource "aws_lb_listener" "proxy_tls" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.proxy.arn
+    target_group_arn = aws_lb_target_group.proxy[0].arn
   }
 
   tags = local.common_tags

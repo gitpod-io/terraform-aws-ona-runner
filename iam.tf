@@ -368,14 +368,18 @@ data "aws_iam_policy_document" "ecs_task" {
 }
 
 resource "aws_iam_role" "proxy" {
+  count = var.restrict_ingress ? 0 : 1
+
   name_prefix          = "${local.iam_role_name_prefix}-proxy-"
   assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
-  permissions_boundary = aws_iam_policy.proxy_boundary.arn
+  permissions_boundary = aws_iam_policy.proxy_boundary[0].arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy" "proxy" {
-  role   = aws_iam_role.proxy.id
+  count = var.restrict_ingress ? 0 : 1
+
+  role   = aws_iam_role.proxy[0].id
   policy = data.aws_iam_policy_document.proxy.json
 }
 

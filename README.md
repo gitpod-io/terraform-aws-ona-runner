@@ -13,22 +13,28 @@ private-ECR installation path.
 ## Example
 
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
-how to call the module with existing VPC, subnet, DNS, and certificate inputs.
-The
-[`restricted-networking`](./examples/restricted-networking/)
-example creates runner egress VPC networking without load-balancer subnets. It
-supports optional AWS Network Firewall and either managed NAT gateways or a
-customer-provided Transit Gateway.
+a standard deployment with an existing VPC and runner and load-balancer
+subnets. The [`restricted-networking`](./examples/restricted-networking/)
+example creates runner egress VPC networking without load-balancer subnets and
+passes its outputs to a restricted runner deployment. It supports optional AWS
+Network Firewall and either managed NAT gateways or a customer-provided Transit
+Gateway.
 
 ## Restricted ingress
 
 Set `restrict_ingress = true` to opt into restricted inbound network access for
 runner and environment infrastructure. Omitting it or setting it to `false`
 preserves the standard ingress behavior. The
-[`runner-with-networking`](./examples/runner-with-networking/) example exposes
-the flag for customer deployments.
+[`restricted-networking`](./examples/restricted-networking/) example shows the
+restricted deployment composition.
 
-Restricted ingress also creates a private Cloud Map DNS service for the runner
+Restricted ingress omits the ingress proxy service, Network Load Balancer,
+load-balancer security group, public runner endpoint, and their IAM and
+autoscaling resources. `runner_domain`, `certificate_arn`, and
+`load_balancer_subnet_ids` are not required in this mode. Outputs for omitted
+load-balancer and proxy resources are `null`.
+
+Restricted ingress creates a private Cloud Map DNS service for the runner
 tasks and enables direct HTTPS traffic from environment instances to the
 runner's LLM-only listener. The runner stores its generated self-signed
 certificate and private key in Secrets Manager, and environment access to the
@@ -36,6 +42,13 @@ runner security group is limited to `internal_llm_proxy_port` (default `8089`).
 Task rotation updates the Cloud Map records without changing the internal URL.
 The selected VPC must have DNS support and DNS hostnames enabled so environment
 instances can resolve the private Cloud Map namespace.
+
+This mode does not provide interactive ingress features such as SSH, browser
+ports, live logs, support-bundle downloads, agent conversation streaming, or
+SCM OAuth callbacks. Use preconfigured SCM credentials and collect required
+diagnostics through deployment-specific automation. The internal certificate
+is injected when an environment is created, so use this topology for fresh
+runners and environments rather than as an in-place migration.
 
 ## Release compatibility
 
@@ -79,9 +92,9 @@ and certificate, custom load-balancer security group, Fargate public IP,
 runner size, cache engine, proxy settings, and custom CA trust bundle. It does
 not expose CloudFormation-internal or unsupported overrides for the gateway
 endpoint, environment AMI, development version, or resource security policies.
-Terraform creates the same role-specific permission-boundary classes as the
-CloudFormation path for execution, runner, proxy, telemetry, environment, S3,
-and devcontainer-cache roles.
+Terraform creates the applicable role-specific permission-boundary classes for
+execution, runner, telemetry, environment, S3, and devcontainer-cache roles,
+plus the proxy role for standard deployments.
 
 By default, Terraform also manages bucket-level S3 Public Access Block settings
 for the container registry, logs, and agent buckets. Set
@@ -121,9 +134,10 @@ workloads to environment classes backed by the new runner.
 
 The module implements the supported Fargate runner infrastructure path:
 
-- Three Fargate services for the runner, proxy, and telemetry collector,
-  connected with ECS Service Connect and backed by Fargate autoscaling.
-- Network Load Balancer with TLS listener and custom domain certificate support.
+- Runner and telemetry Fargate services, plus a proxy service for standard
+  deployments. Standard services use ECS Service Connect and Fargate autoscaling.
+- Network Load Balancer with TLS listener and custom domain certificate support
+  for standard deployments.
 - S3 buckets for container cache, logs, and agent execution data.
 - DynamoDB resources table.
 - MemoryDB by default, with ElastiCache as a compatibility cache option.

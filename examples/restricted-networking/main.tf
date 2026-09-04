@@ -16,3 +16,16 @@ module "restricted_networking" {
   log_kms_key_arn       = var.log_kms_key_arn
   tags                  = var.tags
 }
+
+module "runner" {
+  source = "../.."
+
+  runner_id               = var.runner_id
+  runner_token            = var.runner_token
+  runner_name             = var.runner_name
+  vpc_id                  = module.restricted_networking.vpc_id
+  runner_subnet_ids       = module.restricted_networking.runner_subnet_ids
+  restrict_ingress        = true
+  internal_llm_proxy_port = var.internal_llm_proxy_port
+  tags                    = var.tags
+}
