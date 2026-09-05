@@ -105,6 +105,11 @@ for the container registry, logs, and agent buckets. Set
 is enforced outside this module and an AWS Organizations policy denies
 `s3:PutBucketPublicAccessBlock`.
 
+Runner-managed S3 buckets protect non-empty data by default. Set
+`force_destroy_s3_buckets = true` to delete all objects, versions, and delete
+markers from the container registry, logs, and agent buckets during
+`terraform destroy`.
+
 The [`custom-domain-client-infra`](./modules/custom-domain-client-infra/) helper
 module can create an ACM certificate and Route53 records for customers who want
 Terraform to own runner-domain DNS resources. The separate
@@ -154,6 +159,7 @@ and the deployment evidence required before release.
 
 ## Destroy
 
-`terraform destroy` removes the module\'s log groups and empty S3 buckets.
-Empty the cache, logs, and agent buckets first when they contain objects; this
-module does not force-delete customer data.
+`terraform destroy` removes the module's log groups and empty S3 buckets. Empty
+the container registry, logs, and agent buckets first when they contain objects,
+or set `force_destroy_s3_buckets = true` before destroying when their data does
+not need to be retained.

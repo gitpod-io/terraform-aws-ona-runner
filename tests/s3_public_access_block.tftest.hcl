@@ -59,3 +59,33 @@ run "public_access_block_can_be_managed_externally" {
     error_message = "the module must omit every Public Access Block resource when external management is selected."
   }
 }
+
+run "non_empty_buckets_are_protected_by_default" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      !aws_s3_bucket.container_registry.force_destroy,
+      !aws_s3_bucket.logs.force_destroy,
+      !aws_s3_bucket.agent.force_destroy,
+    ])
+    error_message = "runner-managed S3 buckets must retain their data-protection default."
+  }
+}
+
+run "non_empty_buckets_can_be_destroyed" {
+  command = plan
+
+  variables {
+    force_destroy_s3_buckets = true
+  }
+
+  assert {
+    condition = alltrue([
+      aws_s3_bucket.container_registry.force_destroy,
+      aws_s3_bucket.logs.force_destroy,
+      aws_s3_bucket.agent.force_destroy,
+    ])
+    error_message = "force_destroy_s3_buckets must apply to every runner-managed S3 bucket."
+  }
+}

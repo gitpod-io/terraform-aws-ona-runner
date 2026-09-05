@@ -165,6 +165,12 @@ variable "manage_s3_bucket_public_access_block" {
   default     = true
 }
 
+variable "force_destroy_s3_buckets" {
+  description = "Delete all objects, versions, and delete markers from runner-managed S3 buckets during terraform destroy. Enable only when runner data does not need to be retained."
+  type        = bool
+  default     = false
+}
+
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
