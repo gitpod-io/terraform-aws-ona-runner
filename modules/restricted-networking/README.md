@@ -33,9 +33,9 @@ Transit Gateway mode uses:
 runner subnet -> Network Firewall endpoint -> Transit Gateway -> customer egress
 ```
 
-The egress or attachment subnet route table sends the active runner CIDR back
-through the same-zone firewall endpoint. Transit Gateway appliance mode keeps
-both directions of a flow in the same availability zone.
+Each egress or attachment subnet route table sends every runner subnet CIDR
+back through its same-zone firewall endpoint. Transit Gateway appliance mode
+keeps both directions of a flow in the same availability zone.
 
 Set `enable_firewall = false` to route runner traffic directly to the same-zone
 NAT Gateway or to the Transit Gateway. In that mode the module disables Transit
