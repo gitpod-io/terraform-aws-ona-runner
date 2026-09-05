@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-manifest_url="${1:-https://releases.gitpod.io/ec2/stable/manifest.json}"
+version="${1:-}"
+if [[ ! "$version" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+  echo "Runner version must match YYYYMMDD.N, got: ${version:-<empty>}" >&2
+  exit 1
+fi
+
+manifest_url="https://releases.gitpod.io/ec2/releases/${version}/manifest.json"
 manifest="$(curl --fail --location --retry 3 --silent --show-error "$manifest_url")"
 
-version="$(jq -er '.version' <<<"$manifest")"
+manifest_version="$(jq -er '.version' <<<"$manifest")"
 runner_image="$(jq -er '.image' <<<"$manifest")"
 proxy_image="$(jq -er '.proxy_image' <<<"$manifest")"
 template_url="$(jq -er '.cloudformation_template_url' <<<"$manifest")"
 
-if [[ ! "$version" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
-  echo "Invalid stable runner version: $version" >&2
+if [[ "$manifest_version" != "$version" ]]; then
+  echo "Release manifest version $manifest_version does not match requested runner version $version" >&2
   exit 1
 fi
 
@@ -20,12 +26,12 @@ expected_proxy_image="${public_prefix}/gitpod-proxy:${version}"
 expected_template_url="https://releases.gitpod.io/ec2/releases/${version}/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"
 
 if [[ "$runner_image" != "$expected_runner_image" || "$proxy_image" != "$expected_proxy_image" ]]; then
-  echo "Stable manifest images do not match the supported release repositories" >&2
+  echo "Release manifest images do not match the supported release repositories" >&2
   exit 1
 fi
 
 if [[ "$template_url" != "$expected_template_url" ]]; then
-  echo "Stable manifest does not reference the supported private-ECR Fargate template" >&2
+  echo "Release manifest does not reference the supported private-ECR Fargate template" >&2
   exit 1
 fi
 
