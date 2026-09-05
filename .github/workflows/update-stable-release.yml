@@ -64,7 +64,7 @@ jobs:
           git config user.name "gitpod-next-automation"
           git config user.email "gitpod-next-automation@gitpod.io"
           git switch -c "$branch"
-          git add variables.tf
+          git add variables.tf modules/restricted-runner/variables.tf
           git commit -m "chore: update stable runner release to ${VERSION}"
           git push origin "$branch"
           gh pr create \

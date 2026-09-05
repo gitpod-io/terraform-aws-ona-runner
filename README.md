@@ -14,19 +14,23 @@ private-ECR installation path.
 
 The [`runner-with-networking`](./examples/runner-with-networking/) example shows
 a standard deployment with an existing VPC and runner and load-balancer
-subnets. The [`restricted-networking`](./examples/restricted-networking/)
-example creates runner egress VPC networking without load-balancer subnets and
-passes its outputs to a restricted runner deployment. It supports optional AWS
-Network Firewall and either managed NAT gateways or a customer-provided Transit
-Gateway.
+subnets. For a deployment without inbound runner infrastructure, use the
+[`restricted-runner`](./modules/restricted-runner/) module with an existing VPC,
+or adapt the self-contained
+[`restricted-runner-with-networking`](./examples/restricted-runner-with-networking/)
+example. The example creates the VPC and runner egress networking, with optional
+AWS Network Firewall and either managed NAT gateways or a customer-provided
+Transit Gateway.
 
 ## Restricted ingress
 
 Set `restrict_ingress = true` to opt into restricted inbound network access for
 runner and environment infrastructure. Omitting it or setting it to `false`
 preserves the standard ingress behavior. The
-[`restricted-networking`](./examples/restricted-networking/) example shows the
-restricted deployment composition.
+[`restricted-runner`](./modules/restricted-runner/) module provides a dedicated
+interface that always enables this mode and omits ingress-only inputs. The
+[`restricted-runner-with-networking`](./examples/restricted-runner-with-networking/)
+example shows the complete restricted deployment composition.
 
 Restricted ingress omits the ingress proxy service, Network Load Balancer,
 load-balancer security group, public runner endpoint, and their IAM and
@@ -109,10 +113,11 @@ Terraform to own runner-domain DNS resources. The separate
 module deploys the Network Load Balancer and VPC endpoint needed to access the
 Ona management plane through a custom domain.
 
-The [`restricted-networking`](./modules/restricted-networking/) helper module
-creates the VPC, runner and egress subnets, optional AWS Network Firewall, and
-VPC, firewall, and Route 53 Resolver logs used by the restricted networking
-example.
+The [`restricted-runner`](./modules/restricted-runner/) module wraps the root
+runner module with restricted ingress enabled. The networking resources in the
+[`restricted-runner-with-networking`](./examples/restricted-runner-with-networking/)
+example intentionally remain example-owned so deployments can adapt them to
+their egress and inspection policies.
 
 ## Resource names
 

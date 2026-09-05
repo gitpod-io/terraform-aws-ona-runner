@@ -1,12 +1,29 @@
-variable "name" {
-  description = "Name prefix for networking resources."
+variable "aws_region" {
+  description = "AWS region."
   type        = string
-  default     = "ona-runner-network"
+}
 
-  validation {
-    condition     = can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.name)) && !can(regex("--", var.name))
-    error_message = "name must be 1-32 lowercase letters, numbers, or hyphens; start with a letter; end with a letter or number; and not contain consecutive hyphens."
-  }
+variable "runner_id" {
+  description = "Ona runner ID."
+  type        = string
+}
+
+variable "runner_token" {
+  description = "Ona runner token."
+  type        = string
+  sensitive   = true
+}
+
+variable "runner_name" {
+  description = "Human-readable runner name used in AWS resource names."
+  type        = string
+  default     = "ona-runner"
+}
+
+variable "internal_llm_proxy_port" {
+  description = "Port for direct environment-to-runner LLM proxy traffic."
+  type        = number
+  default     = 8089
 }
 
 variable "availability_zones" {
@@ -16,6 +33,17 @@ variable "availability_zones" {
   validation {
     condition     = contains([2, 3], length(var.availability_zones)) && length(distinct(var.availability_zones)) == length(var.availability_zones) && alltrue([for zone in var.availability_zones : trimspace(zone) != ""])
     error_message = "availability_zones must contain two or three distinct, non-empty availability zones."
+  }
+}
+
+variable "network_name" {
+  description = "Name prefix for networking resources."
+  type        = string
+  default     = "ona-runner-network"
+
+  validation {
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.network_name)) && !can(regex("--", var.network_name))
+    error_message = "network_name must be 1-32 lowercase letters, numbers, or hyphens; start with a letter; end with a letter or number; and not contain consecutive hyphens."
   }
 }
 
@@ -71,7 +99,7 @@ variable "egress" {
 }
 
 variable "firewall_policy_arn" {
-  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the module creates a permissive inspection policy that alerts on established flows."
+  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a permissive inspection policy that alerts on established flows."
   type        = string
   default     = null
 
@@ -93,7 +121,7 @@ variable "log_retention_in_days" {
 }
 
 variable "log_kms_key_arn" {
-  description = "Optional customer-managed KMS key ARN for CloudWatch log groups. Its key policy must permit the logging services used by this module."
+  description = "Optional customer-managed KMS key ARN for CloudWatch log groups. Its key policy must permit the logging services used by this example."
   type        = string
   default     = null
 
