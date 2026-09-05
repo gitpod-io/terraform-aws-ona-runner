@@ -187,9 +187,9 @@ resource "aws_route" "egress_to_internet_gateway" {
 }
 
 resource "aws_route" "egress_to_runner" {
-  for_each = var.enable_firewall ? local.availability_zone_indices : {}
+  for_each = var.enable_firewall ? local.egress_to_runner_routes : {}
 
-  route_table_id         = aws_route_table.egress[each.key].id
-  destination_cidr_block = local.runner_active_cidr
-  vpc_endpoint_id        = local.firewall_endpoint_ids[each.key]
+  route_table_id         = aws_route_table.egress[each.value.egress_zone].id
+  destination_cidr_block = local.runner_subnet_cidrs[each.value.runner_zone]
+  vpc_endpoint_id        = local.firewall_endpoint_ids[each.value.egress_zone]
 }

@@ -21,6 +21,13 @@ locals {
     for zone, index in local.availability_zone_indices :
     zone => cidrsubnet(var.routable_vpc_cidr, 4, 4 + index)
   }
+  egress_to_runner_routes = {
+    for pair in setproduct(var.availability_zones, var.availability_zones) :
+    "${pair[0]}:${pair[1]}" => {
+      egress_zone = pair[0]
+      runner_zone = pair[1]
+    }
+  }
 
   common_tags = merge(var.tags, {
     "ona.com/component" = "runner-networking"
