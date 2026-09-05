@@ -29,34 +29,11 @@ if [[ "$template_url" != "$expected_template_url" ]]; then
   exit 1
 fi
 
-variable_files=(
-  "variables.tf"
-  "modules/restricted-runner/variables.tf"
-)
-staging_dir="$(mktemp -d)"
-trap 'rm -rf -- "$staging_dir"' EXIT
+VERSION="$version" perl -0pi -e 's/(variable "runner_template_build_version" \{.*?default\s+=\s+")[^"]+(".*?\n\})/$1$ENV{VERSION}$2/s' variables.tf
 
-for variable_file in "${variable_files[@]}"; do
-  staged_file="${staging_dir}/${variable_file}"
-  mkdir -p -- "$(dirname -- "$staged_file")"
-
-  if [[ ! -f "$variable_file" ]]; then
-    echo "Missing runner variable file: $variable_file" >&2
-    exit 1
-  fi
-
-  cp -- "$variable_file" "$staged_file"
-  if ! VERSION="$version" perl -0pi -e '
-    $updates = s/(variable "runner_template_build_version" \{.*?default\s+=\s+")[^"]+(".*?\n\})/$1$ENV{VERSION}$2/s;
-    END { exit 1 unless $updates == 1 }
-  ' "$staged_file"; then
-    echo "Failed to update runner_template_build_version in $variable_file" >&2
-    exit 1
-  fi
-done
-
-for variable_file in "${variable_files[@]}"; do
-  cp -- "${staging_dir}/${variable_file}" "$variable_file"
-done
+if ! grep -Fq -- "default     = \"${version}\"" variables.tf; then
+  echo "Failed to update runner_template_build_version" >&2
+  exit 1
+fi
 
 echo "$version"

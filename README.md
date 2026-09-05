@@ -28,7 +28,8 @@ Set `restrict_ingress = true` to opt into restricted inbound network access for
 runner and environment infrastructure. Omitting it or setting it to `false`
 preserves the standard ingress behavior. The
 [`restricted-runner`](./modules/restricted-runner/) module provides a dedicated
-interface that always enables this mode and omits ingress-only inputs. The
+interface that always enables this mode and exposes only the root module's
+required identity and network-placement inputs. The
 [`restricted-runner-with-networking`](./examples/restricted-runner-with-networking/)
 example shows the complete restricted deployment composition.
 

@@ -14,18 +14,6 @@ variable "runner_token" {
   sensitive   = true
 }
 
-variable "runner_name" {
-  description = "Human-readable runner name used in AWS resource names."
-  type        = string
-  default     = "ona-runner"
-}
-
-variable "internal_llm_proxy_port" {
-  description = "Port for direct environment-to-runner LLM proxy traffic."
-  type        = number
-  default     = 8089
-}
-
 variable "availability_zones" {
   description = "Two or three availability zones in which to create each subnet tier."
   type        = list(string)

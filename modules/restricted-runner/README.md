@@ -3,7 +3,9 @@
 This module deploys an Ona AWS runner without an external inbound runner
 endpoint. It is a policy wrapper around the repository's root runner module:
 it always enables restricted ingress and intentionally omits load-balancer,
-certificate, domain, and proxy-service settings from its interface.
+certificate, domain, proxy-service, and all other optional root settings from
+its interface. It accepts only runner identity and network placement; the root
+module owns every default, including the tested runner release version.
 
 Provide an existing VPC and runner subnets with suitable egress. To build a
 complete VPC with inspected egress, use the restricted runner with networking

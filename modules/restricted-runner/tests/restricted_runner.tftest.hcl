@@ -35,11 +35,10 @@ mock_provider "aws" {
 mock_provider "random" {}
 
 variables {
-  runner_id                     = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
-  runner_token                  = "test-token"
-  vpc_id                        = "vpc-00000000000000000"
-  runner_subnet_ids             = ["subnet-00000000000000000"]
-  runner_template_build_version = "wrapper-test-release"
+  runner_id         = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_token      = "test-token"
+  vpc_id            = "vpc-00000000000000000"
+  runner_subnet_ids = ["subnet-00000000000000000"]
 }
 
 run "restricted_runner_plans_without_ingress_inputs" {
@@ -51,20 +50,7 @@ run "restricted_runner_plans_without_ingress_inputs" {
   }
 
   assert {
-    condition     = output.release_version == "wrapper-test-release" && output.ssh_port == 29222
-    error_message = "the wrapper must forward the configured release and preserve the root module SSH output contract."
-  }
-}
-
-run "restricted_runner_forwards_optional_configuration" {
-  command = plan
-
-  variables {
-    runner_template_build_version = "test-build"
-  }
-
-  assert {
-    condition     = output.release_version == "test-build"
-    error_message = "the wrapper must forward optional runner configuration to the child module."
+    condition     = can(regex("^[0-9]{8}\\.[0-9]+$", output.release_version)) && output.ssh_port == 29222
+    error_message = "the wrapper must inherit the root module release and SSH output contract."
   }
 }
