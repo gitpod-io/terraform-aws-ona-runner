@@ -35,6 +35,48 @@ cp "${repo_root}/VERSION" "${repo_root}/variables.tf" "$validation_root/"
     bash scripts/validate-release.sh v0.1.0
 )
 
+update_root="${test_root}/runner-update"
+mkdir -p "${update_root}/scripts" "${update_root}/bin"
+cp "${repo_root}/scripts/update-runner-release.sh" "${update_root}/scripts/"
+cp "${repo_root}/variables.tf" "$update_root/"
+
+cat > "${update_root}/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+manifest_url="${*: -1}"
+if [[ "$manifest_url" != "https://releases.gitpod.io/ec2/releases/20260901.123/manifest.json" ]]; then
+  echo "Unexpected manifest URL: $manifest_url" >&2
+  exit 1
+fi
+
+cat <<'JSON'
+{
+  "version": "20260901.123",
+  "image": "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-ec2-runner:20260901.123",
+  "proxy_image": "public.ecr.aws/k5t9d3j5/application/gitpod-next/gitpod-proxy:20260901.123",
+  "cloudformation_template_url": "https://releases.gitpod.io/ec2/releases/20260901.123/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"
+}
+JSON
+EOF
+chmod +x "${update_root}/bin/curl"
+
+(
+  cd "$update_root"
+
+  expect_failure "an omitted runner version" \
+    bash scripts/update-runner-release.sh
+
+  updated_version="$(PATH="${update_root}/bin:$PATH" bash scripts/update-runner-release.sh \
+    "20260901.123")"
+  if [[ "$updated_version" != "20260901.123" ]]; then
+    echo "Unexpected updated runner version: $updated_version" >&2
+    exit 1
+  fi
+
+  grep -Fq 'default     = "20260901.123"' variables.tf
+)
+
 target_repo="${test_root}/target-repo"
 git init --quiet "$target_repo"
 (
@@ -44,6 +86,15 @@ git init --quiet "$target_repo"
 
   printf 'release candidate\n' > module.tf
   git add module.tf
+  git commit --quiet -m "initial commit"
+
+  printf '0.1.0\n' > VERSION
+  cat > variables.tf <<'EOF'
+variable "runner_template_build_version" {
+  default = "20260901.123"
+}
+EOF
+  git add VERSION variables.tf
   git commit --quiet -m "release candidate"
   main_sha="$(git rev-parse HEAD)"
 
@@ -67,6 +118,35 @@ git init --quiet "$target_repo"
   git tag v0.1.0 "$unrelated_sha"
   expect_failure "an existing tag on a different commit" \
     bash "${repo_root}/scripts/validate-release-target.sh" "$main_sha" "$main_sha" v0.1.0
+
+  printf 'release metadata\n' >> module.tf
+  git add module.tf
+  git commit --quiet -m "add release metadata"
+  release_sha="$(git rev-parse HEAD)"
+
+  found_sha="$(bash "${repo_root}/scripts/find-runner-release-commit.sh" 20260901.123 HEAD)"
+  if [[ "$found_sha" != "$release_sha" ]]; then
+    echo "Found runner release commit $found_sha does not match $release_sha" >&2
+    exit 1
+  fi
+
+  expect_failure "an unknown runner release" \
+    bash "${repo_root}/scripts/find-runner-release-commit.sh" 20260909.999 HEAD
+
+  next_version="$(bash "${repo_root}/scripts/advance-module-version.sh" v0.1.0)"
+  if [[ "$next_version" != "0.1.1" ]] || [[ "$(tr -d '[:space:]' < VERSION)" != "0.1.1" ]]; then
+    echo "Module version did not advance to 0.1.1" >&2
+    exit 1
+  fi
+
+  next_version="$(bash "${repo_root}/scripts/advance-module-version.sh" v0.1.0)"
+  if [[ "$next_version" != "0.1.1" ]]; then
+    echo "Repeated module version advance was not idempotent" >&2
+    exit 1
+  fi
+
+  expect_failure "advancing from an unrelated module version" \
+    bash "${repo_root}/scripts/advance-module-version.sh" v0.2.0
 )
 
 notes_root="${test_root}/release-notes"

@@ -52,13 +52,14 @@ runners and environments rather than as an in-place migration.
 
 ## Release compatibility
 
-The module pins `runner_template_build_version` to one tested stable runner
-release, matching the release pinning used by the GCP Terraform module. It
-derives the standard runner and proxy images from that version.
+Published module versions pin `runner_template_build_version` to one tested
+stable runner release, matching the release pinning used by the GCP Terraform
+module. The module derives the standard runner and proxy images from that
+version.
 
 | Input | Purpose |
 | --- | --- |
-| `runner_template_build_version` | Stable release used for the standard images and runner configuration. |
+| `runner_template_build_version` | Release used for the standard images and runner configuration. |
 | `runner_image` | Optional custom image with a tag matching the release version. |
 | `proxy_image` | Optional custom proxy image with a tag matching the release version. |
 
@@ -72,8 +73,10 @@ The module returns `release_version`, which is the configured
 `runner_template_build_version`. Record it with the Terraform state and verify
 it against the release manifest before an upgrade.
 
-The scheduled release workflow checks the published stable manifest and opens
-an update pull request when a new stable runner version is available.
+Each EC2 `latest` build records its immutable runner version on `main`. Stable
+promotion then releases the exact historical module commit containing the
+promoted runner version; unreleased candidates are never added to an existing
+module tag.
 
 Terraform module versions are published as immutable semantic-version tags and
 GitHub releases after the pinned runner version passes the deployment checks in

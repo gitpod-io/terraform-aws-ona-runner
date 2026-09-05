@@ -1,4 +1,5 @@
 name: Release
+run-name: Release ${{ inputs.tag }}
 
 on:
   workflow_dispatch:
@@ -125,3 +126,22 @@ jobs:
               --title "$RELEASE_TAG" \
               --notes-file release-body.md
           fi
+
+      - name: Advance module version
+        run: |
+          set -euo pipefail
+
+          git fetch origin main
+          git checkout -B module-version-bump origin/main
+          next_version="$(bash scripts/advance-module-version.sh "$RELEASE_TAG")"
+
+          git config user.name "gitpod-next-automation"
+          git config user.email "gitpod-next-automation@gitpod.io"
+          git add VERSION
+          if git diff --staged --quiet; then
+            echo "VERSION is already ${next_version}"
+            exit 0
+          fi
+
+          git commit -m "chore: bump Terraform module version to ${next_version}"
+          git push origin HEAD:main
