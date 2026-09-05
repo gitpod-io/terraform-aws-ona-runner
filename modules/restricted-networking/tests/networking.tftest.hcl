@@ -103,7 +103,10 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       aws_route.runner_to_firewall["us-east-1a"].vpc_endpoint_id == "vpce-00000000000000001" &&
       aws_route.firewall_to_nat["us-east-1a"].nat_gateway_id == aws_nat_gateway.this["us-east-1a"].id &&
       aws_route.egress_to_internet_gateway["us-east-1a"].gateway_id == aws_internet_gateway.this[0].id &&
-      aws_route.egress_to_runner["us-east-1a"].vpc_endpoint_id == "vpce-00000000000000001"
+      length(aws_route.egress_to_runner) == 4 &&
+      aws_route.egress_to_runner["us-east-1a:us-east-1a"].destination_cidr_block == "100.64.0.0/18" &&
+      aws_route.egress_to_runner["us-east-1a:us-east-1b"].destination_cidr_block == "100.64.64.0/18" &&
+      aws_route.egress_to_runner["us-east-1a:us-east-1b"].vpc_endpoint_id == "vpce-00000000000000001"
     )
     error_message = "NAT traffic and its return path must cross the same-zone firewall endpoint."
   }
@@ -139,7 +142,10 @@ run "transit_gateway_mode_creates_an_appliance_attachment" {
   }
 
   assert {
-    condition     = aws_route.egress_to_runner["us-east-1b"].vpc_endpoint_id == "vpce-00000000000000002"
+    condition = (
+      aws_route.egress_to_runner["us-east-1b:us-east-1a"].destination_cidr_block == "100.64.0.0/18" &&
+      aws_route.egress_to_runner["us-east-1b:us-east-1a"].vpc_endpoint_id == "vpce-00000000000000002"
+    )
     error_message = "return traffic from the Transit Gateway attachment must cross the same-zone firewall endpoint."
   }
 }
@@ -226,6 +232,15 @@ run "three_availability_zones_keep_a_spare_runner_range" {
       "us-east-1c" = "100.64.64.0/19"
     }
     error_message = "three-AZ deployments must create one /19 runner subnet per availability zone."
+  }
+
+  assert {
+    condition = (
+      length(aws_route.egress_to_runner) == 9 &&
+      aws_route.egress_to_runner["us-east-1c:us-east-1b"].destination_cidr_block == "100.64.32.0/19" &&
+      aws_route.egress_to_runner["us-east-1c:us-east-1b"].vpc_endpoint_id == "vpce-00000000000000003"
+    )
+    error_message = "each egress route table must route every exact runner subnet CIDR through its same-zone firewall endpoint."
   }
 
   assert {

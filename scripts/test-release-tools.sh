@@ -73,8 +73,13 @@ notes_root="${test_root}/release-notes"
 mkdir -p "${notes_root}/scripts" "${notes_root}/bin"
 cp "${repo_root}/scripts/build-release-notes.sh" "${notes_root}/scripts/"
 cp "${repo_root}/scripts/validate-release.sh" "${notes_root}/scripts/"
-cp "${repo_root}/variables.tf" "$notes_root/"
 printf '0.1.0\n' > "${notes_root}/VERSION"
+
+cat > "${notes_root}/variables.tf" <<'EOF'
+variable "runner_template_build_version" {
+  default = "20260805.559"
+}
+EOF
 
 cat > "${notes_root}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
