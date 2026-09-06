@@ -75,7 +75,12 @@ mock_provider "aws" {
   }
 }
 
+mock_provider "random" {}
+
 variables {
+  aws_region         = "us-east-1"
+  runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_token       = "test-token"
   availability_zones = ["us-east-1a", "us-east-1b"]
   routable_vpc_cidr  = "10.42.0.0/24"
 }
@@ -114,6 +119,11 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   assert {
     condition     = aws_flow_log.vpc.traffic_type == "ALL" && aws_route53_resolver_query_log_config_association.this.resource_id == aws_vpc.this.id
     error_message = "VPC flow logging and VPC-level Resolver query logging must remain enabled."
+  }
+
+  assert {
+    condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
+    error_message = "the example must pass its VPC and runner subnets to the restricted runner module."
   }
 }
 

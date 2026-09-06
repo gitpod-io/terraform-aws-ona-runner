@@ -5,4 +5,5 @@ runner proxy and Network Load Balancer. Copy `terraform.tfvars.example` and
 provide the existing runner and load-balancer subnet IDs.
 
 For a restricted runner without ingress infrastructure, use the
-[`restricted-networking`](../restricted-networking/) example.
+[`restricted-runner-with-networking`](../restricted-runner-with-networking/)
+example.

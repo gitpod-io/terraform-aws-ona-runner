@@ -1,7 +1,7 @@
 resource "aws_networkfirewall_firewall_policy" "default" {
   count = var.enable_firewall && var.firewall_policy_arn == null ? 1 : 0
 
-  name        = "${var.name}-default"
+  name        = "${var.network_name}-default"
   description = "Permissive baseline policy for Ona runner egress inspection."
 
   firewall_policy {
@@ -31,7 +31,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
 resource "aws_networkfirewall_firewall" "this" {
   count = var.enable_firewall ? 1 : 0
 
-  name                = var.name
+  name                = var.network_name
   firewall_policy_arn = local.firewall_policy_arn
   vpc_id              = aws_vpc.this.id
 
