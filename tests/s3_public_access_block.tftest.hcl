@@ -59,3 +59,16 @@ run "public_access_block_can_be_managed_externally" {
     error_message = "the module must omit every Public Access Block resource when external management is selected."
   }
 }
+
+run "runner_buckets_are_force_destroyed" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      aws_s3_bucket.container_registry.force_destroy,
+      aws_s3_bucket.logs.force_destroy,
+      aws_s3_bucket.agent.force_destroy,
+    ])
+    error_message = "every runner-managed S3 bucket must delete its contents during terraform destroy."
+  }
+}
