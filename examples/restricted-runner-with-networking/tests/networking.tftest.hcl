@@ -94,6 +94,11 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
+    condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-2ec33d556332a866"
+    error_message = "the default network name must derive from runner_name and the full runner ID."
+  }
+
+  assert {
     condition     = output.runner_subnet_cidrs == { "us-east-1a" = "100.64.0.0/18", "us-east-1b" = "100.64.64.0/18" } && output.runner_reserved_cidrs == ["100.64.128.0/17"]
     error_message = "two-AZ deployments must allocate the first CGNAT half and reserve the second half."
   }
@@ -124,6 +129,20 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   assert {
     condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
     error_message = "the example must pass its VPC and runner subnets to the restricted runner module."
+  }
+}
+
+run "explicit_network_name_overrides_the_derived_name" {
+  command = plan
+
+  variables {
+    runner_name  = "defense"
+    network_name = "existing-network"
+  }
+
+  assert {
+    condition     = aws_networkfirewall_firewall.this[0].name == "existing-network"
+    error_message = "an explicit network_name must override the runner-derived default."
   }
 }
 

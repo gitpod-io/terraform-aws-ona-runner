@@ -15,6 +15,10 @@ certificate, or load-balancer subnets.
 `runner_name` controls the AWS resource-name prefix. The runner's display name
 in Ona is configured when the runner record is created.
 
+`network_name` is optional. When omitted, the example derives the same unique
+prefix shape from `runner_name` and `runner_id`; set it explicitly only when a
+specific existing network-resource prefix must be preserved.
+
 The network resources intentionally live directly in this example. Inspect and
 adapt them for your organization's egress policy instead of treating this
 topology as a separately supported networking module.

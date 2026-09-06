@@ -36,12 +36,12 @@ variable "availability_zones" {
 }
 
 variable "network_name" {
-  description = "Name prefix for networking resources."
+  description = "Optional name prefix for networking resources. When null, derives a unique prefix from runner_name and runner_id."
   type        = string
-  default     = "ona-runner-network"
+  default     = null
 
   validation {
-    condition     = can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.network_name)) && !can(regex("--", var.network_name))
+    condition     = var.network_name == null || (can(regex("^[a-z]([a-z0-9-]{0,30}[a-z0-9])?$", var.network_name)) && !can(regex("--", var.network_name)))
     error_message = "network_name must be 1-32 lowercase letters, numbers, or hyphens; start with a letter; end with a letter or number; and not contain consecutive hyphens."
   }
 }

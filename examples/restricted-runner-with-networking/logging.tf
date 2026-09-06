@@ -5,7 +5,7 @@ data "aws_region" "current" {}
 resource "aws_cloudwatch_log_group" "network_firewall_flow" {
   count = var.enable_firewall ? 1 : 0
 
-  name              = "/aws/ona/${var.network_name}/network-firewall/flow"
+  name              = "/aws/ona/${local.network_name}/network-firewall/flow"
   retention_in_days = var.log_retention_in_days
   kms_key_id        = var.log_kms_key_arn
   tags              = local.common_tags
@@ -14,21 +14,21 @@ resource "aws_cloudwatch_log_group" "network_firewall_flow" {
 resource "aws_cloudwatch_log_group" "network_firewall_alert" {
   count = var.enable_firewall ? 1 : 0
 
-  name              = "/aws/ona/${var.network_name}/network-firewall/alert"
+  name              = "/aws/ona/${local.network_name}/network-firewall/alert"
   retention_in_days = var.log_retention_in_days
   kms_key_id        = var.log_kms_key_arn
   tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_group" "vpc_flow" {
-  name              = "/aws/ona/${var.network_name}/vpc-flow"
+  name              = "/aws/ona/${local.network_name}/vpc-flow"
   retention_in_days = var.log_retention_in_days
   kms_key_id        = var.log_kms_key_arn
   tags              = local.common_tags
 }
 
 resource "aws_cloudwatch_log_group" "resolver_queries" {
-  name              = "/aws/ona/${var.network_name}/resolver-queries"
+  name              = "/aws/ona/${local.network_name}/resolver-queries"
   retention_in_days = var.log_retention_in_days
   kms_key_id        = var.log_kms_key_arn
   tags              = local.common_tags
@@ -70,7 +70,7 @@ data "aws_iam_policy_document" "vpc_flow_logs_assume_role" {
 }
 
 resource "aws_iam_role" "vpc_flow_logs" {
-  name_prefix        = "${var.network_name}-flow-"
+  name_prefix        = "${local.network_name}-flow-"
   assume_role_policy = data.aws_iam_policy_document.vpc_flow_logs_assume_role.json
   tags               = local.common_tags
 }
@@ -92,7 +92,7 @@ data "aws_iam_policy_document" "vpc_flow_logs" {
 }
 
 resource "aws_iam_role_policy" "vpc_flow_logs" {
-  name_prefix = "${var.network_name}-flow-"
+  name_prefix = "${local.network_name}-flow-"
   role        = aws_iam_role.vpc_flow_logs.id
   policy      = data.aws_iam_policy_document.vpc_flow_logs.json
 }
@@ -136,12 +136,12 @@ data "aws_iam_policy_document" "resolver_query_logs" {
 }
 
 resource "aws_cloudwatch_log_resource_policy" "resolver_query_logs" {
-  policy_name     = "${var.network_name}-resolver-queries"
+  policy_name     = "${local.network_name}-resolver-queries"
   policy_document = data.aws_iam_policy_document.resolver_query_logs.json
 }
 
 resource "aws_route53_resolver_query_log_config" "this" {
-  name            = "${var.network_name}-resolver-queries"
+  name            = "${local.network_name}-resolver-queries"
   destination_arn = aws_cloudwatch_log_group.resolver_queries.arn
   tags            = local.common_tags
 
