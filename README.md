@@ -122,7 +122,8 @@ module deploys the Network Load Balancer and VPC endpoint needed to access the
 Ona management plane through a custom domain.
 
 The [`restricted-runner`](./modules/restricted-runner/) module wraps the root
-runner module with restricted ingress enabled. The networking resources in the
+runner module with restricted ingress enabled and accepts an optional
+`runner_name` for AWS resource naming. The networking resources in the
 [`restricted-runner-with-networking`](./examples/restricted-runner-with-networking/)
 example intentionally remain example-owned so deployments can adapt them to
 their egress and inspection policies.

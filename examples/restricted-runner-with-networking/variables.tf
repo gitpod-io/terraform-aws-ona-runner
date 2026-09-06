@@ -14,6 +14,17 @@ variable "runner_token" {
   sensitive   = true
 }
 
+variable "runner_name" {
+  description = "Human-readable runner name used in AWS resource names."
+  type        = string
+  default     = "ona-runner"
+
+  validation {
+    condition     = can(regex("^[A-Za-z]([A-Za-z0-9-]{0,30}[A-Za-z0-9])?$", var.runner_name)) && !can(regex("--", var.runner_name))
+    error_message = "runner_name must be 1-32 characters, start with a letter, end with a letter or number, contain only letters, numbers, and hyphens, and not contain consecutive hyphens."
+  }
+}
+
 variable "availability_zones" {
   description = "Two or three availability zones in which to create each subnet tier."
   type        = list(string)
