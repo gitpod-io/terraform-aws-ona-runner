@@ -68,3 +68,13 @@ output "cloudwatch_log_group_names" {
     network_firewall_flow  = aws_cloudwatch_log_group.network_firewall_flow[0].name
   } : {})
 }
+
+output "runner_config_parameter_name" {
+  description = "SSM runner config parameter name."
+  value       = module.runner.runner_config_parameter_name
+}
+
+output "environment_instance_profile_name" {
+  description = "Instance profile used by environment instances."
+  value       = module.runner.environment_instance_profile_name
+}
