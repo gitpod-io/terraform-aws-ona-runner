@@ -1,6 +1,6 @@
 resource "aws_s3_bucket" "container_registry" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-registry-"
-  force_destroy = var.force_destroy_s3_buckets
+  force_destroy = true
   tags          = local.common_tags
 }
 
@@ -51,7 +51,7 @@ resource "aws_s3_bucket_policy" "container_registry" {
 
 resource "aws_s3_bucket" "logs" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-logs-"
-  force_destroy = var.force_destroy_s3_buckets
+  force_destroy = true
   tags          = local.common_tags
 }
 
@@ -102,7 +102,7 @@ resource "aws_s3_bucket_policy" "logs" {
 
 resource "aws_s3_bucket" "agent" {
   bucket_prefix = "${local.s3_bucket_name_prefix}-agent-"
-  force_destroy = var.force_destroy_s3_buckets
+  force_destroy = true
   tags          = local.common_tags
 }
 
