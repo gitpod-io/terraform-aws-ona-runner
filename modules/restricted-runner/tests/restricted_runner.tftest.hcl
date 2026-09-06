@@ -53,4 +53,22 @@ run "restricted_runner_plans_without_ingress_inputs" {
     condition     = can(regex("^[0-9]{8}\\.[0-9]+$", output.release_version)) && output.ssh_port == 29222
     error_message = "the wrapper must inherit the root module release and SSH output contract."
   }
+
+  assert {
+    condition     = output.ecs_cluster_name == "ona-runner-2ec33d556332a866-ona-cluster"
+    error_message = "the wrapper must preserve the root module runner_name default."
+  }
+}
+
+run "custom_runner_name_is_forwarded" {
+  command = plan
+
+  variables {
+    runner_name = "defense"
+  }
+
+  assert {
+    condition     = output.ecs_cluster_name == "defense-2ec33d556332a866-ona-cluster"
+    error_message = "the wrapper must forward runner_name to the root module."
+  }
 }

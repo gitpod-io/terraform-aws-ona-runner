@@ -1,4 +1,6 @@
 locals {
+  network_name = var.network_name != null ? var.network_name : "${trimsuffix(substr(lower(var.runner_name), 0, 12), "-")}-${substr(sha256(lower(var.runner_id)), 0, 16)}"
+
   availability_zone_indices = {
     for index, zone in var.availability_zones : zone => index
   }

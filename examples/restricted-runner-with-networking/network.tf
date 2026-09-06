@@ -3,7 +3,7 @@ resource "aws_vpc" "this" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = merge(local.common_tags, { Name = var.network_name })
+  tags = merge(local.common_tags, { Name = local.network_name })
 }
 
 resource "aws_vpc_ipv4_cidr_block_association" "runner" {
@@ -20,7 +20,7 @@ resource "aws_subnet" "runner" {
   map_public_ip_on_launch = false
 
   tags = merge(local.common_tags, {
-    Name                  = "${var.network_name}-runner-${each.key}"
+    Name                  = "${local.network_name}-runner-${each.key}"
     "ona.com/subnet-tier" = "runner"
   })
 
@@ -36,7 +36,7 @@ resource "aws_subnet" "firewall" {
   map_public_ip_on_launch = false
 
   tags = merge(local.common_tags, {
-    Name                  = "${var.network_name}-firewall-${each.key}"
+    Name                  = "${local.network_name}-firewall-${each.key}"
     "ona.com/subnet-tier" = "firewall"
   })
 }
@@ -50,7 +50,7 @@ resource "aws_subnet" "egress" {
   map_public_ip_on_launch = false
 
   tags = merge(local.common_tags, {
-    Name                  = "${var.network_name}-${replace(var.egress.mode, "_", "-")}-${each.key}"
+    Name                  = "${local.network_name}-${replace(var.egress.mode, "_", "-")}-${each.key}"
     "ona.com/subnet-tier" = var.egress.mode
   })
 }
@@ -59,21 +59,21 @@ resource "aws_route_table" "runner" {
   for_each = local.availability_zone_indices
 
   vpc_id = aws_vpc.this.id
-  tags   = merge(local.common_tags, { Name = "${var.network_name}-runner-${each.key}" })
+  tags   = merge(local.common_tags, { Name = "${local.network_name}-runner-${each.key}" })
 }
 
 resource "aws_route_table" "firewall" {
   for_each = local.firewall_subnet_cidrs
 
   vpc_id = aws_vpc.this.id
-  tags   = merge(local.common_tags, { Name = "${var.network_name}-firewall-${each.key}" })
+  tags   = merge(local.common_tags, { Name = "${local.network_name}-firewall-${each.key}" })
 }
 
 resource "aws_route_table" "egress" {
   for_each = local.availability_zone_indices
 
   vpc_id = aws_vpc.this.id
-  tags   = merge(local.common_tags, { Name = "${var.network_name}-egress-${each.key}" })
+  tags   = merge(local.common_tags, { Name = "${local.network_name}-egress-${each.key}" })
 }
 
 resource "aws_route_table_association" "runner" {
@@ -101,14 +101,14 @@ resource "aws_internet_gateway" "this" {
   count = var.egress.mode == "nat_gateway" ? 1 : 0
 
   vpc_id = aws_vpc.this.id
-  tags   = merge(local.common_tags, { Name = var.network_name })
+  tags   = merge(local.common_tags, { Name = local.network_name })
 }
 
 resource "aws_eip" "nat" {
   for_each = var.egress.mode == "nat_gateway" ? local.availability_zone_indices : {}
 
   domain = "vpc"
-  tags   = merge(local.common_tags, { Name = "${var.network_name}-nat-${each.key}" })
+  tags   = merge(local.common_tags, { Name = "${local.network_name}-nat-${each.key}" })
 }
 
 resource "aws_nat_gateway" "this" {
@@ -116,7 +116,7 @@ resource "aws_nat_gateway" "this" {
 
   allocation_id = aws_eip.nat[each.key].id
   subnet_id     = aws_subnet.egress[each.key].id
-  tags          = merge(local.common_tags, { Name = "${var.network_name}-${each.key}" })
+  tags          = merge(local.common_tags, { Name = "${local.network_name}-${each.key}" })
 
   depends_on = [aws_internet_gateway.this]
 }
@@ -131,7 +131,7 @@ resource "aws_ec2_transit_gateway_vpc_attachment" "this" {
   dns_support            = "enable"
   ipv6_support           = "disable"
 
-  tags = merge(local.common_tags, { Name = var.network_name })
+  tags = merge(local.common_tags, { Name = local.network_name })
 }
 
 resource "aws_route" "runner_to_firewall" {

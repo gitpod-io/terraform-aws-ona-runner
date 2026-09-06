@@ -7,9 +7,17 @@ endpoint subnets. It supports either example-managed NAT Gateways or a
 customer-provided Transit Gateway.
 
 Copy `terraform.tfvars.example` to a `.tfvars` file and provide the runner
-credentials, CIDR, region, and availability-zone values. The restricted runner
-module does not expose a restriction toggle and does not require a runner
-domain, ACM certificate, or load-balancer subnets.
+credentials, CIDR, region, and availability-zone values. `runner_name` is
+optional and defaults to `ona-runner`. The restricted runner module does not
+expose a restriction toggle and does not require a runner domain, ACM
+certificate, or load-balancer subnets.
+
+`runner_name` controls the AWS resource-name prefix. The runner's display name
+in Ona is configured when the runner record is created.
+
+`network_name` is optional. When omitted, the example derives the same unique
+prefix shape from `runner_name` and `runner_id`; set it explicitly only when a
+specific existing network-resource prefix must be preserved.
 
 The network resources intentionally live directly in this example. Inspect and
 adapt them for your organization's egress policy instead of treating this
