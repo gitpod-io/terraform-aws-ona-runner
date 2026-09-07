@@ -34,6 +34,12 @@ data "aws_iam_policy_document" "ec2_assume_role" {
       type        = "Service"
       identifiers = ["ec2.amazonaws.com"]
     }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
+    }
   }
 }
 
@@ -163,6 +169,12 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
+    sid       = "ReadCABundles"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::gitpod-*/*"]
+  }
+
+  statement {
     sid = "DevcontainerCacheRegistryManagement"
     actions = [
       "ecr:CreateRepository",
@@ -199,12 +211,24 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
-    sid = "ASGWarmPoolManagement"
+    sid       = "CreateWarmPoolLaunchTemplate"
+    actions   = ["ec2:CreateLaunchTemplate"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "WarmPoolLaunchTemplateOperations"
     actions = [
-      "ec2:CreateLaunchTemplate",
       "ec2:CreateLaunchTemplateVersion",
       "ec2:DeleteLaunchTemplate",
       "ec2:DescribeLaunchTemplateVersions",
+    ]
+    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+  }
+
+  statement {
+    sid = "ASGWarmPoolManagement"
+    actions = [
       "autoscaling:CreateAutoScalingGroup",
       "autoscaling:DeleteAutoScalingGroup",
       "autoscaling:DeletePolicy",
@@ -214,11 +238,30 @@ data "aws_iam_policy_document" "ecs_task" {
       "autoscaling:DeleteWarmPool",
       "autoscaling:StartInstanceRefresh",
       "autoscaling:UpdateAutoScalingGroup",
+    ]
+    resources = ["arn:aws:autoscaling:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/ona-wp-*"]
+  }
+
+  statement {
+    sid = "DescribeASGWarmPools"
+    actions = [
+      "autoscaling:DescribeAutoScalingGroups",
       "autoscaling:DescribePolicies",
       "autoscaling:DescribeWarmPool",
-      "cloudwatch:PutMetricData",
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid       = "PublishRunnerMetrics"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringLike"
+      variable = "cloudwatch:namespace"
+      values   = ["Ona/*"]
+    }
   }
 
   statement {
@@ -260,7 +303,6 @@ data "aws_iam_policy_document" "ecs_task" {
       "ec2:DetachVolume",
       "ec2:GetConsoleOutput",
       "ec2:RegisterImage",
-      "ec2:CreateLaunchTemplateVersion",
       "ec2:ModifyInstanceAttribute",
       "ec2:ModifyVolume",
       "ec2:RunInstances",
@@ -272,24 +314,30 @@ data "aws_iam_policy_document" "ecs_task" {
   }
 
   statement {
-    sid = "EnvironmentSSMCommands"
+    sid = "RunnerSSMParameters"
     actions = [
       "ssm:DeleteParameter",
-      "ssm:DescribeParameters",
-      "ssm:GetCommandInvocation",
       "ssm:GetParameter",
       "ssm:GetParameters",
       "ssm:GetParametersByPath",
       "ssm:PutParameter",
-      "ssm:SendCommand",
     ]
+    resources = ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/gitpod/runner/*"]
+  }
+
+  statement {
+    sid       = "ReadSSMCommandStatus"
+    actions   = ["ssm:DescribeParameters", "ssm:GetCommandInvocation"]
     resources = ["*"]
   }
 
   statement {
-    sid       = "SSMSendRunShellScript"
-    actions   = ["ssm:SendCommand"]
-    resources = ["arn:aws:ssm:*:*:document/AWS-RunShellScript"]
+    sid     = "SSMSendRunShellScript"
+    actions = ["ssm:SendCommand"]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ssm:*:*:document/AWS-RunShellScript",
+    ]
   }
 
   statement {
@@ -324,6 +372,21 @@ data "aws_iam_policy_document" "ecs_task" {
       test     = "StringEquals"
       variable = "iam:PassedToService"
       values   = ["ec2.amazonaws.com", "autoscaling.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid     = "PassECSTaskRoles"
+    actions = ["iam:PassRole"]
+    resources = concat([
+      aws_iam_role.ecs_execution.arn,
+      aws_iam_role.ecs_task.arn,
+    ], aws_iam_role.proxy[*].arn)
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
     }
   }
 
@@ -492,12 +555,6 @@ data "aws_iam_policy_document" "environment" {
   }
 
   statement {
-    sid       = "AllowBasicLogging"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-    resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/gitpod/environments/*"]
-  }
-
-  statement {
     sid       = "AllowSelfTaggingOperational"
     actions   = ["ec2:CreateTags"]
     resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
@@ -536,25 +593,23 @@ resource "aws_iam_role" "s3_access" {
 
 data "aws_iam_policy_document" "s3_access_assume" {
   statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com", "ec2.amazonaws.com"]
-    }
+    actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_role.environment.arn, aws_iam_role.ecs_task.arn]
+      identifiers = [aws_iam_role.ecs_task.arn]
     }
-  }
 
-  statement {
-    actions = ["sts:TagSession"]
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/gitpod.dev/environment-creator-id"
+      values   = ["?*"]
+    }
 
-    principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.environment.arn, aws_iam_role.ecs_task.arn]
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["gitpod.dev/environment-creator-id"]
     }
   }
 }
@@ -566,24 +621,20 @@ resource "aws_iam_role_policy" "s3_access" {
 
 data "aws_iam_policy_document" "s3_access" {
   statement {
-    actions = [
-      "s3:ListBucket",
-      "s3:GetBucketLocation",
-      "s3:ListBucketMultipartUploads",
-      "s3:ListMultipartUploadParts",
-      "s3:AbortMultipartUpload",
-      "s3:PutObject",
-      "s3:GetObject",
-      "s3:DeleteObject",
-    ]
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.container_registry.arn]
+  }
+
+  statement {
+    effect    = "Deny"
+    actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.container_registry.arn]
 
     condition {
-      test     = "StringLike"
+      test     = "StringNotLike"
       variable = "s3:prefix"
       values = [
         "$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*",
-        "$${aws:PrincipalTag/gitpod.dev/environment-creator-id}",
       ]
     }
   }
@@ -600,13 +651,8 @@ data "aws_iam_policy_document" "s3_access" {
   }
 
   statement {
-    actions   = ["s3:*Object", "s3:ListBucket"]
-    resources = [aws_s3_bucket.container_registry.arn, "${aws_s3_bucket.container_registry.arn}/*"]
-  }
-
-  statement {
-    actions   = ["sts:TagSession", "sts:AssumeRole", "sts:AssumeRoleWithWebIdentity"]
-    resources = ["*"]
+    actions   = ["s3:GetBucketLocation"]
+    resources = [aws_s3_bucket.container_registry.arn]
   }
 }
 

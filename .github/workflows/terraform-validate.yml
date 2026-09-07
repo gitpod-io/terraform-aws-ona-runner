@@ -49,6 +49,9 @@ jobs:
       - name: Terraform Test
         run: terraform test
 
+      - name: Test rendered metrics uploader
+        run: bash scripts/test-metrics-audit-sync.sh
+
       - name: Validate submodules
         run: |
           for module_dir in modules/*/; do

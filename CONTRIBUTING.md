@@ -63,6 +63,7 @@ terraform fmt -recursive
 terraform init -backend=false
 terraform validate
 terraform test
+bash scripts/test-metrics-audit-sync.sh
 
 for module_dir in modules/*/; do
   terraform -chdir="$module_dir" init -backend=false
@@ -115,6 +116,7 @@ Before approving the dispatched release:
    terraform init -backend=false
    terraform validate
    terraform test
+   bash scripts/test-metrics-audit-sync.sh
    bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
    test "$(git rev-parse HEAD)" = "$release_sha"
    test -z "$(git status --porcelain --untracked-files=all)"
