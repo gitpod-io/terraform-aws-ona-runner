@@ -92,6 +92,13 @@ Terraform remains authoritative for the runner and proxy task definitions. A
 Terraform apply deploys the configured release and task settings, reconciling
 any task-definition change made by the runner's runtime updater between applies.
 
+Infrastructure fixes require updating the module version and running
+`terraform plan` followed by an approved `terraform apply`; updating runner images
+alone does not change task-role permissions. Review the plan for IAM updates and
+task rollouts. The runner, proxy, and telemetry tasks support S3-hosted CA bundles
+under `s3://gitpod-*/`; custom bucket policies and encryption keys may require
+additional customer-managed access.
+
 ## Supported configuration
 
 Terraform accepts the supported CloudFormation runner settings: runner

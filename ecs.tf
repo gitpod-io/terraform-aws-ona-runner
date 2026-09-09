@@ -194,10 +194,10 @@ locals {
     command = [<<-EOT
       while true; do
         for f in /audit/metrics-*.json; do
-          [ -f "$$f" ] || continue
-          key="metrics/runner/$${RUNNER_ID}/$$(date -u +%Y/%m/%d)/$$(basename "$$f")"
-          if aws s3 cp "$$f" "s3://$${AUDIT_BUCKET}/$${key}" --quiet; then
-            rm -f "$$f"
+          [ -f "$f" ] || continue
+          key="metrics/runner/$${RUNNER_ID}/$(date -u +%Y/%m/%d)/$(basename "$f")"
+          if aws s3 cp "$f" "s3://$${AUDIT_BUCKET}/$${key}" --quiet; then
+            rm -f "$f"
           fi
         done
         sleep 60
