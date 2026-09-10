@@ -72,3 +72,26 @@ run "runner_buckets_are_force_destroyed" {
     error_message = "every runner-managed S3 bucket must delete its contents during terraform destroy."
   }
 }
+
+run "agent_support_bundles_expire_before_general_agent_data" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_s3_bucket_lifecycle_configuration.agent.rule) == 2 &&
+      one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-workflow-action-support-bundles"]).status == "Enabled" &&
+      one(one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-workflow-action-support-bundles"]).filter).prefix == "workflow-action-support-bundles/" &&
+      one(one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-workflow-action-support-bundles"]).expiration).days == 1 &&
+      one(one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-workflow-action-support-bundles"]).abort_incomplete_multipart_upload).days_after_initiation == 1
+    )
+    error_message = "workflow action support bundles must expire, including incomplete uploads, after one day."
+  }
+
+  assert {
+    condition = (
+      one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-agent-data"]).status == "Enabled" &&
+      one(one([for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule if rule.id == "expire-agent-data"]).expiration).days == 360
+    )
+    error_message = "the support-bundle rule must not shorten retention for unrelated agent data."
+  }
+}
