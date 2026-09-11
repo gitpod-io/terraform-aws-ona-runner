@@ -35,6 +35,60 @@ mock_provider "aws" {
 mock_provider "random" {}
 
 override_resource {
+  target          = aws_security_group.external_credentials
+  override_during = plan
+  values          = { id = "sg-00000000000000003" }
+}
+
+run "external_credentials_default_off" {
+  command = plan
+  assert {
+    condition     = length(aws_ecs_service.external_credentials) == 0 && length(aws_secretsmanager_secret.external_credential_issuer) == 0 && length(aws_vpc_security_group_ingress_rule.external_credential_lookup) == 0
+    error_message = "The credential service, issuer and private lookup ingress must be absent by default."
+  }
+}
+
+run "external_credentials_private_discovery" {
+  command = plan
+  variables { external_credential_proxy_ers_upstream = "https://ers.example.com/api" }
+  assert {
+    condition     = length(aws_service_discovery_private_dns_namespace.internal_runner) == 1 && length(aws_service_discovery_service.external_credentials) == 1 && length(aws_ecs_service.external_credentials) == 1 && length(aws_lb.proxy) == 1
+    error_message = "The proxy needs VM-accessible private discovery without an additional load balancer."
+  }
+  assert {
+    condition     = aws_security_group_rule.ecs_from_load_balancer[0].to_port == 7071 && aws_security_group_rule.ecs_from_load_balancer_upper[0].from_port == 7073
+    error_message = "The existing load balancer ingress range must exclude the private binding port."
+  }
+
+  assert {
+    condition     = aws_vpc_security_group_ingress_rule.external_credential_lookup[0].referenced_security_group_id == aws_security_group.external_credentials[0].id && aws_vpc_security_group_ingress_rule.external_credential_lookup[0].from_port == 7072 && aws_vpc_security_group_ingress_rule.external_credential_data[0].referenced_security_group_id == aws_security_group.environment.id && aws_vpc_security_group_ingress_rule.external_credential_data[0].from_port == 8443
+    error_message = "Only the dedicated proxy group may use the binding lookup; Environment access is restricted to the data listener."
+  }
+}
+
+run "external_credentials_reserve_lookup_port" {
+  command = plan
+  variables {
+    external_credential_proxy_ers_upstream = "https://ers.example.com/api"
+    restrict_ingress                       = true
+    internal_llm_proxy_port                = 7072
+  }
+  expect_failures = [aws_ecs_task_definition.external_credentials]
+}
+
+run "external_credentials_with_restricted_ingress" {
+  command = plan
+  variables {
+    external_credential_proxy_ers_upstream = "https://ers.example.com/api"
+    restrict_ingress                       = true
+  }
+  assert {
+    condition     = length(aws_lb.proxy) == 0 && length(aws_ecs_service.proxy) == 0 && length(aws_ecs_service.external_credentials) == 1 && length(aws_service_discovery_private_dns_namespace.internal_runner) == 1 && length(aws_ecs_service.runner.service_registries) == 1
+    error_message = "Restricted ingress must retain the credential proxy and reuse the existing private runner registration."
+  }
+}
+
+override_resource {
   target          = aws_security_group.ecs
   override_during = plan
   values = {

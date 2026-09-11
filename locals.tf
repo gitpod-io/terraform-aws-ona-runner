@@ -139,6 +139,7 @@ locals {
     ],
     local.runner_proxy_domain_config_fragments,
     local.internal_runner_config_fragments,
+    local.external_credential_config_fragments,
     [
       ",\"runnerPackage\":\"Enterprise\"",
       ",\"runnerTemplateBuildVersion\":", jsonencode(var.runner_template_build_version),

@@ -87,6 +87,15 @@ resource "aws_iam_role_policy" "ecs_task" {
 }
 
 data "aws_iam_policy_document" "ecs_task" {
+  dynamic "statement" {
+    for_each = local.external_credentials_enabled ? [true] : []
+    content {
+      sid       = "ManageExternalCredentialMaterial"
+      actions   = ["secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+      resources = [aws_secretsmanager_secret.external_credential_issuer[0].arn, aws_secretsmanager_secret.external_credential_proxy[0].arn]
+    }
+  }
+
   statement {
     sid = "ManageMetricsConfig"
     actions = [
@@ -381,7 +390,7 @@ data "aws_iam_policy_document" "ecs_task" {
     resources = concat([
       aws_iam_role.ecs_execution.arn,
       aws_iam_role.ecs_task.arn,
-    ], aws_iam_role.proxy[*].arn)
+    ], aws_iam_role.proxy[*].arn, aws_iam_role.external_credentials[*].arn, aws_iam_role.external_credentials_execution[*].arn)
 
     condition {
       test     = "StringEquals"

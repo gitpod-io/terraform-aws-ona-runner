@@ -174,3 +174,10 @@ and the deployment evidence required before release.
 
 `terraform destroy` removes the module's log groups and force-deletes the
 runner-managed container registry, logs, and agent buckets with their contents.
+
+### External credential proxy
+
+A compatible runner image can enable ERS credential injection with
+`external_credential_proxy_ers_upstream`. The proxy uses private Cloud Map
+addresses and per-Environment mTLS identities. See
+[deployment and permission details](docs/parity.md#external-credential-proxy).

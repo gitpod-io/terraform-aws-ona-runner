@@ -77,7 +77,7 @@ resource "aws_service_discovery_http_namespace" "this" {
 }
 
 resource "aws_service_discovery_private_dns_namespace" "internal_runner" {
-  count = var.restrict_ingress ? 1 : 0
+  count = var.restrict_ingress || local.external_credentials_enabled ? 1 : 0
 
   name = local.internal_runner_namespace
   vpc  = var.vpc_id
@@ -85,7 +85,7 @@ resource "aws_service_discovery_private_dns_namespace" "internal_runner" {
 }
 
 resource "aws_service_discovery_service" "internal_runner" {
-  count = var.restrict_ingress ? 1 : 0
+  count = var.restrict_ingress || local.external_credentials_enabled ? 1 : 0
 
   name = "runner"
 
@@ -243,6 +243,7 @@ locals {
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
       { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
+      { name = "EXTERNAL_CREDENTIAL_PROXY_ENDPOINT", value = local.external_credentials_enabled ? local.external_credential_endpoint : "" },
       { name = "ADOT_CONFIG_SSM_PARAM", value = aws_ssm_parameter.adot_config.name },
       { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle },
       ], [for item in local.proxy_env : {
