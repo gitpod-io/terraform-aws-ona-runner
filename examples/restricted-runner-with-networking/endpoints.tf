@@ -24,8 +24,10 @@ resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_from_runner_subnet
 resource "aws_vpc_endpoint" "aws_interface" {
   for_each = local.aws_interface_endpoint_services
 
-  vpc_id              = aws_vpc.this.id
-  service_name        = "com.amazonaws.${var.aws_region}.${each.key}"
+  vpc_id = aws_vpc.this.id
+  # IAM has a global service name and a us-east-1 control plane in commercial AWS.
+  service_name        = each.key == "iam" ? "com.amazonaws.iam" : "com.amazonaws.${var.aws_region}.${each.key}"
+  service_region      = each.key == "iam" && var.aws_region != "us-east-1" ? "us-east-1" : null
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [for zone in var.availability_zones : aws_subnet.runner[zone].id]
   security_group_ids  = [aws_security_group.vpc_endpoints.id]
