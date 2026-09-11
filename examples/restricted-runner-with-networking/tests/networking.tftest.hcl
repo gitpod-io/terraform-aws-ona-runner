@@ -73,6 +73,13 @@ mock_provider "aws" {
       id = "nat-00000000000000001"
     }
   }
+
+  mock_resource "aws_vpc_endpoint" {
+    defaults = {
+      # A sentinel distinguishes provider-default routing from an explicit service region.
+      service_region = "provider-default"
+    }
+  }
 }
 
 mock_provider "random" {}
@@ -173,13 +180,14 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   assert {
     condition = alltrue([
       for service, endpoint in aws_vpc_endpoint.aws_interface :
-      endpoint.service_name == "com.amazonaws.us-east-1.${service}" &&
+      endpoint.service_name == (service == "iam" ? "com.amazonaws.iam" : "com.amazonaws.us-east-1.${service}") &&
+      endpoint.service_region == "provider-default" &&
       endpoint.vpc_endpoint_type == "Interface" &&
       endpoint.private_dns_enabled &&
       endpoint.subnet_ids == toset(["subnet-00000000000000001", "subnet-00000000000000002"]) &&
       endpoint.security_group_ids == toset([aws_security_group.vpc_endpoints.id])
     ])
-    error_message = "AWS interface endpoints must use private DNS, every runner subnet, and the shared endpoint security group."
+    error_message = "AWS interface endpoints must use private DNS, every runner subnet, and the shared security group; IAM uses its global name without cross-region routing in us-east-1."
   }
 
   assert {
@@ -317,7 +325,7 @@ run "custom_firewall_policy_replaces_the_managed_allowlist" {
   }
 }
 
-run "management_plane_endpoint_uses_cross_region_service_outside_us_east_1" {
+run "iam_and_management_plane_use_cross_region_services_outside_us_east_1" {
   command = plan
 
   variables {
@@ -355,9 +363,13 @@ run "management_plane_endpoint_uses_cross_region_service_outside_us_east_1" {
   assert {
     condition = alltrue([
       for service, endpoint in aws_vpc_endpoint.aws_interface :
-      endpoint.service_name == "com.amazonaws.eu-central-1.${service}"
+      endpoint.service_name == (service == "iam" ? "com.amazonaws.iam" : "com.amazonaws.eu-central-1.${service}") &&
+      endpoint.service_region == (service == "iam" ? "us-east-1" : "provider-default") &&
+      endpoint.private_dns_enabled &&
+      endpoint.subnet_ids == toset(["subnet-00000000000000001", "subnet-00000000000000002"]) &&
+      endpoint.security_group_ids == toset([aws_security_group.vpc_endpoints.id])
     ])
-    error_message = "AWS interface endpoints must use services from the deployment region."
+    error_message = "IAM must use its global service in us-east-1 with private DNS and shared endpoint access; other AWS interface endpoints must remain regional."
   }
 }
 

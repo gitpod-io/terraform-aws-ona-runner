@@ -30,6 +30,15 @@ The example creates the interface and gateway endpoints listed in the public
 Regional interface endpoints use private DNS and span every runner subnet. S3
 and DynamoDB use gateway endpoints associated with every runner route table.
 
+IAM is the exception to regional service naming: its service is
+`com.amazonaws.iam` in `us-east-1`. Outside `us-east-1`, the example creates a
+local interface endpoint with `service_region = "us-east-1"` using
+[cross-region AWS PrivateLink](https://docs.aws.amazon.com/vpc/latest/privatelink/aws-services-cross-region-privatelink-support.html).
+Private DNS keeps IAM API traffic on the private endpoint path without a
+public firewall allowlist entry. The identity deploying this example needs
+`vpce:AllowMultiRegion`, and its organization's service control policies must
+not deny that permission. In `us-east-1`, the IAM endpoint stays in-region.
+
 The example also creates the documented cross-region Ona interface endpoint
 with private DNS enabled, so `app.gitpod.io` resolves to the endpoint's private
 addresses inside the VPC. Deployments in `us-east-1` use the first runner
