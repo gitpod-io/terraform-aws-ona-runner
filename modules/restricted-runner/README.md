@@ -33,3 +33,8 @@ module "runner" {
   runner_subnet_ids = var.runner_subnet_ids
 }
 ```
+
+Set `external_credential_proxy_ers_upstream` to enable the external credential
+proxy with a compatible runner image. The private proxy remains available to
+Environments when ingress is restricted. See the root module's
+[deployment details](../../docs/parity.md#external-credential-proxy).

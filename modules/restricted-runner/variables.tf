@@ -8,6 +8,12 @@ variable "runner_id" {
   }
 }
 
+variable "external_credential_proxy_ers_upstream" {
+  description = "Trusted HTTPS ERS API base; empty disables the external credential proxy."
+  type        = string
+  default     = ""
+}
+
 variable "runner_token" {
   description = "The Ona runner exchange token."
   type        = string

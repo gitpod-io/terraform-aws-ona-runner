@@ -9,6 +9,35 @@ provider "aws" {
   skip_metadata_api_check     = true
 }
 
+override_resource {
+  target          = aws_secretsmanager_secret.external_credential_issuer[0]
+  override_during = plan
+  values          = { arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:client-issuer-123456" }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.external_credential_proxy[0]
+  override_during = plan
+  values          = { arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:proxy-material-123456" }
+}
+
+run "external_credential_role_separation" {
+  command = plan
+  variables { external_credential_proxy_ers_upstream = "https://ers.example.com/api" }
+  assert {
+    condition = length(data.aws_iam_policy_document.external_credentials[0].statement) == 2 && alltrue([
+      for statement in data.aws_iam_policy_document.external_credentials[0].statement :
+      (statement.sid == "ReadProxyMaterial" && statement.actions == toset(["secretsmanager:GetSecretValue"]) && statement.resources == toset(["arn:aws:secretsmanager:us-east-1:123456789012:secret:proxy-material-123456"])) ||
+      (statement.sid == "ReadCustomTrustBundle" && statement.actions == toset(["s3:GetObject"]) && statement.resources == toset(["arn:aws:s3:::gitpod-*/*"]))
+    ])
+    error_message = "The proxy may read its TLS material and custom CA, never the client signing key or runner token."
+  }
+  assert {
+    condition     = anytrue([for statement in data.aws_iam_policy_document.ecs_task.statement : statement.sid == "ManageExternalCredentialMaterial" && contains(statement.actions, "secretsmanager:PutSecretValue") && contains(statement.resources, "arn:aws:secretsmanager:us-east-1:123456789012:secret:client-issuer-123456") && contains(statement.resources, "arn:aws:secretsmanager:us-east-1:123456789012:secret:proxy-material-123456")])
+    error_message = "The runner must own initialization of both separate TLS resources."
+  }
+}
+
 override_data {
   override_during = plan
   target          = data.aws_caller_identity.current
