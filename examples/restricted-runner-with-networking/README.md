@@ -107,9 +107,32 @@ availability zone.
 ## Firewall policy
 
 The firewall is enabled by default. Without `firewall_policy_arn`, the example
-creates a permissive strict-order policy that forwards traffic to the stateful
-engine and alerts on established flows. Provide an existing Network Firewall
-policy to enforce customer-specific egress rules.
+creates a strict-order, default-deny policy. With the default empty allowlist,
+all traffic that reaches the firewall is dropped and logged. Set
+`firewall_allowed_domains` to allow public HTTPS destinations by TLS Server
+Name Indication (SNI):
+
+```hcl
+firewall_allowed_domains = [
+  "github.com",
+  ".githubusercontent.com",
+]
+```
+
+An exact name allows only that host. A leading dot allows the named domain and
+all its subdomains. This filtering does not decrypt TLS traffic; it uses the SNI
+sent in the TLS handshake. Connections without an allowed SNI remain denied.
+When the list is non-empty, the policy permits only the connection-establishment
+packets required to inspect SNI before applying its default drop action.
+
+Do not add AWS API domains or `app.gitpod.io` to this list. Their interface and
+gateway endpoint routes are VPC-local and take precedence over the default
+route through Network Firewall. Add only public services required by your
+workloads, such as source-control, package-registry, or artifact hosts.
+
+Provide `firewall_policy_arn` to replace the example-managed policy entirely.
+When set, `firewall_allowed_domains` is ignored and the supplied policy defines
+all egress behavior.
 
 Set `enable_firewall = false` to omit Network Firewall and route runner traffic
 directly to the selected egress target. This removes egress inspection and is

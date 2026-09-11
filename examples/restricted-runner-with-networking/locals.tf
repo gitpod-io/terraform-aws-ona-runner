@@ -61,7 +61,7 @@ locals {
     "ona.com/component" = "runner-networking"
   })
 
-  firewall_policy_arn = var.enable_firewall ? coalesce(var.firewall_policy_arn, aws_networkfirewall_firewall_policy.default[0].arn) : null
+  firewall_policy_arn = var.enable_firewall ? (var.firewall_policy_arn != null ? var.firewall_policy_arn : aws_networkfirewall_firewall_policy.default[0].arn) : null
   firewall_endpoint_ids = var.enable_firewall ? {
     for zone in var.availability_zones : zone => one([
       for state in aws_networkfirewall_firewall.this[0].firewall_status[0].sync_states :

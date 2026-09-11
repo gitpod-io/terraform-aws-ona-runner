@@ -98,13 +98,27 @@ variable "egress" {
 }
 
 variable "firewall_policy_arn" {
-  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a permissive inspection policy that alerts on established flows."
+  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a default-deny policy and uses firewall_allowed_domains."
   type        = string
   default     = null
 
   validation {
     condition     = var.firewall_policy_arn == null || can(regex("^arn:[^:]+:network-firewall:[^:]+:[0-9]{12}:firewall-policy/.+$", var.firewall_policy_arn))
     error_message = "firewall_policy_arn must be null or a Network Firewall policy ARN."
+  }
+}
+
+variable "firewall_allowed_domains" {
+  description = "HTTPS domains allowed through the example-managed Network Firewall policy. Prefix a domain with a dot to include the domain and all subdomains. Ignored when firewall_policy_arn is set."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition = length(var.firewall_allowed_domains) <= 999 && alltrue([
+      for domain in var.firewall_allowed_domains :
+      length(domain) <= 253 && can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
+    ])
+    error_message = "firewall_allowed_domains must contain at most 999 valid domain names, optionally prefixed with a dot to include subdomains."
   }
 }
 
