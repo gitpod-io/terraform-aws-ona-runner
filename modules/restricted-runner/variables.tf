@@ -8,6 +8,12 @@ variable "runner_id" {
   }
 }
 
+variable "enable_external_credential_proxy" {
+  description = "Enable the HTTP/HTTPS external credential proxy. Requires a compatible runner image."
+  type        = bool
+  default     = false
+}
+
 variable "runner_token" {
   description = "The Ona runner exchange token."
   type        = string
