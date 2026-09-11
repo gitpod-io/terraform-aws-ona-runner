@@ -139,6 +139,16 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
+    condition = (
+      aws_networkfirewall_firewall_policy.default[0].description == "Default-deny policy for Ona runner egress inspection." &&
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
+      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 0 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 0
+    )
+    error_message = "the default firewall policy must drop and alert on unmatched established traffic without allowing public domains."
+  }
+
+  assert {
     condition = toset(keys(aws_vpc_endpoint.aws_interface)) == toset([
       "acm",
       "cloudformation",
@@ -259,6 +269,54 @@ run "explicit_network_name_overrides_the_derived_name" {
   }
 }
 
+run "firewall_domain_allowlist_permits_only_configured_https_hosts" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = ["GitHub.com", ".githubusercontent.com"]
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.allowed_domains) == 1 &&
+      aws_networkfirewall_rule_group.allowed_domains[0].capacity == 1000 &&
+      aws_networkfirewall_rule_group.allowed_domains[0].type == "STATEFUL" &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].stateful_rule_options[0].rule_order == "STRICT_ORDER" &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].generated_rules_type == "ALLOWLIST" &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].target_types == toset(["TLS_SNI"]) &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(["github.com", ".githubusercontent.com"])
+    )
+    error_message = "configured domains must create a strict-order TLS SNI allowlist rule group."
+  }
+
+  assert {
+    condition = (
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
+      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 1 &&
+      one(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference).priority == 100
+    )
+    error_message = "the default policy must attach the domain allowlist rule group."
+  }
+}
+
+run "custom_firewall_policy_replaces_the_managed_allowlist" {
+  command = plan
+
+  variables {
+    firewall_policy_arn      = "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
+    firewall_allowed_domains = ["github.com"]
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_firewall_policy.default) == 0 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
+      aws_networkfirewall_firewall.this[0].firewall_policy_arn == "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
+    )
+    error_message = "a custom firewall policy must replace the example-managed policy and domain allowlist."
+  }
+}
+
 run "management_plane_endpoint_uses_cross_region_service_outside_us_east_1" {
   command = plan
 
@@ -349,6 +407,7 @@ run "firewall_can_be_disabled_in_nat_gateway_mode" {
       length(aws_route_table.firewall) == 0 &&
       length(aws_networkfirewall_firewall.this) == 0 &&
       length(aws_networkfirewall_firewall_policy.default) == 0 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
       length(aws_networkfirewall_logging_configuration.this) == 0 &&
       length(aws_cloudwatch_log_group.network_firewall_flow) == 0 &&
       length(aws_cloudwatch_log_group.network_firewall_alert) == 0
@@ -465,4 +524,14 @@ run "routable_range_must_leave_room_for_subnet_tiers" {
   }
 
   expect_failures = [var.routable_vpc_cidr]
+}
+
+run "firewall_domain_allowlist_rejects_urls" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = ["https://github.com/path"]
+  }
+
+  expect_failures = [var.firewall_allowed_domains]
 }

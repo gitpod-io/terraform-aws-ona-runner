@@ -8,7 +8,12 @@ runner_name  = "ona-runner"
 routable_vpc_cidr = "10.42.0.0/24"
 runner_cgnat_cidr = "100.64.0.0/16"
 # Egress inspection is enabled by default and recommended.
-enable_firewall   = true
+enable_firewall = true
+
+# Public HTTPS access is denied unless its TLS SNI is listed here. Use a leading
+# dot to allow both a domain and its subdomains, for example ".github.com".
+# AWS APIs and app.gitpod.io use the VPC endpoints and do not belong here.
+firewall_allowed_domains = []
 
 # NAT Gateway mode is self-contained and creates one gateway per availability
 # zone. To use existing centralized egress instead, replace this with:

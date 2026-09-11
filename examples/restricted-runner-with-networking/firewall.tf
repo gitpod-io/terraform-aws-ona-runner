@@ -1,13 +1,63 @@
+resource "aws_networkfirewall_rule_group" "allowed_domains" {
+  count = var.enable_firewall && var.firewall_policy_arn == null && length(var.firewall_allowed_domains) > 0 ? 1 : 0
+
+  capacity    = 1000
+  name        = "${local.network_name}-allowed-domains"
+  description = "HTTPS domains allowed from Ona runner subnets."
+  type        = "STATEFUL"
+
+  rule_group {
+    rule_variables {
+      ip_sets {
+        key = "HOME_NET"
+
+        ip_set {
+          definition = [var.routable_vpc_cidr, var.runner_cgnat_cidr]
+        }
+      }
+    }
+
+    rules_source {
+      rules_source_list {
+        generated_rules_type = "ALLOWLIST"
+        target_types         = ["TLS_SNI"]
+        targets              = [for domain in var.firewall_allowed_domains : lower(domain)]
+      }
+    }
+
+    stateful_rule_options {
+      rule_order = "STRICT_ORDER"
+    }
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_networkfirewall_firewall_policy" "default" {
   count = var.enable_firewall && var.firewall_policy_arn == null ? 1 : 0
 
   name        = "${local.network_name}-default"
-  description = "Permissive baseline policy for Ona runner egress inspection."
+  description = "Default-deny policy for Ona runner egress inspection."
 
   firewall_policy {
     stateless_default_actions          = ["aws:forward_to_sfe"]
     stateless_fragment_default_actions = ["aws:forward_to_sfe"]
-    stateful_default_actions           = ["aws:alert_established"]
+    stateful_default_actions = length(var.firewall_allowed_domains) == 0 ? [
+      "aws:drop_strict",
+      "aws:alert_strict",
+      ] : [
+      "aws:drop_established",
+      "aws:alert_established",
+    ]
+
+    dynamic "stateful_rule_group_reference" {
+      for_each = aws_networkfirewall_rule_group.allowed_domains
+
+      content {
+        priority     = 100
+        resource_arn = stateful_rule_group_reference.value.arn
+      }
+    }
 
     policy_variables {
       rule_variables {
