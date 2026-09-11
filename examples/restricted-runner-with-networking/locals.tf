@@ -31,6 +31,32 @@ locals {
     }
   }
 
+  aws_interface_endpoint_services = toset([
+    "acm",
+    "cloudformation",
+    "ec2",
+    "ec2messages",
+    "ecr.api",
+    "ecr.dkr",
+    "ecs",
+    "ecs-agent",
+    "ecs-telemetry",
+    "elasticloadbalancing",
+    "iam",
+    "logs",
+    "secretsmanager",
+    "ssm",
+    "ssmmessages",
+    "sts",
+  ])
+  aws_gateway_endpoint_services = toset([
+    "dynamodb",
+    "s3",
+  ])
+  management_plane_endpoint_service_name   = "com.amazonaws.vpce.us-east-1.vpce-svc-08de744d433e60ff2"
+  management_plane_endpoint_service_region = "us-east-1"
+  management_plane_endpoint_zones          = var.aws_region == local.management_plane_endpoint_service_region ? [var.availability_zones[0]] : var.availability_zones
+
   common_tags = merge(var.tags, {
     "ona.com/component" = "runner-networking"
   })

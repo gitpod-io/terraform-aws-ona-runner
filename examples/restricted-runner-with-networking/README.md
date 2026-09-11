@@ -23,6 +23,33 @@ The network resources intentionally live directly in this example. Inspect and
 adapt them for your organization's egress policy instead of treating this
 topology as a separately supported networking module.
 
+## VPC endpoints
+
+The example creates the interface and gateway endpoints listed in the public
+[AWS runner networking documentation](https://ona.com/docs/ona/runners/aws/networking#vpc-endpoints-reference).
+Regional interface endpoints use private DNS and span every runner subnet. S3
+and DynamoDB use gateway endpoints associated with every runner route table.
+
+The example also creates the documented cross-region Ona interface endpoint
+with private DNS enabled, so `app.gitpod.io` resolves to the endpoint's private
+addresses inside the VPC. Deployments in `us-east-1` use the first runner
+subnet for this endpoint to avoid cross-account Availability Zone name mapping;
+other regions use every runner subnet.
+
+Private DNS sends AWS API and `app.gitpod.io` traffic over VPC-local routes,
+and the S3 and DynamoDB gateway routes take precedence over the default route.
+These endpoint paths therefore do not cross Network Firewall.
+
+All interface endpoints share one security group. Its only ingress rules allow
+TCP port 443 from the runner subnet CIDRs, covering both runner ECS tasks and
+environment EC2 instances in those dedicated subnets. Because security groups
+are stateful, the endpoint security group does not need a separate egress rule
+for response traffic.
+
+Interface endpoints incur hourly and data-processing charges in each selected
+Availability Zone. S3 and DynamoDB gateway endpoints do not have hourly
+charges.
+
 ## Network layout
 
 The primary VPC CIDR supplies firewall and NAT Gateway or Transit Gateway

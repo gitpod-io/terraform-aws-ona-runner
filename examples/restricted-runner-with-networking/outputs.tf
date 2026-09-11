@@ -48,6 +48,26 @@ output "network_firewall_endpoint_ids" {
   value       = local.firewall_endpoint_ids
 }
 
+output "aws_interface_vpc_endpoint_ids" {
+  description = "Interface VPC endpoint IDs keyed by AWS service name."
+  value       = { for service, endpoint in aws_vpc_endpoint.aws_interface : service => endpoint.id }
+}
+
+output "aws_gateway_vpc_endpoint_ids" {
+  description = "Gateway VPC endpoint IDs keyed by AWS service name."
+  value       = { for service, endpoint in aws_vpc_endpoint.aws_gateway : service => endpoint.id }
+}
+
+output "management_plane_vpc_endpoint_id" {
+  description = "Interface VPC endpoint ID whose private DNS name resolves app.gitpod.io."
+  value       = aws_vpc_endpoint.management_plane.id
+}
+
+output "vpc_endpoint_security_group_id" {
+  description = "Security group allowing the runner subnet CIDRs to reach interface VPC endpoints over HTTPS."
+  value       = aws_security_group.vpc_endpoints.id
+}
+
 output "nat_gateway_ids" {
   description = "NAT Gateway IDs keyed by availability zone. Empty in Transit Gateway mode."
   value       = { for zone, gateway in aws_nat_gateway.this : zone => gateway.id }

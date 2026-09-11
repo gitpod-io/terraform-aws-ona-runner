@@ -77,6 +77,14 @@ mock_provider "aws" {
 
 mock_provider "random" {}
 
+override_resource {
+  target          = aws_security_group.vpc_endpoints
+  override_during = plan
+  values = {
+    id = "sg-00000000000000001"
+  }
+}
+
 variables {
   aws_region         = "us-east-1"
   runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
@@ -88,6 +96,38 @@ variables {
 run "nat_gateway_mode_is_zonal_and_symmetric" {
   command = plan
 
+  override_resource {
+    target          = aws_subnet.runner["us-east-1a"]
+    override_during = plan
+    values = {
+      id = "subnet-00000000000000001"
+    }
+  }
+
+  override_resource {
+    target          = aws_subnet.runner["us-east-1b"]
+    override_during = plan
+    values = {
+      id = "subnet-00000000000000002"
+    }
+  }
+
+  override_resource {
+    target          = aws_route_table.runner["us-east-1a"]
+    override_during = plan
+    values = {
+      id = "rtb-00000000000000001"
+    }
+  }
+
+  override_resource {
+    target          = aws_route_table.runner["us-east-1b"]
+    override_during = plan
+    values = {
+      id = "rtb-00000000000000002"
+    }
+  }
+
   assert {
     condition     = aws_vpc.this.cidr_block == "10.42.0.0/24" && aws_vpc_ipv4_cidr_block_association.runner.cidr_block == "100.64.0.0/16"
     error_message = "the VPC must use the routable range as primary and the CGNAT range as secondary."
@@ -96,6 +136,79 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   assert {
     condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-2ec33d556332a866"
     error_message = "the default network name must derive from runner_name and the full runner ID."
+  }
+
+  assert {
+    condition = toset(keys(aws_vpc_endpoint.aws_interface)) == toset([
+      "acm",
+      "cloudformation",
+      "ec2",
+      "ec2messages",
+      "ecr.api",
+      "ecr.dkr",
+      "ecs",
+      "ecs-agent",
+      "ecs-telemetry",
+      "elasticloadbalancing",
+      "iam",
+      "logs",
+      "secretsmanager",
+      "ssm",
+      "ssmmessages",
+      "sts",
+    ])
+    error_message = "the example must create every interface endpoint required by the public AWS runner networking documentation."
+  }
+
+  assert {
+    condition = alltrue([
+      for service, endpoint in aws_vpc_endpoint.aws_interface :
+      endpoint.service_name == "com.amazonaws.us-east-1.${service}" &&
+      endpoint.vpc_endpoint_type == "Interface" &&
+      endpoint.private_dns_enabled &&
+      endpoint.subnet_ids == toset(["subnet-00000000000000001", "subnet-00000000000000002"]) &&
+      endpoint.security_group_ids == toset([aws_security_group.vpc_endpoints.id])
+    ])
+    error_message = "AWS interface endpoints must use private DNS, every runner subnet, and the shared endpoint security group."
+  }
+
+  assert {
+    condition = (
+      toset(keys(aws_vpc_endpoint.aws_gateway)) == toset(["dynamodb", "s3"]) &&
+      alltrue([
+        for service, endpoint in aws_vpc_endpoint.aws_gateway :
+        endpoint.service_name == "com.amazonaws.us-east-1.${service}" &&
+        endpoint.vpc_endpoint_type == "Gateway" &&
+        endpoint.route_table_ids == toset(["rtb-00000000000000001", "rtb-00000000000000002"])
+      ])
+    )
+    error_message = "S3 and DynamoDB gateway endpoints must be associated with every runner route table."
+  }
+
+  assert {
+    condition = (
+      aws_vpc_endpoint.management_plane.service_name == "com.amazonaws.vpce.us-east-1.vpce-svc-08de744d433e60ff2" &&
+      aws_vpc_endpoint.management_plane.private_dns_enabled &&
+      aws_vpc_endpoint.management_plane.subnet_ids == toset(["subnet-00000000000000001"]) &&
+      aws_vpc_endpoint.management_plane.security_group_ids == toset([aws_security_group.vpc_endpoints.id])
+    )
+    error_message = "the us-east-1 management-plane endpoint must enable private DNS and use one runner subnet without cross-region mode."
+  }
+
+  assert {
+    condition = (
+      toset(keys(aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner_subnets)) == toset(["us-east-1a", "us-east-1b"]) &&
+      alltrue([
+        for zone, rule in aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner_subnets :
+        rule.cidr_ipv4 == local.runner_subnet_cidrs[zone] &&
+        rule.cidr_ipv6 == null &&
+        rule.referenced_security_group_id == null &&
+        rule.ip_protocol == "tcp" &&
+        rule.from_port == 443 &&
+        rule.to_port == 443
+      ])
+    )
+    error_message = "the endpoint security group must allow HTTPS only from each runner subnet CIDR."
   }
 
   assert {
@@ -143,6 +256,50 @@ run "explicit_network_name_overrides_the_derived_name" {
   assert {
     condition     = aws_networkfirewall_firewall.this[0].name == "existing-network"
     error_message = "an explicit network_name must override the runner-derived default."
+  }
+}
+
+run "management_plane_endpoint_uses_cross_region_service_outside_us_east_1" {
+  command = plan
+
+  variables {
+    aws_region         = "eu-central-1"
+    availability_zones = ["eu-central-1a", "eu-central-1b"]
+    enable_firewall    = false
+  }
+
+  override_resource {
+    target          = aws_subnet.runner["eu-central-1a"]
+    override_during = plan
+    values = {
+      id = "subnet-00000000000000001"
+    }
+  }
+
+  override_resource {
+    target          = aws_subnet.runner["eu-central-1b"]
+    override_during = plan
+    values = {
+      id = "subnet-00000000000000002"
+    }
+  }
+
+  assert {
+    condition     = aws_vpc_endpoint.management_plane.service_region == "us-east-1"
+    error_message = "deployments outside us-east-1 must use the cross-region Ona endpoint service."
+  }
+
+  assert {
+    condition     = aws_vpc_endpoint.management_plane.subnet_ids == toset(["subnet-00000000000000001", "subnet-00000000000000002"])
+    error_message = "cross-region management-plane endpoints must span every selected runner subnet."
+  }
+
+  assert {
+    condition = alltrue([
+      for service, endpoint in aws_vpc_endpoint.aws_interface :
+      endpoint.service_name == "com.amazonaws.eu-central-1.${service}"
+    ])
+    error_message = "AWS interface endpoints must use services from the deployment region."
   }
 }
 
