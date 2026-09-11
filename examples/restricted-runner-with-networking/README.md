@@ -41,8 +41,8 @@ and the S3 and DynamoDB gateway routes take precedence over the default route.
 These endpoint paths therefore do not cross Network Firewall.
 
 All interface endpoints share one security group. Its only ingress rules allow
-TCP port 443 from the runner ECS security group and the environment EC2
-security group created by the restricted runner module. Because security groups
+TCP port 443 from the runner subnet CIDRs, covering both runner ECS tasks and
+environment EC2 instances in those dedicated subnets. Because security groups
 are stateful, the endpoint security group does not need a separate egress rule
 for response traffic.
 

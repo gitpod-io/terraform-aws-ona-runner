@@ -64,7 +64,7 @@ output "management_plane_vpc_endpoint_id" {
 }
 
 output "vpc_endpoint_security_group_id" {
-  description = "Security group allowing runner ECS tasks and environment EC2 instances to reach interface VPC endpoints over HTTPS."
+  description = "Security group allowing the runner subnet CIDRs to reach interface VPC endpoints over HTTPS."
   value       = aws_security_group.vpc_endpoints.id
 }
 

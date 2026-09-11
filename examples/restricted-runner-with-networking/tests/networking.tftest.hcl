@@ -85,22 +85,6 @@ override_resource {
   }
 }
 
-override_resource {
-  target          = module.runner.module.runner.aws_security_group.ecs
-  override_during = plan
-  values = {
-    id = "sg-00000000000000002"
-  }
-}
-
-override_resource {
-  target          = module.runner.module.runner.aws_security_group.environment
-  override_during = plan
-  values = {
-    id = "sg-00000000000000003"
-  }
-}
-
 variables {
   aws_region         = "us-east-1"
   runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
@@ -213,20 +197,18 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
 
   assert {
     condition = (
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.referenced_security_group_id == module.runner.runner_ecs_security_group_id &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.ip_protocol == "tcp" &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.from_port == 443 &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.to_port == 443 &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.cidr_ipv4 == null &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner.cidr_ipv6 == null &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.referenced_security_group_id == module.runner.environment_security_group_id &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.ip_protocol == "tcp" &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.from_port == 443 &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.to_port == 443 &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.cidr_ipv4 == null &&
-      aws_vpc_security_group_ingress_rule.vpc_endpoints_from_environments.cidr_ipv6 == null
+      toset(keys(aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner_subnets)) == toset(["us-east-1a", "us-east-1b"]) &&
+      alltrue([
+        for zone, rule in aws_vpc_security_group_ingress_rule.vpc_endpoints_from_runner_subnets :
+        rule.cidr_ipv4 == local.runner_subnet_cidrs[zone] &&
+        rule.cidr_ipv6 == null &&
+        rule.referenced_security_group_id == null &&
+        rule.ip_protocol == "tcp" &&
+        rule.from_port == 443 &&
+        rule.to_port == 443
+      ])
     )
-    error_message = "the endpoint security group must allow HTTPS only from the runner ECS and environment EC2 security groups."
+    error_message = "the endpoint security group must allow HTTPS only from each runner subnet CIDR."
   }
 
   assert {

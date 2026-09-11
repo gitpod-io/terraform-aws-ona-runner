@@ -10,22 +10,15 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_from_runner" {
-  security_group_id            = aws_security_group.vpc_endpoints.id
-  referenced_security_group_id = module.runner.runner_ecs_security_group_id
-  from_port                    = 443
-  ip_protocol                  = "tcp"
-  to_port                      = 443
-  description                  = "Allow HTTPS from runner ECS tasks."
-}
+resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_from_runner_subnets" {
+  for_each = local.runner_subnet_cidrs
 
-resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_from_environments" {
-  security_group_id            = aws_security_group.vpc_endpoints.id
-  referenced_security_group_id = module.runner.environment_security_group_id
-  from_port                    = 443
-  ip_protocol                  = "tcp"
-  to_port                      = 443
-  description                  = "Allow HTTPS from environment EC2 instances."
+  security_group_id = aws_security_group.vpc_endpoints.id
+  cidr_ipv4         = each.value
+  from_port         = 443
+  ip_protocol       = "tcp"
+  to_port           = 443
+  description       = "Allow HTTPS from the runner subnet in ${each.key}."
 }
 
 resource "aws_vpc_endpoint" "aws_interface" {
