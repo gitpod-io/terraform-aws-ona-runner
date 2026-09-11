@@ -57,8 +57,20 @@ resource "aws_security_group_rule" "ecs_from_load_balancer" {
   source_security_group_id = local.load_balancer_security_group_id_effective
   protocol                 = "tcp"
   from_port                = 1024
-  to_port                  = 65535
+  to_port                  = local.external_credentials_enabled ? 7071 : 65535
   description              = "Allow traffic from runner load balancer"
+}
+
+resource "aws_security_group_rule" "ecs_from_load_balancer_upper" {
+  count = !var.restrict_ingress && local.external_credentials_enabled ? 1 : 0
+
+  type                     = "ingress"
+  security_group_id        = aws_security_group.ecs.id
+  source_security_group_id = local.load_balancer_security_group_id_effective
+  protocol                 = "tcp"
+  from_port                = 7073
+  to_port                  = 65535
+  description              = "Allow load balancer traffic above private binding port"
 }
 
 resource "aws_security_group_rule" "ecs_portspec_self" {
