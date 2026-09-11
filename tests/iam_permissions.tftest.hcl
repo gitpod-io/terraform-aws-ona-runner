@@ -23,7 +23,7 @@ override_resource {
 
 run "external_credential_role_separation" {
   command = plan
-  variables { external_credential_proxy_ers_upstream = "https://ers.example.com/api" }
+  variables { enable_external_credential_proxy = true }
   assert {
     condition = length(data.aws_iam_policy_document.external_credentials[0].statement) == 2 && alltrue([
       for statement in data.aws_iam_policy_document.external_credentials[0].statement :

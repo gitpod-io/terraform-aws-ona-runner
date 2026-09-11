@@ -8,10 +8,10 @@ variable "runner_id" {
   }
 }
 
-variable "external_credential_proxy_ers_upstream" {
-  description = "Trusted HTTPS ERS API base; empty disables the external credential proxy."
-  type        = string
-  default     = ""
+variable "enable_external_credential_proxy" {
+  description = "Enable the HTTP/HTTPS external credential proxy. Requires a compatible runner image."
+  type        = bool
+  default     = false
 }
 
 variable "runner_token" {

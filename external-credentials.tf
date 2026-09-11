@@ -1,15 +1,11 @@
-variable "external_credential_proxy_ers_upstream" {
-  description = "Trusted HTTPS ERS API base. Empty disables the external credential proxy. Requires a runner image with credential-proxy support."
-  type        = string
-  default     = ""
-  validation {
-    condition     = var.external_credential_proxy_ers_upstream == "" || can(regex("^https://[^?#@ ]+/api$", var.external_credential_proxy_ers_upstream))
-    error_message = "Use an HTTPS API base ending in /api, without credentials, query or fragment."
-  }
+variable "enable_external_credential_proxy" {
+  description = "Enable the HTTP/HTTPS external credential proxy. Requires a compatible runner image."
+  type        = bool
+  default     = false
 }
 
 locals {
-  external_credentials_enabled = var.external_credential_proxy_ers_upstream != ""
+  external_credentials_enabled = var.enable_external_credential_proxy
   external_credential_hostname = "credentials.${local.internal_runner_namespace}"
   external_credential_endpoint = "https://${local.external_credential_hostname}:8443"
   external_credential_config_fragments = local.external_credentials_enabled ? [
@@ -187,7 +183,6 @@ resource "aws_ecs_task_definition" "external_credentials" {
         "credential-proxy", "--material-secret-arn", aws_secretsmanager_secret.external_credential_proxy[0].arn,
         "--server-name", local.external_credential_hostname,
         "--lookup-endpoint", "http://runner.${local.internal_runner_namespace}:7072",
-        "--ers-upstream", var.external_credential_proxy_ers_upstream,
       ]
       environment = concat([{ name = "AWS_REGION", value = data.aws_region.current.name }], [for value in local.proxy_env : { name = split("=", value)[0], value = join("=", slice(split("=", value), 1, length(split("=", value)))) }])
       stopTimeout = 60
