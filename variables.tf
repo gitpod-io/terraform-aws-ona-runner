@@ -168,7 +168,7 @@ variable "manage_s3_bucket_public_access_block" {
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
-  default     = "20260911.1185"
+  default     = "20260911.1245"
 
   validation {
     condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")
