@@ -107,11 +107,18 @@ tests are not a substitute for them.
 
 ## External credential proxy
 
-`external_credential_proxy_ers_upstream` enables the external credential proxy
-with a compatible runner image. Its default is empty. The endpoint must be the
-trusted HTTPS ERS API base ending in `/api`. This initial profile supports ERS
-registration and validation using literal credentials. Generic HTTPS inspection
-and external-reference resolution require additional runtime support.
+`enable_external_credential_proxy` enables the external credential proxy
+with a compatible runner image. Its default is `false`. The proxy forwards HTTP
+and inspects HTTPS CONNECT requests; Secrets supply destination matching and
+header-injection rules. No fixed upstream destination is configured.
+External-reference resolution requires additional runtime support.
+
+The initial destination policy permits public addresses and blocks private,
+loopback and metadata addresses. Explicit customer egress proxies may themselves
+be private. HTTP forwarding uses port 80; HTTPS CONNECT and injection use port
+443. Other destination ports are rejected. The configured customer egress proxy
+may use a different connection port. Environments receive public
+inspection trust through runner bootstrap; signing keys remain outside them.
 
 The proxy runs in its own Fargate service and IAM role. It can read its server key
 and the public client CA from one Secrets Manager resource. The runner alone can

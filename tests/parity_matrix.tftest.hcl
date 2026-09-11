@@ -50,7 +50,7 @@ run "external_credentials_default_off" {
 
 run "external_credentials_private_discovery" {
   command = plan
-  variables { external_credential_proxy_ers_upstream = "https://ers.example.com/api" }
+  variables { enable_external_credential_proxy = true }
   assert {
     condition     = length(aws_service_discovery_private_dns_namespace.internal_runner) == 1 && length(aws_service_discovery_service.external_credentials) == 1 && length(aws_ecs_service.external_credentials) == 1 && length(aws_lb.proxy) == 1
     error_message = "The proxy needs VM-accessible private discovery without an additional load balancer."
@@ -69,9 +69,9 @@ run "external_credentials_private_discovery" {
 run "external_credentials_reserve_lookup_port" {
   command = plan
   variables {
-    external_credential_proxy_ers_upstream = "https://ers.example.com/api"
-    restrict_ingress                       = true
-    internal_llm_proxy_port                = 7072
+    enable_external_credential_proxy = true
+    restrict_ingress                 = true
+    internal_llm_proxy_port          = 7072
   }
   expect_failures = [aws_ecs_task_definition.external_credentials]
 }
@@ -79,8 +79,8 @@ run "external_credentials_reserve_lookup_port" {
 run "external_credentials_with_restricted_ingress" {
   command = plan
   variables {
-    external_credential_proxy_ers_upstream = "https://ers.example.com/api"
-    restrict_ingress                       = true
+    enable_external_credential_proxy = true
+    restrict_ingress                 = true
   }
   assert {
     condition     = length(aws_lb.proxy) == 0 && length(aws_ecs_service.proxy) == 0 && length(aws_ecs_service.external_credentials) == 1 && length(aws_service_discovery_private_dns_namespace.internal_runner) == 1 && length(aws_ecs_service.runner.service_registries) == 1
