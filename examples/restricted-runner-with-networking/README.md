@@ -23,6 +23,22 @@ The network resources intentionally live directly in this example. Inspect and
 adapt them for your organization's egress policy instead of treating this
 topology as a separately supported networking module.
 
+## Deploy
+
+From this directory, copy `terraform.tfvars.example` to `terraform.tfvars` and
+fill in your runner registration and network values. Review the
+[baseline outbound access](#firewall-policy) before deploying:
+
+```shell
+terraform init
+terraform plan -out=runner.tfplan
+terraform apply runner.tfplan
+```
+
+Keep credentials, state, and saved plans out of version control. Use the
+[restricted runner module](../../modules/restricted-runner/README.md) instead
+if your team already owns the VPC, firewall, and endpoints.
+
 ## VPC endpoints
 
 The example creates the interface and gateway endpoints listed in the public
@@ -141,24 +157,59 @@ availability zone.
 
 ## Firewall policy
 
-The firewall is enabled by default. Without `firewall_policy_arn`, the example
-creates a strict-order, default-deny policy. With the default empty allowlist,
-all traffic that reaches the firewall is dropped and logged. Set
-`firewall_allowed_domains` to allow public HTTPS destinations by TLS Server
-Name Indication (SNI):
+The firewall is enabled by default. Without `firewall_policy_arn`, it permits
+the baseline in [`firewall.yaml`](firewall.yaml) plus any
+`firewall_allowed_domains`. Other established traffic through the firewall is
+dropped and logged. Filtering uses TLS Server Name Indication (SNI).
+
+| Service | Baseline domains | Purpose |
+| --- | --- | --- |
+| Linear | `api.linear.app` | Read and publish issues. |
+| GitHub | `github.com`, `api.github.com`, `codeload.github.com`, `.githubusercontent.com` | HTTPS Git access, repository APIs, source archives, raw files, and release assets. |
+| Jira Cloud | `api.atlassian.com` | Issue access through the OAuth API gateway. |
+| OpenAI | `api.openai.com` | Direct model access with your own API key. |
+| Microsoft Container Registry | `mcr.microsoft.com`, `.data.mcr.microsoft.com` | Base-image manifests and image-layer downloads. |
+
+The YAML comments explain each entry. Endpoint references:
+[Linear](https://linear.app/developers/graphql),
+[GitHub](https://docs.github.com/en/code-security/reference/supply-chain-security/automatic-dependency-submission#required-urls-for-all-ecosystems),
+[Jira Cloud](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#authentication),
+[OpenAI](https://platform.openai.com/docs/api-reference/responses), and
+[MCR](https://github.com/microsoft/containerregistry/blob/main/docs/client-firewall-rules.md).
+
+Add deployment-specific hosts in your `.tfvars` file:
 
 ```hcl
 firewall_allowed_domains = [
-  "github.com",
-  ".githubusercontent.com",
+  "your-team.atlassian.net",
+  "packages.example.com",
 ]
 ```
 
-An exact name allows only that host. A leading dot allows the named domain and
-all its subdomains. This filtering does not decrypt TLS traffic; it uses the SNI
-sent in the TLS handshake. Connections without an allowed SNI remain denied.
-When the list is non-empty, the policy permits only the connection-establishment
-packets required to inspect SNI before applying its default drop action.
+**An empty additional list retains the baseline.** Upgrading from the earlier
+empty-allowlist policy therefore enables these baseline services. Review the
+plan before upgrading. Supply your own firewall policy if you must remove a
+baseline service; disabling the firewall does not restrict access.
+
+Jira site URLs and self-hosted Jira use deployment-specific hosts. Add your
+exact hostname if needed, rather than allowing all of `.atlassian.net`.
+Azure OpenAI, custom OpenAI-compatible gateways, GitHub Enterprise, and other
+registries also need explicit additions. Allowing MCR does not allow package
+repositories or devcontainer feature downloads. Test an uncached image pull
+and your full environment setup.
+
+An exact name matches that host. A leading dot matches the domain and its
+subdomains; do not use `*`, URLs, paths, or ports. Domains are lowercased and
+deduplicated. The baseline and additions can contain at most 999 distinct
+entries combined.
+
+The policy is not a pull-only, image-repository, account, or API-path allowlist.
+It applies to both runner and environment traffic for their entire lifetime.
+It does not decrypt TLS, restrict destination ports to 443, or verify that a
+destination IP belongs to the claimed SNI. TCP connection establishment is
+permitted so the firewall can inspect SNI; unmatched established traffic is
+dropped. Use a custom policy or an enforcing proxy if you need stronger
+controls. See [AWS domain-list inspection](https://docs.aws.amazon.com/network-firewall/latest/developerguide/stateful-rule-groups-domain-names.html).
 
 Do not add AWS API domains or `app.gitpod.io` to this list. Their interface and
 gateway endpoint routes are VPC-local and take precedence over the default
@@ -166,8 +217,31 @@ route through Network Firewall. Add only public services required by your
 workloads, such as source-control, package-registry, or artifact hosts.
 
 Provide `firewall_policy_arn` to replace the example-managed policy entirely.
-When set, `firewall_allowed_domains` is ignored and the supplied policy defines
-all egress behavior.
+When set, both the baseline and `firewall_allowed_domains` are ignored; the
+supplied policy defines the inspected egress behavior.
+
+### Keep additional domains in YAML
+
+If you call this example from another root module, keep its extra destinations
+in a deployment-owned `firewall-overrides.yaml`:
+
+```yaml
+allowed_domains:
+  - your-team.atlassian.net
+  - packages.example.com
+```
+
+Pass that file to the existing input in your module block:
+
+```hcl
+firewall_allowed_domains = toset(
+  yamldecode(file("${path.module}/firewall-overrides.yaml")).allowed_domains
+)
+```
+
+The example merges these entries with its bundled baseline. Do not edit files
+under `.terraform/modules`; an update can replace them. YAML expressions belong
+in `.tf` configuration, not `.tfvars` files.
 
 Set `enable_firewall = false` to omit Network Firewall and route runner traffic
 directly to the selected egress target. This removes egress inspection and is

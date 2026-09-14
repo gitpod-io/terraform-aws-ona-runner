@@ -62,6 +62,11 @@ service and authenticated internal LLM listener remain available.
   they need not reproduce every broader grant in an older released template.
 - Restricted ingress is an opt-in extension and requires compatible runtime
   support; it is not the standard public-ingress CloudFormation path.
+- The restricted networking example owns its Network Firewall policy separately
+  from the CloudFormation deployment. Its generated policy always includes the
+  reviewed `firewall.yaml` baseline plus caller-supplied domains. Upgrading an
+  existing empty allowlist enables those baseline destinations; a supplied
+  `firewall_policy_arn` continues to replace the generated policy entirely.
 
 Review counterpart behavior for IAM, ECS/bootstrap commands, networking, storage,
 configuration, and release-default changes. Record the reference release,

@@ -10,7 +10,7 @@ default, including the tested runner release version.
 
 Provide an existing VPC and runner subnets with suitable egress. To build a
 complete VPC with inspected egress, use the restricted runner with networking
-example instead.
+[example](../../examples/restricted-runner-with-networking/README.md) instead.
 
 `runner_name` controls the AWS resource-name prefix. The runner's display name
 in Ona is configured when the runner record is created.
@@ -33,6 +33,27 @@ module "runner" {
   runner_subnet_ids = var.runner_subnet_ids
 }
 ```
+
+## Network requirements
+
+**Restricted ingress does not restrict egress.** This wrapper creates no VPC,
+endpoints, routes, or Network Firewall. Its workload security groups permit
+outbound IPv4 traffic. Your network must enforce the approved destination list.
+
+- Use private subnets in two or three Availability Zones, with VPC DNS enabled.
+- Provide private endpoints or approved egress for AWS services and Ona. See
+  [AWS networking requirements](https://ona.com/docs/ona/runners/aws/networking).
+- Allow TCP 443 to interface endpoints from the runner subnet CIDRs, covering
+  the Fargate tasks and environment VMs. Retain the module's internal runner
+  and environment security-group rules.
+- Route public egress through your firewall or enforcing proxy, with a symmetric
+  return path. No inbound user endpoint, runner domain, or load balancer is needed.
+
+The [networking example's firewall guide](../../examples/restricted-runner-with-networking/README.md#firewall-policy)
+lists its baseline for GitHub, Linear, Jira Cloud, OpenAI, and MCR, including
+base-image layer endpoints and additional-domain configuration. Use that as a
+reference for your own policy; this wrapper does not install the baseline or
+accept `firewall_allowed_domains`.
 
 ## Outbound proxy and custom CA
 

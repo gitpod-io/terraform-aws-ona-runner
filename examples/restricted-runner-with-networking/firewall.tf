@@ -1,5 +1,12 @@
+locals {
+  firewall_baseline_domains = toset(yamldecode(file("${path.module}/firewall.yaml")).allowed_domains)
+  firewall_allowed_domains = toset([
+    for domain in setunion(local.firewall_baseline_domains, var.firewall_allowed_domains) : lower(domain)
+  ])
+}
+
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  count = var.enable_firewall && var.firewall_policy_arn == null && length(var.firewall_allowed_domains) > 0 ? 1 : 0
+  count = var.enable_firewall && var.firewall_policy_arn == null ? 1 : 0
 
   capacity    = 1000
   name        = "${local.network_name}-allowed-domains"
@@ -21,7 +28,7 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
       rules_source_list {
         generated_rules_type = "ALLOWLIST"
         target_types         = ["TLS_SNI"]
-        targets              = [for domain in var.firewall_allowed_domains : lower(domain)]
+        targets              = local.firewall_allowed_domains
       }
     }
 
@@ -31,6 +38,13 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = length(local.firewall_allowed_domains) <= 999
+      error_message = "The baseline and additional firewall domains must contain at most 999 distinct hostnames combined."
+    }
+  }
 }
 
 resource "aws_networkfirewall_firewall_policy" "default" {
@@ -42,10 +56,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
   firewall_policy {
     stateless_default_actions          = ["aws:forward_to_sfe"]
     stateless_fragment_default_actions = ["aws:forward_to_sfe"]
-    stateful_default_actions = length(var.firewall_allowed_domains) == 0 ? [
-      "aws:drop_strict",
-      "aws:alert_strict",
-      ] : [
+    stateful_default_actions = [
       "aws:drop_established",
       "aws:alert_established",
     ]
