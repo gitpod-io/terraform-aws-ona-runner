@@ -7,7 +7,8 @@ endpoint subnets. It supports either example-managed NAT Gateways or a
 customer-provided Transit Gateway.
 
 Copy `terraform.tfvars.example` to a `.tfvars` file and provide the runner
-credentials, CIDR, region, and availability-zone values. `runner_name` is
+credentials, API endpoint, CIDR, region, and availability-zone values.
+`api_endpoint` defaults to `https://app.gitpod.io/api`, and `runner_name` is
 optional and defaults to `ona-runner`. The restricted runner module does not
 expose a restriction toggle and does not require a runner domain, ACM
 certificate, or load-balancer subnets.
