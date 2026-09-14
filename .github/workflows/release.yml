@@ -58,6 +58,11 @@ jobs:
 
       - name: Validate Terraform module
         run: |
+          if [[ -f scripts/validate-release-candidate.sh ]]; then
+            exec bash scripts/validate-release-candidate.sh
+          fi
+
+          # Historical candidates predate the versioned validation entrypoint.
           terraform fmt -check -recursive
           bash scripts/check-parity-contract.sh
           terraform init -backend=false
@@ -80,8 +85,11 @@ jobs:
             fi
           done
 
-          bash scripts/test-restricted-runner-settings.sh
-          bash scripts/test-firewall-config-errors.sh
+          for check in scripts/test-restricted-runner-settings.sh scripts/test-firewall-config-errors.sh; do
+            if [[ -f "$check" ]]; then
+              bash "$check"
+            fi
+          done
 
           git diff --exit-code
 

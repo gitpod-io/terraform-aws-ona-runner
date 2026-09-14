@@ -103,6 +103,17 @@ commit SHA and the semantic version from that commit's `VERSION` file. After a
 successful module release, the release workflow advances `VERSION` to the next
 patch version on `main`.
 
+Release validation runs `scripts/validate-release-candidate.sh` from the selected
+commit. Add candidate-specific checks there, not to the workflow's inline command
+list. Older commits use the workflow's legacy checks, running the restricted
+runner and firewall scripts only when those scripts exist in the candidate.
+
+To release newer Terraform changes with an existing stable runner, prepare a
+commit containing those changes with `runner_template_build_version` pinned to
+that stable version. Merge the candidate into `main`, then dispatch the release
+workflow with its exact merged SHA and `VERSION`, using the command below.
+Record that SHA even if a later runner build advances the pin on `main`.
+
 Before approving the dispatched release:
 
 1. Fetch the dispatched release commit and complete the deployment
@@ -120,12 +131,7 @@ Before approving the dispatched release:
 2. Run the same checks used by CI:
 
    ```bash
-   terraform fmt -check -recursive
-   bash scripts/check-parity-contract.sh
-   terraform init -backend=false
-   terraform validate
-   terraform test
-   bash scripts/test-metrics-audit-sync.sh
+   bash scripts/validate-release-candidate.sh
    bash scripts/validate-release.sh "v$(tr -d '[:space:]' < VERSION)"
    test "$(git rev-parse HEAD)" = "$release_sha"
    test -z "$(git status --porcelain --untracked-files=all)"
