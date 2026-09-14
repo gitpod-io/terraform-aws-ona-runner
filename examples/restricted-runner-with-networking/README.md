@@ -61,6 +61,13 @@ addresses inside the VPC. Deployments in `us-east-1` use the first runner
 subnet for this endpoint to avoid cross-account Availability Zone name mapping;
 other regions use every runner subnet.
 
+`api_endpoint` defaults to `https://app.gitpod.io/api` and is forwarded to the
+runner. For a custom management plane domain, set
+`api_endpoint = "https://ona.example.com/api"` in `terraform.tfvars`. This does
+not change the `app.gitpod.io` PrivateLink endpoint, DNS, firewall rules, or
+proxy bypass settings. Configure those separately so the custom hostname is
+reachable through your approved network path.
+
 Private DNS sends AWS API and `app.gitpod.io` traffic over VPC-local routes,
 and the S3 and DynamoDB gateway routes take precedence over the default route.
 These endpoint paths therefore do not cross Network Firewall.
