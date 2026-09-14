@@ -138,7 +138,6 @@ variables {
   aws_region         = "us-east-1"
   runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
   runner_token       = "test-token"
-  runner_name        = "ona-runner"
   availability_zones = ["us-east-1a", "us-east-1b"]
   routable_vpc_cidr  = "10.42.0.0/24"
 }
@@ -792,19 +791,6 @@ run "custom_yaml_rejects_invalid_hostname" {
   }
 
   expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-# Rendered child runner configuration is checked by test-restricted-runner-settings.sh.
-run "api_endpoint_default" {
-  command = plan
-}
-
-run "api_endpoint_custom" {
-  command = plan
-
-  variables {
-    api_endpoint = "https://runner-api.example.com/api"
-  }
 }
 
 # Rendered child task definitions are checked by test-restricted-runner-settings.sh.

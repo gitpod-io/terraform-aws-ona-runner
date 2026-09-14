@@ -103,19 +103,6 @@ run "custom_runner_name_is_forwarded" {
   }
 }
 
-# Rendered child runner configuration is checked by test-restricted-runner-settings.sh.
-run "api_endpoint_default" {
-  command = plan
-}
-
-run "api_endpoint_custom" {
-  command = plan
-
-  variables {
-    api_endpoint = "https://runner-api.example.com/api"
-  }
-}
-
 # Rendered child task definitions are checked by test-restricted-runner-settings.sh.
 run "ca_proxy_defaults" {
   command = plan
