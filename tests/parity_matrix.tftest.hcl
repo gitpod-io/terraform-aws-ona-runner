@@ -66,6 +66,15 @@ run "external_credentials_private_discovery" {
   }
 }
 
+run "external_credentials_protected_hostnames" {
+  command = plan
+  variables { enable_external_credential_proxy = true }
+  assert {
+    condition     = slice(jsondecode(aws_ecs_task_definition.external_credentials[0].container_definitions)[1].command, 7, 11) == ["--protected-hostname", "runner", "--protected-hostname", "runner-portspec"]
+    error_message = "The proxy must receive the internal service aliases as protected destinations."
+  }
+}
+
 run "external_credentials_reserve_lookup_port" {
   command = plan
   variables {

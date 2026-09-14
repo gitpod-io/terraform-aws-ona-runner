@@ -183,6 +183,8 @@ resource "aws_ecs_task_definition" "external_credentials" {
         "credential-proxy", "--material-secret-arn", aws_secretsmanager_secret.external_credential_proxy[0].arn,
         "--server-name", local.external_credential_hostname,
         "--lookup-endpoint", "http://runner.${local.internal_runner_namespace}:7072",
+        "--protected-hostname", "runner",
+        "--protected-hostname", "runner-portspec",
       ]
       environment = concat([{ name = "AWS_REGION", value = data.aws_region.current.name }], [for value in local.proxy_env : { name = split("=", value)[0], value = join("=", slice(split("=", value), 1, length(split("=", value)))) }])
       stopTimeout = 60
