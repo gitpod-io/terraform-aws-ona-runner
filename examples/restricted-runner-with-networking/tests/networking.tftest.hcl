@@ -80,6 +80,48 @@ mock_provider "aws" {
       service_region = "provider-default"
     }
   }
+
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/test-runner-role"
+    }
+  }
+
+  mock_resource "aws_iam_instance_profile" {
+    defaults = {
+      name = "test-environment-profile"
+    }
+  }
+
+  mock_resource "aws_security_group" {
+    defaults = {
+      id = "sg-00000000000000001"
+    }
+  }
+
+  mock_resource "aws_subnet" {
+    defaults = {
+      id = "subnet-00000000000000001"
+    }
+  }
+
+  mock_resource "aws_s3_bucket" {
+    defaults = {
+      bucket = "gitpod-test-bucket"
+    }
+  }
+
+  mock_resource "aws_ssm_parameter" {
+    defaults = {
+      arn = "arn:aws:ssm:us-east-1:123456789012:parameter/test-config"
+    }
+  }
+
+  mock_resource "aws_secretsmanager_secret" {
+    defaults = {
+      arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:test-runner-secret"
+    }
+  }
 }
 
 mock_provider "random" {}
@@ -546,4 +588,41 @@ run "firewall_domain_allowlist_rejects_urls" {
   }
 
   expect_failures = [var.firewall_allowed_domains]
+}
+
+# Rendered child task definitions are checked by test-restricted-runner-settings.sh.
+run "ca_proxy_defaults" {
+  command = plan
+}
+
+run "ca_proxy_custom" {
+  command = plan
+
+  variables {
+    proxy_config = {
+      http_proxy  = "http://proxy.example.com:3128"
+      https_proxy = "http://proxy.example.com:3129"
+      all_proxy   = "socks5://proxy.example.com:1080"
+      no_proxy    = "localhost,127.0.0.1,.internal,.amazonaws.com,169.254.0.0/16,app.gitpod.io,.corp.example"
+    }
+    custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 0
+    )
+    error_message = "configuring an outbound proxy and CA bundle must not relax the default-deny firewall."
+  }
+}
+
+run "ca_proxy_partial" {
+  command = plan
+
+  variables {
+    proxy_config = {
+      https_proxy = "http://proxy.example.com:3128"
+    }
+  }
 }

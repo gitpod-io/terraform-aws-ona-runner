@@ -59,6 +59,32 @@ Interface endpoints incur hourly and data-processing charges in each selected
 Availability Zone. S3 and DynamoDB gateway endpoints do not have hourly
 charges.
 
+## Outbound proxy and custom CA
+
+The example forwards `proxy_config` and `custom_ca_trust_bundle` through the
+restricted runner module. Add them to your `.tfvars` file when needed:
+
+```hcl
+proxy_config = {
+  http_proxy  = "http://proxy.example.com:3128"
+  https_proxy = "http://proxy.example.com:3128"
+}
+custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+```
+
+See [the restricted module's proxy and CA settings](../../modules/restricted-runner/README.md#outbound-proxy-and-custom-ca)
+for supported fields, bypass defaults, and CA-source requirements. Preserve
+the default `no_proxy` entries so AWS and management-plane traffic continues to
+use the VPC endpoints.
+
+These inputs do not add firewall rules or deploy a proxy. The proxy and CA source
+must already be reachable. A proxy connection routed through Network Firewall
+is still subject to its default-deny policy; the domain allowlist only permits
+TLS-SNI traffic, not arbitrary plain-HTTP CONNECT traffic to a proxy. If you use
+a customer firewall policy, permit only the required proxy path. A proxy on a
+VPC-local route bypasses Network Firewall. In either case, the proxy's own
+destination policy must enforce the intended egress restrictions.
+
 ## Network layout
 
 The primary VPC CIDR supplies firewall and NAT Gateway or Transit Gateway

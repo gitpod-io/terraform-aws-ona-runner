@@ -75,3 +75,6 @@ jobs:
               cd - > /dev/null
             fi
           done
+
+      - name: Test restricted runner CA and proxy passthrough
+        run: bash scripts/test-restricted-runner-settings.sh
