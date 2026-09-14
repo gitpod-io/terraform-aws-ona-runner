@@ -25,6 +25,12 @@ mock_provider "aws" {
     }
   }
 
+  mock_data "aws_vpc_endpoint_service" {
+    defaults = {
+      availability_zones = ["us-east-1b", "us-east-1c"]
+    }
+  }
+
   mock_resource "aws_networkfirewall_firewall" {
     defaults = {
       arn = "arn:aws:network-firewall:us-east-1:123456789012:firewall/ona-runner-network"
@@ -266,10 +272,10 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
     condition = (
       aws_vpc_endpoint.management_plane.service_name == "com.amazonaws.vpce.us-east-1.vpce-svc-08de744d433e60ff2" &&
       aws_vpc_endpoint.management_plane.private_dns_enabled &&
-      aws_vpc_endpoint.management_plane.subnet_ids == toset(["subnet-00000000000000001"]) &&
+      aws_vpc_endpoint.management_plane.subnet_ids == toset(["subnet-00000000000000002"]) &&
       aws_vpc_endpoint.management_plane.security_group_ids == toset([aws_security_group.vpc_endpoints.id])
     )
-    error_message = "the us-east-1 management-plane endpoint must enable private DNS and use one runner subnet without cross-region mode."
+    error_message = "the us-east-1 management-plane endpoint must enable private DNS and use the first configured runner subnet supported by the service without cross-region mode."
   }
 
   assert {
@@ -417,6 +423,20 @@ run "combined_firewall_allowlist_rejects_capacity_overflow" {
   }
 
   expect_failures = [aws_networkfirewall_rule_group.allowed_domains[0]]
+}
+
+run "management_plane_requires_a_supported_same_region_zone" {
+  command = plan
+
+  override_data {
+    target          = data.aws_vpc_endpoint_service.management_plane[0]
+    override_during = plan
+    values = {
+      availability_zones = ["us-east-1c"]
+    }
+  }
+
+  expect_failures = [aws_vpc_endpoint.management_plane]
 }
 
 run "custom_firewall_policy_replaces_the_managed_allowlist" {

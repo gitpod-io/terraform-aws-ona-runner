@@ -57,9 +57,11 @@ not deny that permission. In `us-east-1`, the IAM endpoint stays in-region.
 
 The example also creates the documented cross-region Ona interface endpoint
 with private DNS enabled, so `app.gitpod.io` resolves to the endpoint's private
-addresses inside the VPC. Deployments in `us-east-1` use the first runner
-subnet for this endpoint to avoid cross-account Availability Zone name mapping;
-other regions use every runner subnet.
+addresses inside the VPC. Deployments in `us-east-1` query the endpoint service
+and use the first configured runner subnet that it supports; Terraform stops
+with an explicit error when none of the configured zones are compatible. Other
+regions use every runner subnet because cross-region PrivateLink does not
+require matching Availability Zones.
 
 `api_endpoint` defaults to `https://app.gitpod.io/api` and is forwarded to the
 runner. For a custom management plane domain, set

@@ -21,6 +21,12 @@ resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_from_runner_subnet
   description       = "Allow HTTPS from the runner subnet in ${each.key}."
 }
 
+data "aws_vpc_endpoint_service" "management_plane" {
+  count = var.aws_region == local.management_plane_endpoint_service_region ? 1 : 0
+
+  service_name = local.management_plane_endpoint_service_name
+}
+
 resource "aws_vpc_endpoint" "aws_interface" {
   for_each = local.aws_interface_endpoint_services
 
@@ -57,4 +63,11 @@ resource "aws_vpc_endpoint" "management_plane" {
   private_dns_enabled = true
 
   tags = merge(local.common_tags, { Name = "${local.network_name}-management-plane" })
+
+  lifecycle {
+    precondition {
+      condition     = length(local.management_plane_endpoint_zones) > 0
+      error_message = "None of the configured availability_zones are supported by the Ona management-plane endpoint service."
+    }
+  }
 }
