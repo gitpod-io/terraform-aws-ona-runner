@@ -1,12 +1,15 @@
 locals {
-  firewall_baseline_domains = toset(yamldecode(file("${path.module}/firewall.yaml")).allowed_domains)
+  firewall_managed        = var.enable_firewall && var.firewall_policy_arn == null
+  firewall_config_file    = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
+  firewall_config         = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
+  firewall_config_domains = local.firewall_managed ? local.firewall_config.allowed_domains : []
   firewall_allowed_domains = toset([
-    for domain in setunion(local.firewall_baseline_domains, var.firewall_allowed_domains) : lower(domain)
+    for domain in concat(local.firewall_config_domains, tolist(var.firewall_allowed_domains)) : lower(domain)
   ])
 }
 
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  count = var.enable_firewall && var.firewall_policy_arn == null ? 1 : 0
+  count = local.firewall_managed && (var.firewall_config_path == null || length(local.firewall_config_domains) > 0) ? 1 : 0
 
   capacity    = 1000
   name        = "${local.network_name}-allowed-domains"
@@ -42,13 +45,13 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
   lifecycle {
     precondition {
       condition     = length(local.firewall_allowed_domains) <= 999
-      error_message = "The baseline and additional firewall domains must contain at most 999 distinct hostnames combined."
+      error_message = "The firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
     }
   }
 }
 
 resource "aws_networkfirewall_firewall_policy" "default" {
-  count = var.enable_firewall && var.firewall_policy_arn == null ? 1 : 0
+  count = local.firewall_managed ? 1 : 0
 
   name        = "${local.network_name}-default"
   description = "Default-deny policy for Ona runner egress inspection."
@@ -56,9 +59,12 @@ resource "aws_networkfirewall_firewall_policy" "default" {
   firewall_policy {
     stateless_default_actions          = ["aws:forward_to_sfe"]
     stateless_fragment_default_actions = ["aws:forward_to_sfe"]
-    stateful_default_actions = [
+    stateful_default_actions = var.firewall_config_path == null || length(local.firewall_config_domains) > 0 ? [
       "aws:drop_established",
       "aws:alert_established",
+      ] : [
+      "aws:drop_strict",
+      "aws:alert_strict",
     ]
 
     dynamic "stateful_rule_group_reference" {
@@ -87,6 +93,22 @@ resource "aws_networkfirewall_firewall_policy" "default" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains"])
+      error_message = "Firewall YAML must contain only the allowed_domains key."
+    }
+
+    precondition {
+      condition = alltrue([
+        for domain in local.firewall_config.allowed_domains :
+        domain == tostring(domain) && length(domain) <= 253 &&
+        can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
+      ])
+      error_message = "Firewall allowed_domains must contain valid hostname strings, optionally prefixed with a dot for subdomains."
+    }
+  }
 }
 
 resource "aws_networkfirewall_firewall" "this" {
@@ -109,4 +131,11 @@ resource "aws_networkfirewall_firewall" "this" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition     = var.firewall_config_path == null || (var.firewall_policy_arn == null && length(var.firewall_allowed_domains) == 0)
+      error_message = "firewall_config_path replaces the entire allowlist; do not combine it with firewall_policy_arn or non-empty firewall_allowed_domains."
+    }
+  }
 }

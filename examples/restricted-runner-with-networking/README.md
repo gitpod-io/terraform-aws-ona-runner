@@ -157,10 +157,10 @@ availability zone.
 
 ## Firewall policy
 
-The firewall is enabled by default. Without `firewall_policy_arn`, it permits
-the baseline in [`firewall.yaml`](firewall.yaml) plus any
-`firewall_allowed_domains`. Other established traffic through the firewall is
-dropped and logged. Filtering uses TLS Server Name Indication (SNI).
+The firewall is enabled by default. Its default-deny policy allows the
+baseline in [`firewall.yaml`](firewall.yaml); other established traffic through
+the firewall is dropped and logged. Filtering uses TLS Server Name Indication
+(SNI). Choose one of the three configuration methods below.
 
 | Service | Baseline domains | Purpose |
 | --- | --- | --- |
@@ -177,7 +177,22 @@ The YAML comments explain each entry. Endpoint references:
 [OpenAI](https://platform.openai.com/docs/api-reference/responses), and
 [MCR](https://github.com/microsoft/containerregistry/blob/main/docs/client-firewall-rules.md).
 
-Add deployment-specific hosts in your `.tfvars` file:
+### 1. Use an existing firewall policy
+
+Set the ARN of your AWS Network Firewall **policy**, not a rule group, in your
+`.tfvars` file:
+
+```hcl
+firewall_policy_arn = "arn:aws:network-firewall:eu-central-1:123456789012:firewall-policy/customer-policy"
+```
+
+Your policy replaces the generated policy. The baseline and
+`firewall_allowed_domains` are ignored; leave `firewall_config_path` unset.
+
+### 2. Add domains to the baseline
+
+Keep the [bundled allowlist](firewall.yaml) and add deployment-specific hosts
+in your `.tfvars` file:
 
 ```hcl
 firewall_allowed_domains = [
@@ -188,8 +203,46 @@ firewall_allowed_domains = [
 
 **An empty additional list retains the baseline.** Upgrading from the earlier
 empty-allowlist policy therefore enables these baseline services. Review the
-plan before upgrading. Supply your own firewall policy if you must remove a
-baseline service; disabling the firewall does not restrict access.
+plan before upgrading. To remove baseline entries, use your own YAML file or
+policy ARN instead.
+
+### 3. Replace the allowlist with your own YAML file
+
+Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
+the copy's `allowed_domains` list to add or remove hosts. This file becomes the
+**complete allowlist**, without merging the baseline or additional domains.
+
+When running this example directly, make a separate copy:
+
+```shell
+cp firewall.yaml firewall-custom.yaml
+```
+
+Edit `firewall-custom.yaml`, then set its path in `terraform.tfvars`:
+
+```hcl
+firewall_config_path = "./firewall-custom.yaml"
+```
+
+When calling the example from your own root module, put your copy at
+`firewall.yaml` next to your `main.tf` and add this argument **inside the module
+block**:
+
+```hcl
+firewall_config_path = "${path.module}/firewall.yaml"
+```
+
+Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
+all firewall-routed traffic, set `allowed_domains: []` in your YAML file. Private
+endpoint routes are unaffected. YAML configures the TLS hostname allowlist;
+for other rule types, use a policy ARN.
+
+The file must exist wherever Terraform runs before planning. A missing file,
+invalid YAML, unknown key, or invalid hostname fails the plan; it never falls
+back to the baseline. Do not edit `.terraform/modules`, which Terraform can
+replace during an update.
+
+### Domain matching and scope
 
 Jira site URLs and self-hosted Jira use deployment-specific hosts. Add your
 exact hostname if needed, rather than allowing all of `.atlassian.net`.
@@ -200,8 +253,7 @@ and your full environment setup.
 
 An exact name matches that host. A leading dot matches the domain and its
 subdomains; do not use `*`, URLs, paths, or ports. Domains are lowercased and
-deduplicated. The baseline and additions can contain at most 999 distinct
-entries combined.
+deduplicated. The effective allowlist can contain at most 999 distinct entries.
 
 The policy is not a pull-only, image-repository, account, or API-path allowlist.
 It applies to both runner and environment traffic for their entire lifetime.
@@ -215,33 +267,6 @@ Do not add AWS API domains or `app.gitpod.io` to this list. Their interface and
 gateway endpoint routes are VPC-local and take precedence over the default
 route through Network Firewall. Add only public services required by your
 workloads, such as source-control, package-registry, or artifact hosts.
-
-Provide `firewall_policy_arn` to replace the example-managed policy entirely.
-When set, both the baseline and `firewall_allowed_domains` are ignored; the
-supplied policy defines the inspected egress behavior.
-
-### Keep additional domains in YAML
-
-If you call this example from another root module, keep its extra destinations
-in a deployment-owned `firewall-overrides.yaml`:
-
-```yaml
-allowed_domains:
-  - your-team.atlassian.net
-  - packages.example.com
-```
-
-Pass that file to the existing input in your module block:
-
-```hcl
-firewall_allowed_domains = toset(
-  yamldecode(file("${path.module}/firewall-overrides.yaml")).allowed_domains
-)
-```
-
-The example merges these entries with its bundled baseline. Do not edit files
-under `.terraform/modules`; an update can replace them. YAML expressions belong
-in `.tf` configuration, not `.tfvars` files.
 
 Set `enable_firewall = false` to omit Network Firewall and route runner traffic
 directly to the selected egress target. This removes egress inspection and is

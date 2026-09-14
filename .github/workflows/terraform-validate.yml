@@ -78,3 +78,6 @@ jobs:
 
       - name: Test restricted runner CA and proxy passthrough
         run: bash scripts/test-restricted-runner-settings.sh
+
+      - name: Test firewall config errors
+        run: bash scripts/test-firewall-config-errors.sh
