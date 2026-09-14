@@ -1,5 +1,6 @@
 # Baseline TLS hostnames for the example-managed egress policy.
-# Add deployment-specific hosts through firewall_allowed_domains, not this file.
+# To replace it, copy this file into your deployment directory, edit the list,
+# and set firewall_config_path to your copy's path.
 allowed_domains:
   # Linear: read and publish issues through its GraphQL API.
   - api.linear.app

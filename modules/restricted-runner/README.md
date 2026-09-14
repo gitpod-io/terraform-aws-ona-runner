@@ -51,9 +51,9 @@ outbound IPv4 traffic. Your network must enforce the approved destination list.
 
 The [networking example's firewall guide](../../examples/restricted-runner-with-networking/README.md#firewall-policy)
 lists its baseline for GitHub, Linear, Jira Cloud, OpenAI, and MCR, including
-base-image layer endpoints and additional-domain configuration. Use that as a
-reference for your own policy; this wrapper does not install the baseline or
-accept `firewall_allowed_domains`.
+base-image layer endpoints and the three policy configuration options. Use that
+as a reference for your own policy; this wrapper does not install the baseline
+or accept the networking example's firewall inputs.
 
 ## Outbound proxy and custom CA
 

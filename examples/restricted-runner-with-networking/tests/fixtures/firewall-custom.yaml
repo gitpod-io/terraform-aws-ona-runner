@@ -1,0 +1,4 @@
+allowed_domains:
+  - Packages.Example.com
+  - packages.example.com
+  - .corp.example

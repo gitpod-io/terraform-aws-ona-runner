@@ -115,7 +115,7 @@ variable "egress" {
 }
 
 variable "firewall_policy_arn" {
-  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a default-deny policy with the firewall.yaml baseline and firewall_allowed_domains."
+  description = "Existing Network Firewall policy ARN replacing the generated policy. When null and enable_firewall is true, the example creates a default-deny policy from the baseline plus firewall_allowed_domains, or from firewall_config_path."
   type        = string
   default     = null
 
@@ -126,7 +126,7 @@ variable "firewall_policy_arn" {
 }
 
 variable "firewall_allowed_domains" {
-  description = "Additional HTTPS domains allowed alongside the firewall.yaml baseline. An empty set retains the baseline. Prefix a domain with a dot to include the domain and all subdomains. The combined list supports at most 999 distinct hostnames. Ignored when firewall_policy_arn is set."
+  description = "Additional HTTPS domains allowed alongside the firewall.yaml baseline. An empty set retains the baseline. Prefix a domain with a dot to include the domain and all subdomains. The combined list supports at most 999 distinct hostnames. Ignored when firewall_policy_arn is set; cannot be combined with firewall_config_path."
   type        = set(string)
   default     = []
 
@@ -136,6 +136,17 @@ variable "firewall_allowed_domains" {
       length(domain) <= 253 && can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
     ])
     error_message = "firewall_allowed_domains must contain at most 999 valid domain names, optionally prefixed with a dot to include subdomains."
+  }
+}
+
+variable "firewall_config_path" {
+  description = "Local YAML file replacing the entire baseline allowlist. Copy firewall.yaml into your deployment directory, edit allowed_domains, and pass its path. An empty allowed_domains list denies all firewall-routed traffic. Cannot be combined with firewall_policy_arn or non-empty firewall_allowed_domains."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.firewall_config_path == null || try(trimspace(var.firewall_config_path) != "", false)
+    error_message = "firewall_config_path must be null or a non-empty local file path."
   }
 }
 

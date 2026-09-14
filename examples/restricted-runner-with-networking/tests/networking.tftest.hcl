@@ -670,6 +670,189 @@ run "firewall_domain_allowlist_rejects_asterisk_wildcards" {
   expect_failures = [var.firewall_allowed_domains]
 }
 
+run "custom_yaml_replaces_baseline_and_normalizes_domains" {
+  command = plan
+
+  variables {
+    firewall_config_path = "./tests/fixtures/firewall-custom.yaml"
+  }
+
+  assert {
+    condition = (
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(["packages.example.com", ".corp.example"]) &&
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"])
+    )
+    error_message = "a custom YAML file must replace the baseline, normalize hostnames, and retain SNI inspection."
+  }
+}
+
+run "custom_yaml_accepts_an_absolute_path" {
+  command = plan
+
+  variables {
+    firewall_config_path = abspath("tests/fixtures/firewall-custom.yaml")
+  }
+
+  assert {
+    condition     = aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(["packages.example.com", ".corp.example"])
+    error_message = "absolute caller-owned file paths must work without resolving against the downloaded module."
+  }
+}
+
+run "empty_custom_yaml_denies_all_firewall_routed_traffic" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-empty.yaml"
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
+      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 0 &&
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
+      aws_route.runner_to_firewall["us-east-1a"].vpc_endpoint_id == "vpce-00000000000000001"
+    )
+    error_message = "an explicitly empty YAML allowlist must deny all inspected traffic without bypassing the firewall."
+  }
+}
+
+run "custom_yaml_cannot_be_combined_with_additions" {
+  command = plan
+
+  variables {
+    firewall_config_path     = "tests/fixtures/firewall-custom.yaml"
+    firewall_allowed_domains = ["other.example.com"]
+  }
+
+  expect_failures = [aws_networkfirewall_firewall.this[0]]
+}
+
+run "custom_yaml_cannot_be_combined_with_a_policy_arn" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/does-not-exist.yaml"
+    firewall_policy_arn  = "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall.this[0]]
+}
+
+run "disabled_firewall_ignores_unused_yaml" {
+  command = plan
+
+  variables {
+    enable_firewall      = false
+    firewall_config_path = "tests/fixtures/does-not-exist.yaml"
+  }
+
+  assert {
+    condition     = length(aws_networkfirewall_firewall_policy.default) == 0 && length(aws_networkfirewall_rule_group.allowed_domains) == 0
+    error_message = "a disabled firewall must not read or validate an unused configuration file."
+  }
+}
+
+run "empty_yaml_path_is_rejected" {
+  command = plan
+
+  variables {
+    firewall_config_path = " "
+  }
+
+  expect_failures = [var.firewall_config_path]
+}
+
+run "custom_yaml_rejects_missing_file" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/does-not-exist.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_malformed_yaml" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-malformed.txt"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_missing_key" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-missing-key.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_unknown_key" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-unknown-key.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_scalar" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-scalar.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_map" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-map.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_nonstring" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-nonstring.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_null_domain" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-null.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
+run "custom_yaml_rejects_invalid_hostname" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-invalid-host.yaml"
+  }
+
+  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+}
+
 # Rendered child task definitions are checked by test-restricted-runner-settings.sh.
 run "ca_proxy_defaults" {
   command = plan
@@ -691,7 +874,7 @@ run "ca_proxy_custom" {
   assert {
     condition = (
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
-      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == local.firewall_baseline_domains
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == local.firewall_config_domains
     )
     error_message = "configuring an outbound proxy and CA bundle must not expand the baseline allowlist or remove default denial."
   }
