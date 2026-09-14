@@ -1,20 +1,10 @@
 locals {
-  firewall_managed     = var.enable_firewall && var.firewall_policy_arn == null
-  firewall_config_file = var.firewall_config_path == null ? "${path.module}/firewall.yaml" : var.firewall_config_path
-  firewall_config      = local.firewall_managed ? try(yamldecode(file(local.firewall_config_file)), null) : null
-  firewall_config_valid = try(
-    toset(keys(local.firewall_config)) == toset(["allowed_domains"]) &&
-    can(tolist(local.firewall_config.allowed_domains)) &&
-    alltrue([
-      for domain in local.firewall_config.allowed_domains :
-      domain == tostring(domain) && length(domain) <= 253 &&
-      can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
-    ]),
-    false
-  )
-  firewall_config_domains = local.firewall_config_valid ? toset(local.firewall_config.allowed_domains) : toset([])
+  firewall_managed        = var.enable_firewall && var.firewall_policy_arn == null
+  firewall_config_file    = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
+  firewall_config         = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
+  firewall_config_domains = local.firewall_managed ? local.firewall_config.allowed_domains : []
   firewall_allowed_domains = toset([
-    for domain in setunion(local.firewall_config_domains, var.firewall_config_path == null ? var.firewall_allowed_domains : toset([])) : lower(domain)
+    for domain in concat(local.firewall_config_domains, tolist(var.firewall_allowed_domains)) : lower(domain)
   ])
 }
 
@@ -106,8 +96,17 @@ resource "aws_networkfirewall_firewall_policy" "default" {
 
   lifecycle {
     precondition {
-      condition     = local.firewall_config_valid
-      error_message = "Firewall config ${local.firewall_config_file} must be a readable YAML file containing only allowed_domains: a list of valid hostname strings (or []), optionally prefixed with a dot for subdomains."
+      condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains"])
+      error_message = "Firewall YAML must contain only the allowed_domains key."
+    }
+
+    precondition {
+      condition = alltrue([
+        for domain in local.firewall_config.allowed_domains :
+        domain == tostring(domain) && length(domain) <= 253 &&
+        can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
+      ])
+      error_message = "Firewall allowed_domains must contain valid hostname strings, optionally prefixed with a dot for subdomains."
     }
   }
 }

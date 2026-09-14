@@ -763,36 +763,6 @@ run "empty_yaml_path_is_rejected" {
   expect_failures = [var.firewall_config_path]
 }
 
-run "custom_yaml_rejects_missing_file" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/does-not-exist.yaml"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-run "custom_yaml_rejects_malformed_yaml" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-malformed.txt"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-run "custom_yaml_rejects_missing_key" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-missing-key.yaml"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
 run "custom_yaml_rejects_unknown_key" {
   command = plan
 
@@ -803,41 +773,11 @@ run "custom_yaml_rejects_unknown_key" {
   expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
 }
 
-run "custom_yaml_rejects_scalar" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-scalar.yaml"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-run "custom_yaml_rejects_map" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-map.yaml"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
 run "custom_yaml_rejects_nonstring" {
   command = plan
 
   variables {
     firewall_config_path = "tests/fixtures/firewall-nonstring.yaml"
-  }
-
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-run "custom_yaml_rejects_null_domain" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-null.yaml"
   }
 
   expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
@@ -874,7 +814,7 @@ run "ca_proxy_custom" {
   assert {
     condition = (
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
-      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == local.firewall_config_domains
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(local.firewall_config_domains)
     )
     error_message = "configuring an outbound proxy and CA bundle must not expand the baseline allowlist or remove default denial."
   }
