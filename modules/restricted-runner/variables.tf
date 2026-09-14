@@ -34,3 +34,20 @@ variable "runner_subnet_ids" {
   description = "Subnet IDs for ECS runner instances and cache resources."
   type        = list(string)
 }
+
+variable "proxy_config" {
+  description = "Outbound proxy settings. Unset fields use the root runner module's defaults."
+  type = object({
+    http_proxy  = optional(string)
+    https_proxy = optional(string)
+    all_proxy   = optional(string)
+    no_proxy    = optional(string)
+  })
+  default = {}
+}
+
+variable "custom_ca_trust_bundle" {
+  description = "Optional custom CA trust bundle content or URL understood by the runner."
+  type        = string
+  default     = ""
+}

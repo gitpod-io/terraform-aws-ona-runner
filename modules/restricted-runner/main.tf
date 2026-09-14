@@ -7,4 +7,7 @@ module "runner" {
   vpc_id            = var.vpc_id
   runner_subnet_ids = var.runner_subnet_ids
   restrict_ingress  = true
+
+  proxy_config           = var.proxy_config
+  custom_ca_trust_bundle = var.custom_ca_trust_bundle
 }

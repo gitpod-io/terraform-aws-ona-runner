@@ -30,6 +30,36 @@ mock_provider "aws" {
       arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:internal-runner-tls"
     }
   }
+
+  mock_resource "aws_iam_role" {
+    defaults = {
+      arn = "arn:aws:iam::123456789012:role/test-runner-role"
+    }
+  }
+
+  mock_resource "aws_iam_instance_profile" {
+    defaults = {
+      name = "test-environment-profile"
+    }
+  }
+
+  mock_resource "aws_security_group" {
+    defaults = {
+      id = "sg-00000000000000001"
+    }
+  }
+
+  mock_resource "aws_s3_bucket" {
+    defaults = {
+      bucket = "gitpod-test-bucket"
+    }
+  }
+
+  mock_resource "aws_ssm_parameter" {
+    defaults = {
+      arn = "arn:aws:ssm:us-east-1:123456789012:parameter/test-config"
+    }
+  }
 }
 
 mock_provider "random" {}
@@ -70,5 +100,34 @@ run "custom_runner_name_is_forwarded" {
   assert {
     condition     = output.ecs_cluster_name == "defense-2ec33d556332a866-ona-cluster"
     error_message = "the wrapper must forward runner_name to the root module."
+  }
+}
+
+# Rendered child task definitions are checked by test-restricted-runner-settings.sh.
+run "ca_proxy_defaults" {
+  command = plan
+}
+
+run "ca_proxy_custom" {
+  command = plan
+
+  variables {
+    proxy_config = {
+      http_proxy  = "http://proxy.example.com:3128"
+      https_proxy = "http://proxy.example.com:3129"
+      all_proxy   = "socks5://proxy.example.com:1080"
+      no_proxy    = "localhost,127.0.0.1,.internal,.amazonaws.com,169.254.0.0/16,app.gitpod.io,.corp.example"
+    }
+    custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+  }
+}
+
+run "ca_proxy_partial" {
+  command = plan
+
+  variables {
+    proxy_config = {
+      https_proxy = "http://proxy.example.com:3128"
+    }
   }
 }

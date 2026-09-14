@@ -34,6 +34,9 @@ These checks run without an AWS account:
   a fake AWS CLI, checking successful cleanup, failed-upload retention, quoted
   filenames, and empty rotations.
 - `scripts/check-parity-contract.sh` checks selected source-level contracts.
+- `scripts/test-restricted-runner-settings.sh` checks rendered runner and telemetry
+  task definitions through both restricted wrappers, including proxy/CA values,
+  bypass defaults, and the absence of inbound proxy resources.
 
 These are regression checks, not a generated comparison of every CloudFormation
 property or a complete AWS policy simulator. Do not replace policy assertions

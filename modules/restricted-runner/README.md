@@ -3,10 +3,10 @@
 This module deploys an Ona AWS runner without an external inbound runner
 endpoint. It is a policy wrapper around the repository's root runner module:
 it always enables restricted ingress and intentionally omits load-balancer,
-certificate, domain, proxy-service, and all other optional root settings from
-its interface. It accepts runner identity, an optional runner name, and network
-placement; the root module owns every other default, including the tested
-runner release version.
+certificate, domain, and proxy-service settings from its interface. It accepts
+runner identity, an optional runner name, network placement, outbound proxy
+settings, and a custom CA trust bundle. The root module owns every other
+default, including the tested runner release version.
 
 Provide an existing VPC and runner subnets with suitable egress. To build a
 complete VPC with inspected egress, use the restricted runner with networking
@@ -33,3 +33,39 @@ module "runner" {
   runner_subnet_ids = var.runner_subnet_ids
 }
 ```
+
+## Outbound proxy and custom CA
+
+Set these optional inputs on the module block:
+
+```hcl
+proxy_config = {
+  http_proxy  = "http://proxy.example.com:3128"
+  https_proxy = "http://proxy.example.com:3128"
+}
+custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+```
+
+`proxy_config` accepts `http_proxy`, `https_proxy`, `all_proxy`, and `no_proxy`.
+Omitted fields retain the root module defaults: the three proxy URLs are empty
+and `no_proxy` is
+`localhost,127.0.0.1,.internal,.amazonaws.com,169.254.0.0/16,app.gitpod.io`.
+If you override `no_proxy`, preserve the private AWS, metadata, internal runner,
+and management-plane destinations and add any other private hosts that must
+bypass the proxy.
+
+`custom_ca_trust_bundle` accepts PEM content or a runner-supported bundle URL,
+such as the S3 URL above or an HTTPS URL. It defaults to an empty string. The
+settings feed the existing runner and telemetry task configuration and CA
+initialization. They do not enable the inbound proxy service or change network
+rules. The proxy and CA source must be reachable through your existing network
+policy. CA initialization downloads the bundle before the runner starts and
+does not inherit `proxy_config`; use a directly reachable bundle source.
+
+For S3, the task roles permit CA reads from `gitpod-*` buckets;
+bucket policies and any KMS permissions must also permit access. For SSM,
+resolve the value with Terraform and pass the resulting PEM content;
+CloudFormation `{{resolve:ssm:...}}` references are not expanded by Terraform.
+Custom trust is not automatically installed in devcontainer images or image
+builds. See the [AWS setup guide](https://ona.com/docs/ona/runners/aws/setup#custom-ca-certificate)
+for runtime limitations.

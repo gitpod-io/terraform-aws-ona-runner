@@ -19,6 +19,7 @@ If you prefer a manual setup, install the following:
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [pre-commit](https://pre-commit.com/)
 - [terraform-docs](https://github.com/terraform-docs/terraform-docs)
+- [jq](https://jqlang.org/) (required for rendered-plan checks)
 
 ## File Structure
 
@@ -78,7 +79,12 @@ Validate examples separately:
 for example_dir in examples/*/; do
   (cd "$example_dir" && terraform init -backend=false && terraform validate)
 done
+bash scripts/test-restricted-runner-settings.sh
 ```
+
+The restricted-runner check inspects generated ECS task definitions from mocked
+plans. It verifies proxy and CA passthrough through both restricted wrappers,
+including unchanged defaults and partially configured proxy settings.
 
 ## Releases
 
