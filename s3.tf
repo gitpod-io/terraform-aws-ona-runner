@@ -135,6 +135,23 @@ resource "aws_s3_bucket_lifecycle_configuration" "agent" {
   bucket = aws_s3_bucket.agent.id
 
   rule {
+    id     = "expire-workflow-action-support-bundles"
+    status = "Enabled"
+
+    filter {
+      prefix = "workflow-action-support-bundles/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
     id     = "expire-agent-data"
     status = "Enabled"
 
