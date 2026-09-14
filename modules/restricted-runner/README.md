@@ -28,6 +28,7 @@ module "runner" {
 
   runner_id         = var.runner_id
   runner_token      = var.runner_token
+  api_endpoint      = "https://app.gitpod.io/api"
   runner_name       = "production-runner"
   vpc_id            = var.vpc_id
   runner_subnet_ids = var.runner_subnet_ids

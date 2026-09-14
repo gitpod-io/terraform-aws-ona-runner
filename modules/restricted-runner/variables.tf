@@ -14,6 +14,12 @@ variable "runner_token" {
   sensitive   = true
 }
 
+variable "api_endpoint" {
+  description = "Ona management plane API endpoint."
+  type        = string
+  default     = "https://app.gitpod.io/api"
+}
+
 variable "runner_name" {
   description = "Human-readable runner name used in AWS resource names."
   type        = string

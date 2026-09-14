@@ -53,5 +53,34 @@ check_settings() {
     '
 }
 
+check_api_endpoint() {
+  local module_dir="$1"
+  local test_file="$2"
+
+  echo "Checking restricted API endpoint passthrough: ${module_dir}"
+  terraform -chdir="$module_dir" test -filter="$test_file" -json -verbose |
+    jq -es '
+      [.[] | select(.type == "test_plan") |
+        select(.["@testrun"] | startswith("api_endpoint_")) |
+        {
+          run: .["@testrun"],
+          config: ([.test_plan.resource_changes[] |
+            select(.type == "aws_ssm_parameter" and .name == "runner_config") |
+            .change.after.value | fromjson] | .[0])
+        }
+      ] as $runs |
+      ($runs | map(.run) | sort) == ["api_endpoint_custom", "api_endpoint_default"] and
+      all($runs[];
+        .config.apiEndpoint == (if .run == "api_endpoint_custom" then
+          "https://runner-api.example.com/api"
+        else
+          "https://app.gitpod.io/api"
+        end)
+      )
+    '
+}
+
 check_settings modules/restricted-runner tests/restricted_runner.tftest.hcl
 check_settings examples/restricted-runner-with-networking tests/networking.tftest.hcl
+check_api_endpoint modules/restricted-runner tests/restricted_runner.tftest.hcl
+check_api_endpoint examples/restricted-runner-with-networking tests/networking.tftest.hcl
