@@ -115,7 +115,7 @@ variable "egress" {
 }
 
 variable "firewall_policy_arn" {
-  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a default-deny policy and uses firewall_allowed_domains."
+  description = "Existing Network Firewall policy ARN. When null and enable_firewall is true, the example creates a default-deny policy with the firewall.yaml baseline and firewall_allowed_domains."
   type        = string
   default     = null
 
@@ -126,7 +126,7 @@ variable "firewall_policy_arn" {
 }
 
 variable "firewall_allowed_domains" {
-  description = "HTTPS domains allowed through the example-managed Network Firewall policy. Prefix a domain with a dot to include the domain and all subdomains. Ignored when firewall_policy_arn is set."
+  description = "Additional HTTPS domains allowed alongside the firewall.yaml baseline. An empty set retains the baseline. Prefix a domain with a dot to include the domain and all subdomains. The combined list supports at most 999 distinct hostnames. Ignored when firewall_policy_arn is set."
   type        = set(string)
   default     = []
 

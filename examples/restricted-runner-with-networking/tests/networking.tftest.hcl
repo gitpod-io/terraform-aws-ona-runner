@@ -190,11 +190,28 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   assert {
     condition = (
       aws_networkfirewall_firewall_policy.default[0].description == "Default-deny policy for Ona runner egress inspection." &&
-      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
-      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 0 &&
-      length(aws_networkfirewall_rule_group.allowed_domains) == 0
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].rule_order == "STRICT_ORDER" &&
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].stream_exception_policy == "DROP" &&
+      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 1 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 1
     )
-    error_message = "the default firewall policy must drop and alert on unmatched established traffic without allowing public domains."
+    error_message = "the default firewall policy must retain strict-order default denial and attach the baseline domain allowlist."
+  }
+
+  assert {
+    condition = aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset([
+      "api.linear.app",
+      "github.com",
+      "api.github.com",
+      "codeload.github.com",
+      ".githubusercontent.com",
+      "api.atlassian.com",
+      "api.openai.com",
+      "mcr.microsoft.com",
+      ".data.mcr.microsoft.com",
+    ])
+    error_message = "the default allowlist must contain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
   }
 
   assert {
@@ -319,11 +336,11 @@ run "explicit_network_name_overrides_the_derived_name" {
   }
 }
 
-run "firewall_domain_allowlist_permits_only_configured_https_hosts" {
+run "firewall_domain_allowlist_adds_to_baseline_and_normalizes_duplicates" {
   command = plan
 
   variables {
-    firewall_allowed_domains = ["GitHub.com", ".githubusercontent.com"]
+    firewall_allowed_domains = ["GitHub.com", "MCR.MICROSOFT.COM", "Packages.Example.com", "packages.example.com", ".corp.example"]
   }
 
   assert {
@@ -334,9 +351,21 @@ run "firewall_domain_allowlist_permits_only_configured_https_hosts" {
       aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].stateful_rule_options[0].rule_order == "STRICT_ORDER" &&
       aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].generated_rules_type == "ALLOWLIST" &&
       aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].target_types == toset(["TLS_SNI"]) &&
-      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(["github.com", ".githubusercontent.com"])
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset([
+        "api.linear.app",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        ".githubusercontent.com",
+        "api.atlassian.com",
+        "api.openai.com",
+        "mcr.microsoft.com",
+        ".data.mcr.microsoft.com",
+        "packages.example.com",
+        ".corp.example",
+      ])
     )
-    error_message = "configured domains must create a strict-order TLS SNI allowlist rule group."
+    error_message = "additional domains must extend, not replace, the TLS SNI baseline and must be deduplicated after lowercasing."
   }
 
   assert {
@@ -349,12 +378,53 @@ run "firewall_domain_allowlist_permits_only_configured_https_hosts" {
   }
 }
 
+run "explicit_empty_allowlist_retains_baseline" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = []
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.allowed_domains) == 1 &&
+      length(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets) == 9 &&
+      contains(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets, "api.openai.com") &&
+      contains(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets, ".data.mcr.microsoft.com")
+    )
+    error_message = "an explicitly empty additional allowlist must retain the baseline, including model access and base-image layers."
+  }
+}
+
+run "combined_firewall_allowlist_accepts_capacity_boundary" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = [for index in range(990) : "extra-${index}.example.com"]
+  }
+
+  assert {
+    condition     = length(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets) == 999
+    error_message = "the baseline and additional domains must fit within the 1000-rule capacity, including the generated deny rule."
+  }
+}
+
+run "combined_firewall_allowlist_rejects_capacity_overflow" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = [for index in range(991) : "extra-${index}.example.com"]
+  }
+
+  expect_failures = [aws_networkfirewall_rule_group.allowed_domains[0]]
+}
+
 run "custom_firewall_policy_replaces_the_managed_allowlist" {
   command = plan
 
   variables {
     firewall_policy_arn      = "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
-    firewall_allowed_domains = ["github.com"]
+    firewall_allowed_domains = [for index in range(999) : "extra-${index}.example.com"]
   }
 
   assert {
@@ -363,7 +433,7 @@ run "custom_firewall_policy_replaces_the_managed_allowlist" {
       length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
       aws_networkfirewall_firewall.this[0].firewall_policy_arn == "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
     )
-    error_message = "a custom firewall policy must replace the example-managed policy and domain allowlist."
+    error_message = "a custom firewall policy must replace both baseline and additional domains without enforcing the unused generated-rule capacity."
   }
 }
 
@@ -590,6 +660,16 @@ run "firewall_domain_allowlist_rejects_urls" {
   expect_failures = [var.firewall_allowed_domains]
 }
 
+run "firewall_domain_allowlist_rejects_asterisk_wildcards" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = ["*.example.com"]
+  }
+
+  expect_failures = [var.firewall_allowed_domains]
+}
+
 # Rendered child task definitions are checked by test-restricted-runner-settings.sh.
 run "ca_proxy_defaults" {
   command = plan
@@ -610,10 +690,10 @@ run "ca_proxy_custom" {
 
   assert {
     condition = (
-      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
-      length(aws_networkfirewall_rule_group.allowed_domains) == 0
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == local.firewall_baseline_domains
     )
-    error_message = "configuring an outbound proxy and CA bundle must not relax the default-deny firewall."
+    error_message = "configuring an outbound proxy and CA bundle must not expand the baseline allowlist or remove default denial."
   }
 }
 
