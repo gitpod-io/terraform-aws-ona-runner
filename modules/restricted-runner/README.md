@@ -4,9 +4,9 @@ This module deploys an Ona AWS runner without an external inbound runner
 endpoint. It is a policy wrapper around the repository's root runner module:
 it always enables restricted ingress and intentionally omits load-balancer,
 certificate, domain, and proxy-service settings from its interface. It accepts
-runner identity, an optional runner name, network placement, outbound proxy
-settings, and a custom CA trust bundle. The root module owns every other
-default, including the tested runner release version.
+runner identity, an optional runner name and API endpoint, network placement,
+outbound proxy settings, and a custom CA trust bundle. The root module owns every
+other default, including the tested runner release version.
 
 Provide an existing VPC and runner subnets with suitable egress. To build a
 complete VPC with inspected egress, use the restricted runner with networking
@@ -33,6 +33,11 @@ module "runner" {
   runner_subnet_ids = var.runner_subnet_ids
 }
 ```
+
+`api_endpoint` defaults to `https://app.gitpod.io/api`. To use a custom management
+plane domain, add `api_endpoint = "https://ona.example.com/api"` to the module
+block. Your network must resolve and reach that hostname; update
+`proxy_config.no_proxy` if it should bypass an outbound proxy.
 
 ## Network requirements
 

@@ -83,9 +83,10 @@ bash scripts/test-restricted-runner-settings.sh
 bash scripts/test-firewall-config-errors.sh
 ```
 
-The restricted-runner check inspects generated ECS task definitions from mocked
-plans. It verifies proxy and CA passthrough through both restricted wrappers,
-including unchanged defaults and partially configured proxy settings.
+The restricted-runner check inspects generated ECS task definitions and runner
+SSM configuration from mocked plans. It verifies API endpoint, proxy, and CA
+passthrough through both restricted wrappers, including unchanged defaults and
+partially configured proxy settings.
 The firewall check verifies native file, YAML, and type errors without AWS access.
 
 ## Releases

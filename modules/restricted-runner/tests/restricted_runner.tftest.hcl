@@ -131,3 +131,15 @@ run "ca_proxy_partial" {
     }
   }
 }
+
+run "api_endpoint_default" {
+  command = plan
+}
+
+run "api_endpoint_custom" {
+  command = plan
+
+  variables {
+    api_endpoint = "https://ona.example.com/api"
+  }
+}

@@ -829,3 +829,25 @@ run "ca_proxy_partial" {
     }
   }
 }
+
+run "api_endpoint_default" {
+  command = plan
+}
+
+run "api_endpoint_custom" {
+  command = plan
+
+  variables {
+    api_endpoint = "https://ona.example.com/api"
+  }
+
+  assert {
+    condition = (
+      aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
+      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets == toset(local.firewall_config_domains) &&
+      aws_vpc_endpoint.management_plane.service_name == local.management_plane_endpoint_service_name &&
+      aws_vpc_endpoint.management_plane.private_dns_enabled
+    )
+    error_message = "a custom API endpoint must not alter the default firewall policy or management-plane PrivateLink endpoint."
+  }
+}
