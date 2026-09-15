@@ -25,6 +25,11 @@ topology as a separately supported networking module.
 
 ## Deploy
 
+This example requires AWS provider `~> 6.60.0` for dynamic firewall membership.
+When upgrading, update any provider 5.x constraint in your root configuration,
+run `terraform init -upgrade`, and review the plan before applying. See the
+[AWS provider 6 upgrade guide](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade).
+
 From this directory, copy `terraform.tfvars.example` to `terraform.tfvars` and
 fill in your runner registration and network values. Review the
 [baseline outbound access](#firewall-policy) before deploying:
@@ -166,10 +171,20 @@ availability zone.
 
 ## Firewall policy
 
-The firewall is enabled by default. Its default-deny policy allows the
-baseline in [`firewall.yaml`](firewall.yaml); other established traffic through
-the firewall is dropped and logged. Filtering uses TLS Server Name Indication
-(SNI). Choose one of the three configuration methods below.
+The firewall is enabled by default. Two stateful rule groups match dynamic
+source IPs and TLS Server Name Indication (SNI):
+
+- **Runner:** all Fargate tasks in the dedicated ECS cluster, including telemetry.
+- **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag
+  **and** a `gitpod.dev/environment-id` tag. Any environment-ID value matches.
+
+The bundled [`firewall.yaml`](firewall.yaml) has separate `runner_allowed_domains`
+and `environment_allowed_domains` lists. Both contain the same baseline hosts;
+copy the file and edit either list to change access for that role.
+
+AWS maintains membership as tasks and instances change; no per-IP Terraform
+updates are needed. Unmatched established traffic is dropped and logged.
+Choose one of the three configuration methods below.
 
 | Service | Baseline domains | Purpose |
 | --- | --- | --- |
@@ -201,7 +216,7 @@ Your policy replaces the generated policy. The baseline and
 ### 2. Add domains to the baseline
 
 Keep the [bundled allowlist](firewall.yaml) and add deployment-specific hosts
-in your `.tfvars` file:
+for **both roles** in your `.tfvars` file:
 
 ```hcl
 firewall_allowed_domains = [
@@ -218,8 +233,9 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-the copy's `allowed_domains` list to add or remove hosts. This file becomes the
-**complete allowlist**, without merging the baseline or additional domains.
+`runner_allowed_domains` or `environment_allowed_domains` to add or remove
+hosts for that role. Keep both keys. Your file supplies the **complete allowlists**,
+without merging the baseline or additional domains.
 
 When running this example directly, make a separate copy:
 
@@ -242,9 +258,28 @@ firewall_config_path = "${path.module}/firewall.yaml"
 ```
 
 Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
-all firewall-routed traffic, set `allowed_domains: []` in your YAML file. Private
+all firewall-routed traffic, set both lists to `[]` in your YAML file. Private
 endpoint routes are unaffected. YAML configures the TLS hostname allowlist;
 for other rule types, use a policy ARN.
+
+#### Separate runner and environment access
+
+Edit the two lists independently. For example, this replacement allows model
+access from the runner and base-image downloads from environments:
+
+```yaml
+runner_allowed_domains:
+  - api.openai.com
+environment_allowed_domains:
+  - mcr.microsoft.com
+  - .data.mcr.microsoft.com
+```
+
+Set `firewall_config_path` as above. These lists do not inherit the baseline or
+each other; add any repository, integration, and package hosts your workflow
+needs to the role that calls them. `[]` gives that role no allow exceptions.
+For a shared list, you can still replace both keys with `allowed_domains`;
+do not combine the shared and separate forms.
 
 The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls
@@ -262,10 +297,10 @@ and your full environment setup.
 
 An exact name matches that host. A leading dot matches the domain and its
 subdomains; do not use `*`, URLs, paths, or ports. Domains are lowercased and
-deduplicated. The effective allowlist can contain at most 999 distinct entries.
+deduplicated. Each role's allowlist can contain at most 999 distinct entries.
 
 The policy is not a pull-only, image-repository, account, or API-path allowlist.
-It applies to both runner and environment traffic for their entire lifetime.
+Each role's list applies for the workload's entire lifetime.
 It does not decrypt TLS, restrict destination ports to 443, or verify that a
 destination IP belongs to the claimed SNI. TCP connection establishment is
 permitted so the firewall can inspect SNI; unmatched established traffic is
@@ -280,6 +315,47 @@ workloads, such as source-control, package-registry, or artifact hosts.
 Set `enable_firewall = false` to omit Network Firewall and route runner traffic
 directly to the selected egress target. This removes egress inspection and is
 supported but not recommended.
+
+### Membership and upgrade considerations
+
+Unclaimed warm-pool instances have no environment-ID tag and receive no
+environment allowlist exceptions. They become eligible after assignment adds
+the tag and AWS updates membership. Private endpoint access is unaffected.
+
+The firewall sees original source IPs before NAT. Membership updates are
+asynchronous, not an instantaneous identity check. Test task replacement,
+instance stop/start, warm pools, and IP reuse before relying on this separation
+for hostile workloads. Private endpoint and VPC-local traffic still uses
+security groups and IAM, not this egress policy. Do not route environment
+egress through a runner-side proxy that would hide its source IP.
+
+Keep the ECS cluster dedicated and protect ownership tags. Environment IAM
+permits only operational self-tagging, not changes to `gitpod.dev/runner-id` or
+`gitpod.dev/environment-id`; do not broaden it to allow membership or ECS control.
+The deploying identity needs Resource Groups and Network Firewall management permissions,
+`ecs:DescribeClusters`, and first-use `iam:CreateServiceLinkedRole`.
+See [AWS container associations](https://docs.aws.amazon.com/network-firewall/latest/developerguide/container-associations.html)
+and [tag-based groups](https://docs.aws.amazon.com/network-firewall/latest/developerguide/resource-group-creating.html).
+
+#### Upgrade an existing firewall
+
+Update the module and run a fresh `terraform plan` before applying. No state
+edits or manual AWS policy changes are needed for the original shared-group
+deployment. Terraform updates `<network_name>-allowed-domains` in place for
+runner traffic and adds `<network_name>-environment-domains` for environments.
+The firewall, policy, subnets, and routes remain in place.
+
+Existing shared YAML and additional-domain inputs retain their destinations for
+both roles; other sources no longer receive those exceptions. An empty role
+list keeps its group with a deny-only rule, so removing the last domain does
+not delete an attached group. Allow for a brief interruption to public egress
+while rules and membership propagate, then verify connectivity.
+
+If an earlier attempt left both the original group and the new role groups in
+state, update the module and generate a new plan. Terraform keeps the original
+group, adopts the environment group, and removes the redundant runner group.
+It may warn about an occupied move destination; the original group must show
+an **in-place update**, not a deletion. Do not reuse the failed saved plan.
 
 ## Logging
 

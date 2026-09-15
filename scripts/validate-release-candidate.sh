@@ -25,5 +25,6 @@ done
 
 bash scripts/test-restricted-runner-settings.sh
 bash scripts/test-firewall-config-errors.sh
+bash scripts/test-firewall-migration.sh
 
 git diff --exit-code
