@@ -46,7 +46,10 @@ resource "aws_resourcegroups_group" "environments" {
     type = "TAG_FILTERS_1_0"
     query = jsonencode({
       ResourceTypeFilters = ["AWS::EC2::Instance"]
-      TagFilters          = [{ Key = "gitpod.dev/runner-id", Values = [var.runner_id] }]
+      TagFilters = [
+        { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
+        { Key = "gitpod.dev/environment-id" },
+      ]
     })
   }
 

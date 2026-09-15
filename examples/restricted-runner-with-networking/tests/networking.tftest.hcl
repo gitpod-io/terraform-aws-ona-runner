@@ -900,7 +900,7 @@ run "api_endpoint_custom" {
   }
 }
 
-run "dynamic_membership_uses_the_dedicated_cluster_and_runner_owned_instances" {
+run "dynamic_membership_uses_the_dedicated_cluster_and_assigned_environments" {
   command = plan
 
   assert {
@@ -919,10 +919,13 @@ run "dynamic_membership_uses_the_dedicated_cluster_and_runner_owned_instances" {
       aws_resourcegroups_group.environments[0].resource_query[0].type == "TAG_FILTERS_1_0" &&
       jsondecode(aws_resourcegroups_group.environments[0].resource_query[0].query) == {
         ResourceTypeFilters = ["AWS::EC2::Instance"]
-        TagFilters          = [{ Key = "gitpod.dev/runner-id", Values = [var.runner_id] }]
+        TagFilters = [
+          { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
+          { Key = "gitpod.dev/environment-id" },
+        ]
       }
     )
-    error_message = "Environment membership must include only EC2 instances owned by this runner, including unclaimed warm-pool instances."
+    error_message = "Environment membership must require this runner's ID AND an environment-ID tag with any value, excluding unclaimed warm-pool instances and other runners."
   }
 
   assert {

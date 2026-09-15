@@ -175,8 +175,8 @@ The firewall is enabled by default. Two stateful rule groups match dynamic
 source IPs and TLS Server Name Indication (SNI):
 
 - **Runner:** all Fargate tasks in the dedicated ECS cluster, including telemetry.
-- **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag,
-  including warm-pool instances.
+- **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag
+  **and** a `gitpod.dev/environment-id` tag. Any environment-ID value matches.
 
 The bundled [`firewall.yaml`](firewall.yaml) has separate `runner_allowed_domains`
 and `environment_allowed_domains` lists. Both contain the same baseline hosts;
@@ -318,6 +318,10 @@ supported but not recommended.
 
 ### Membership and upgrade considerations
 
+Unclaimed warm-pool instances have no environment-ID tag and receive no
+environment allowlist exceptions. They become eligible after assignment adds
+the tag and AWS updates membership. Private endpoint access is unaffected.
+
 The firewall sees original source IPs before NAT. Membership updates are
 asynchronous, not an instantaneous identity check. Test task replacement,
 instance stop/start, warm pools, and IP reuse before relying on this separation
@@ -326,9 +330,9 @@ security groups and IAM, not this egress policy. Do not route environment
 egress through a runner-side proxy that would hide its source IP.
 
 Keep the ECS cluster dedicated and protect ownership tags. Environment IAM
-permits only operational self-tagging, not changes to `gitpod.dev/runner-id`;
-do not broaden it to allow membership or ECS control. The deploying identity
-needs Resource Groups and Network Firewall management permissions,
+permits only operational self-tagging, not changes to `gitpod.dev/runner-id` or
+`gitpod.dev/environment-id`; do not broaden it to allow membership or ECS control.
+The deploying identity needs Resource Groups and Network Firewall management permissions,
 `ecs:DescribeClusters`, and first-use `iam:CreateServiceLinkedRole`.
 See [AWS container associations](https://docs.aws.amazon.com/network-firewall/latest/developerguide/container-associations.html)
 and [tag-based groups](https://docs.aws.amazon.com/network-firewall/latest/developerguide/resource-group-creating.html).

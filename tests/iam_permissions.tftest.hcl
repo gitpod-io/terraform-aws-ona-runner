@@ -376,7 +376,7 @@ run "environment_cannot_change_firewall_membership" {
       ])
       if contains(statement.actions, "ec2:CreateTags") && coalesce(statement.effect, "Allow") == "Allow"
     ])
-    error_message = "Self-tagging must be restricted to operational tags on the caller's own instance, excluding gitpod.dev/runner-id."
+    error_message = "Self-tagging must be restricted to operational tags on the caller's own instance, excluding gitpod.dev/runner-id and gitpod.dev/environment-id."
   }
 
   assert {
