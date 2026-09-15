@@ -362,6 +362,29 @@ run "runner_configuration_matches_cloudformation_fixed_contract" {
   }
 }
 
+run "runner_support_bundle_lifecycle" {
+  command = plan
+
+  assert {
+    condition = try(one([
+      for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : (
+        rule.filter[0].prefix == "runner-support-bundles/" &&
+        rule.expiration[0].days == 1 &&
+        rule.abort_incomplete_multipart_upload[0].days_after_initiation == 1
+      ) if rule.id == "expire-runner-support-bundles"
+    ]), false)
+    error_message = "runner support bundles must expire after one day and incomplete uploads must be aborted."
+  }
+
+  assert {
+    condition = try(length(aws_s3_bucket_lifecycle_configuration.agent.rule) == 2 && one([
+      for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule.expiration[0].days == 360
+      if rule.id == "expire-agent-data"
+    ]), false)
+    error_message = "the support-bundle rule must not change the existing retention for other agent data."
+  }
+}
+
 run "runtime_services_match_cloudformation_lifecycle" {
   command = plan
 
