@@ -18,7 +18,8 @@ enable_firewall = true
 firewall_allowed_domains = []
 
 # To replace the baseline instead, copy firewall.yaml to firewall-custom.yaml,
-# edit allowed_domains in your copy, and uncomment this path. Keep additions empty.
+# edit your copy, and uncomment this path. Keep additions empty. Use allowed_domains
+# for both roles, or runner_allowed_domains and environment_allowed_domains to split access.
 # firewall_config_path = "./firewall-custom.yaml"
 
 # Or use an existing policy instead of either allowlist option.

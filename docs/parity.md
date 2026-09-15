@@ -69,6 +69,22 @@ service and authenticated internal LLM listener remain available.
   YAML list denies all firewall-routed traffic. Upgrading an
   existing empty allowlist enables those baseline destinations; a supplied
   `firewall_policy_arn` continues to replace the generated policy entirely.
+- The managed firewall uses separate source-scoped rule groups: an ECS container
+  association for all Fargate tasks in the dedicated runner cluster and an EC2
+  resource group selected by `gitpod.dev/runner-id`. Shared lists retain their
+  destinations for both roles; custom YAML can instead provide two complete
+  role-specific lists. This replaces the old subnet-wide group, not the VPC,
+  firewall, or policy. The networking example requires AWS provider 6.60.x;
+  root and restricted modules continue to support provider 5.x.
+
+The dynamic-membership change was compared with the public `20260915.996`
+manifest/template and module base commit
+`8fa9b57`. The template has no Network Firewall resources; source-scoped egress
+remains a Terraform-only extension. Runtime versions, task IAM, and instance
+tag production are unchanged. The template's operational-only environment
+self-tagging contract excludes the ownership tag used for membership.
+Credential-free tests cover selectors, generated rules, YAML compatibility,
+and the attached environment policy, not live membership propagation.
 
 Review counterpart behavior for IAM, ECS/bootstrap commands, networking, storage,
 configuration, and release-default changes. Record the reference release,

@@ -1,0 +1,4 @@
+allowed_domains:
+  - shared.example.com
+runner_allowed_domains: []
+environment_allowed_domains: []
