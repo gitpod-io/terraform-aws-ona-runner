@@ -81,3 +81,6 @@ jobs:
 
       - name: Test firewall config errors
         run: bash scripts/test-firewall-config-errors.sh
+
+      - name: Test firewall migration ordering
+        run: bash scripts/test-firewall-migration.sh

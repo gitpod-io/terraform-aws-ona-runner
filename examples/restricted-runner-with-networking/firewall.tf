@@ -56,6 +56,11 @@ resource "aws_resourcegroups_group" "environments" {
   tags = local.common_tags
 }
 
+moved {
+  from = aws_networkfirewall_rule_group.allowed_domains[0]
+  to   = aws_networkfirewall_rule_group.allowed_domains["runner"]
+}
+
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
   for_each = { for role, domains in local.firewall_allowed_domains : role => domains if local.firewall_managed && length(domains) > 0 }
 
@@ -104,6 +109,9 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
   tags = local.common_tags
 
   lifecycle {
+    # Switch the policy's references before deleting a replaced, still-attached group.
+    create_before_destroy = true
+
     precondition {
       condition     = length(each.value) <= 999
       error_message = "Each firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
