@@ -75,8 +75,10 @@ service and authenticated internal LLM listener remain available.
   presence of `gitpod.dev/environment-id`. Unclaimed warm-pool instances are
   excluded until assignment tags them and AWS updates membership. Shared lists
   retain their destinations for both roles; custom YAML can instead provide two complete
-  role-specific lists. This replaces the old subnet-wide group, not the VPC,
-  firewall, or policy. The networking example requires AWS provider 6.60.x;
+  role-specific lists. The original group is updated in place for runner traffic;
+  an environment group is added without replacing the VPC, firewall, or policy.
+  Empty lists retain deny-only groups rather than deleting attached resources.
+  The networking example requires AWS provider 6.60.x;
   root and restricted modules continue to support provider 5.x.
 
 The dynamic-membership change was compared with the public `20260915.996`
@@ -86,9 +88,9 @@ remains a Terraform-only extension. Runtime versions, task IAM, and instance
 tag production are unchanged. The template's operational-only environment
 self-tagging contract excludes both ownership tags used for membership.
 Credential-free tests cover selectors, generated rules, YAML compatibility,
-the attached environment policy, and upgrade ordering, not live membership
-propagation. See [partial migration recovery](../examples/restricted-runner-with-networking/README.md#recover-a-failed-rule-group-migration)
-if an earlier apply already created the new rule groups.
+the attached environment policy, in-place upgrades, and partial-apply recovery,
+not live membership propagation. See [upgrade instructions](../examples/restricted-runner-with-networking/README.md#upgrade-an-existing-firewall)
+for existing deployments, including earlier failed upgrades.
 
 Review counterpart behavior for IAM, ECS/bootstrap commands, networking, storage,
 configuration, and release-default changes. Record the reference release,

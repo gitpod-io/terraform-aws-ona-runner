@@ -17,6 +17,14 @@ locals {
     environment = aws_resourcegroups_group.environments[0].arn
   } : {}
   firewall_rule_priorities = { runner = 100, environment = 200 }
+  # Index 0 and its AWS name are retained from the original shared allowlist.
+  firewall_rule_groups = local.firewall_managed ? [for role in ["runner", "environment"] : {
+    name       = role == "runner" ? "${local.network_name}-allowed-domains" : "${local.network_name}-environment-domains"
+    role       = role
+    domains    = local.firewall_allowed_domains[role]
+    source_arn = local.firewall_source_arns[role]
+    priority   = local.firewall_rule_priorities[role]
+  }] : []
 }
 
 resource "aws_networkfirewall_container_association" "runner" {
@@ -57,16 +65,21 @@ resource "aws_resourcegroups_group" "environments" {
 }
 
 moved {
-  from = aws_networkfirewall_rule_group.allowed_domains[0]
-  to   = aws_networkfirewall_rule_group.allowed_domains["runner"]
+  from = aws_networkfirewall_rule_group.allowed_domains["runner"]
+  to   = aws_networkfirewall_rule_group.allowed_domains[0]
+}
+
+moved {
+  from = aws_networkfirewall_rule_group.allowed_domains["environment"]
+  to   = aws_networkfirewall_rule_group.allowed_domains[1]
 }
 
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  for_each = { for role, domains in local.firewall_allowed_domains : role => domains if local.firewall_managed && length(domains) > 0 }
+  count = length(local.firewall_rule_groups)
 
   capacity    = 1000
-  name        = "${local.network_name}-${each.key}-domains"
-  description = "TLS domains allowed from Ona ${each.key} IPs."
+  name        = local.firewall_rule_groups[count.index].name
+  description = "TLS domains allowed from Ona ${local.firewall_rule_groups[count.index].role} IPs."
   type        = "STATEFUL"
 
   rule_group {
@@ -85,19 +98,21 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
       ip_set_references {
         key = "SOURCE_IPS"
         ip_set_reference {
-          reference_arn = local.firewall_source_arns[each.key]
+          reference_arn = local.firewall_rule_groups[count.index].source_arn
         }
       }
     }
 
     rules_source {
-      rules_string = join("\n", [
-        for index, domain in sort(tolist(each.value)) : format(
-          "pass tls @SOURCE_IPS any -> $EXTERNAL_NET any (ssl_state:client_hello; tls.sni; %scontent:\"%s\"; %sendswith; nocase; flow:to_server,established; sid:%d; rev:1;)",
-          startswith(domain, ".") ? "dotprefix; " : "", domain,
-          startswith(domain, ".") ? "" : "startswith; ",
-          local.firewall_rule_priorities[each.key] * 10000 + index + 1,
-        )
+      rules_string = length(local.firewall_rule_groups[count.index].domains) == 0 ? (
+        "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (sid:${local.firewall_rule_groups[count.index].priority * 10000}; rev:1;)"
+        ) : join("\n", [
+          for index, domain in sort(tolist(local.firewall_rule_groups[count.index].domains)) : format(
+            "pass tls @SOURCE_IPS any -> $EXTERNAL_NET any (ssl_state:client_hello; tls.sni; %scontent:\"%s\"; %sendswith; nocase; flow:to_server,established; sid:%d; rev:1;)",
+            startswith(domain, ".") ? "dotprefix; " : "", domain,
+            startswith(domain, ".") ? "" : "startswith; ",
+            local.firewall_rule_groups[count.index].priority * 10000 + index + 1,
+          )
       ])
     }
 
@@ -113,7 +128,7 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
     create_before_destroy = true
 
     precondition {
-      condition     = length(each.value) <= 999
+      condition     = length(local.firewall_rule_groups[count.index].domains) <= 999
       error_message = "Each firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
     }
   }
@@ -128,7 +143,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
   firewall_policy {
     stateless_default_actions          = ["aws:forward_to_sfe"]
     stateless_fragment_default_actions = ["aws:forward_to_sfe"]
-    stateful_default_actions = length(aws_networkfirewall_rule_group.allowed_domains) > 0 ? [
+    stateful_default_actions = anytrue([for domains in values(local.firewall_allowed_domains) : length(domains) > 0]) ? [
       "aws:drop_established",
       "aws:alert_established",
       ] : [
@@ -140,7 +155,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
       for_each = aws_networkfirewall_rule_group.allowed_domains
 
       content {
-        priority     = local.firewall_rule_priorities[stateful_rule_group_reference.key]
+        priority     = local.firewall_rule_groups[stateful_rule_group_reference.key].priority
         resource_arn = stateful_rule_group_reference.value.arn
       }
     }

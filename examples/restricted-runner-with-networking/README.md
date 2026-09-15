@@ -337,28 +337,25 @@ The deploying identity needs Resource Groups and Network Firewall management per
 See [AWS container associations](https://docs.aws.amazon.com/network-firewall/latest/developerguide/container-associations.html)
 and [tag-based groups](https://docs.aws.amazon.com/network-firewall/latest/developerguide/resource-group-creating.html).
 
-Upgrading creates the source-scoped groups, switches the policy, then deletes
-the old shared group. The firewall, policy, subnets, and routes remain in place.
-Upgrade with your existing allowlist first, then narrow individual role lists.
-Existing shared YAML and additional-domain inputs retain
-their destinations for both roles; other sources no longer receive those
-exceptions. Wait for membership resolution and verify connectivity after apply.
+#### Upgrade an existing firewall
 
-#### Recover a failed rule-group migration
+Update the module and run a fresh `terraform plan` before applying. No state
+edits or manual AWS policy changes are needed for the original shared-group
+deployment. Terraform updates `<network_name>-allowed-domains` in place for
+runner traffic and adds `<network_name>-environment-domains` for environments.
+The firewall, policy, subnets, and routes remain in place.
 
-If an earlier apply created both new groups but failed to delete the old group
-with `Unable to delete the object because it is still in use`, the policy still
-needs to switch groups. The existing new `runner` group prevents Terraform from
-moving the old group's state into that address automatically.
+Existing shared YAML and additional-domain inputs retain their destinations for
+both roles; other sources no longer receive those exceptions. An empty role
+list keeps its group with a deny-only rule, so removing the last domain does
+not delete an attached group. Allow for a brief interruption to public egress
+while rules and membership propagate, then verify connectivity.
 
-In AWS Network Firewall, edit the `<network_name>-default` policy's stateful
-rule-group references. Replace `<network_name>-allowed-domains` with
-`<network_name>-runner-domains` (priority **100**) and
-`<network_name>-environment-domains` (priority **200**) in one saved update.
-Keep strict ordering and the existing default-deny actions unchanged. Confirm
-the old group has no policy associations, then run a fresh `terraform plan`
-and `terraform apply`. Terraform can then delete the detached old group.
-Do not disable the firewall, remove resources from state, or reuse a saved plan.
+If an earlier attempt left both the original group and the new role groups in
+state, update the module and generate a new plan. Terraform keeps the original
+group, adopts the environment group, and removes the redundant runner group.
+It may warn about an occupied move destination; the original group must show
+an **in-place update**, not a deletion. Do not reuse the failed saved plan.
 
 ## Logging
 
