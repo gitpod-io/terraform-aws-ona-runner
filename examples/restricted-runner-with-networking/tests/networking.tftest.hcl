@@ -230,7 +230,12 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition = local.firewall_allowed_domains["runner"] == toset([
+    condition     = toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains"])
+    error_message = "the bundled firewall.yaml must demonstrate independently editable runner and environment lists."
+  }
+
+  assert {
+    condition = alltrue([for role in ["runner", "environment"] : local.firewall_allowed_domains[role] == toset([
       "api.linear.app",
       "github.com",
       "api.github.com",
@@ -240,8 +245,8 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       "api.openai.com",
       "mcr.microsoft.com",
       ".data.mcr.microsoft.com",
-    ])
-    error_message = "the default allowlist must contain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
+    ])])
+    error_message = "both default allowlists must retain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
   }
 
   assert {
@@ -722,9 +727,10 @@ run "custom_yaml_replaces_baseline_and_normalizes_domains" {
   assert {
     condition = (
       local.firewall_allowed_domains["runner"] == toset(["packages.example.com", ".corp.example"]) &&
+      local.firewall_allowed_domains["environment"] == local.firewall_allowed_domains["runner"] &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"])
     )
-    error_message = "a custom YAML file must replace the baseline, normalize hostnames, and retain SNI inspection."
+    error_message = "a shared allowed_domains YAML file must still replace both role baselines, normalize hostnames, and retain SNI inspection."
   }
 }
 

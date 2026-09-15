@@ -178,7 +178,10 @@ source IPs and TLS Server Name Indication (SNI):
 - **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag,
   including warm-pool instances.
 
-Both roles use the [baseline](firewall.yaml) unless you supply separate lists.
+The bundled [`firewall.yaml`](firewall.yaml) has separate `runner_allowed_domains`
+and `environment_allowed_domains` lists. Both contain the same baseline hosts;
+copy the file and edit either list to change access for that role.
+
 AWS maintains membership as tasks and instances change; no per-IP Terraform
 updates are needed. Unmatched established traffic is dropped and logged.
 Choose one of the three configuration methods below.
@@ -230,8 +233,9 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-the copy's `allowed_domains` list to add or remove hosts. This file becomes the
-**complete allowlist**, without merging the baseline or additional domains.
+`runner_allowed_domains` or `environment_allowed_domains` to add or remove
+hosts for that role. Keep both keys. Your file supplies the **complete allowlists**,
+without merging the baseline or additional domains.
 
 When running this example directly, make a separate copy:
 
@@ -254,14 +258,13 @@ firewall_config_path = "${path.module}/firewall.yaml"
 ```
 
 Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
-all firewall-routed traffic, set `allowed_domains: []` in your YAML file. Private
+all firewall-routed traffic, set both lists to `[]` in your YAML file. Private
 endpoint routes are unaffected. YAML configures the TLS hostname allowlist;
 for other rule types, use a policy ARN.
 
 #### Separate runner and environment access
 
-To give each role a different complete allowlist, replace `allowed_domains`
-in your local `firewall.yaml` with **both** keys below. For example, allow model
+Edit the two lists independently. For example, this replacement allows model
 access from the runner and base-image downloads from environments:
 
 ```yaml
@@ -275,7 +278,8 @@ environment_allowed_domains:
 Set `firewall_config_path` as above. These lists do not inherit the baseline or
 each other; add any repository, integration, and package hosts your workflow
 needs to the role that calls them. `[]` gives that role no allow exceptions.
-Do not combine this form with `allowed_domains`.
+For a shared list, you can still replace both keys with `allowed_domains`;
+do not combine the shared and separate forms.
 
 The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls

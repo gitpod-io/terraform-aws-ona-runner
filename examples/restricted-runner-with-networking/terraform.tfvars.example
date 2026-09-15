@@ -12,14 +12,15 @@ runner_cgnat_cidr = "100.64.0.0/16"
 enable_firewall = true
 
 # The bundled firewall.yaml permits GitHub, Linear, Jira Cloud's API,
-# OpenAI's API, and MCR. Add other TLS hostnames here; [] retains the baseline.
+# OpenAI's API, and MCR for both roles. Add TLS hostnames for both here;
+# [] retains the baseline.
 # Use a leading dot to allow a domain and its subdomains, e.g. ".example.com".
 # AWS APIs and app.gitpod.io use the VPC endpoints and do not belong here.
 firewall_allowed_domains = []
 
 # To replace the baseline instead, copy firewall.yaml to firewall-custom.yaml,
-# edit your copy, and uncomment this path. Keep additions empty. Use allowed_domains
-# for both roles, or runner_allowed_domains and environment_allowed_domains to split access.
+# edit runner_allowed_domains and environment_allowed_domains independently,
+# and uncomment this path. Keep additions empty.
 # firewall_config_path = "./firewall-custom.yaml"
 
 # Or use an existing policy instead of either allowlist option.
