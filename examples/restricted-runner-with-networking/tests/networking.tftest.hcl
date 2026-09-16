@@ -402,6 +402,26 @@ run "explicit_empty_allowlist_retains_baseline" {
   }
 }
 
+run "fallback_devcontainer_registry_egress" {
+  command = plan
+
+  assert {
+    condition = alltrue([for domain in ["mcr.microsoft.com", ".data.mcr.microsoft.com"] :
+      contains(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets, domain)
+    ])
+    error_message = "The fallback devcontainer needs both MCR manifests and regional image-layer endpoints when the image is not cached."
+  }
+
+  assert {
+    condition = alltrue([for domain in [
+      "ghcr.io", "registry-1.docker.io", "auth.docker.io", "archive.ubuntu.com",
+      "security.ubuntu.com", "registry.npmjs.org", "pypi.org", "files.pythonhosted.org",
+      ] : !contains(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_source_list[0].targets, domain)
+    ])
+    error_message = "The unmodified fallback must not implicitly allow registries or package hosts needed only by custom setup commands."
+  }
+}
+
 run "combined_firewall_allowlist_accepts_capacity_boundary" {
   command = plan
 
