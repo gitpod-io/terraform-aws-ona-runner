@@ -96,8 +96,9 @@ override_resource {
   target          = aws_iam_role.runner_control
   override_during = plan
   values = {
-    arn = "arn:aws:iam::123456789012:role/test-runner-control"
-    id  = "test-runner-control"
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-control-fixture"
+    id   = "ona-runner-51cf5b27370de-control-fixture"
+    name = "ona-runner-51cf5b27370de-control-fixture"
   }
 }
 
@@ -105,8 +106,10 @@ override_resource {
   target          = aws_ecs_task_definition.runner
   override_during = plan
   values = {
-    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-runner:1"
-    family = "test-runner"
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner:1"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner"
+    family               = "ona-runner-51cf5b27370ded93-runner"
+    revision             = 1
   }
 }
 
@@ -114,8 +117,10 @@ override_resource {
   target          = aws_ecs_task_definition.confined_runner_baseline
   override_during = plan
   values = {
-    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-runner:2"
-    family = "test-runner"
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner:2"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner"
+    family               = "ona-runner-51cf5b27370ded93-runner"
+    revision             = 2
   }
 }
 
@@ -123,21 +128,41 @@ override_resource {
   target          = aws_ecs_task_definition.proxy
   override_during = plan
   values = {
-    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-proxy:1"
-    family = "test-proxy"
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-proxy:1"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-proxy"
+    family               = "ona-runner-51cf5b27370ded93-proxy"
+    revision             = 1
   }
 }
 
 override_resource {
   target          = aws_iam_role.ecs_execution
   override_during = plan
-  values          = { arn = "arn:aws:iam::123456789012:role/test-execution" }
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture"
+    id   = "ona-runner-51cf5b27370de-ecs-exec-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-exec-fixture"
+  }
 }
 
 override_resource {
   target          = aws_iam_role.proxy
   override_during = plan
-  values          = { arn = "arn:aws:iam::123456789012:role/test-proxy" }
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture"
+    id   = "ona-runner-51cf5b27370de-proxy-fixture"
+    name = "ona-runner-51cf5b27370de-proxy-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.environment
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-environment-fixture"
+    id   = "ona-runner-51cf5b27370de-environment-fixture"
+    name = "ona-runner-51cf5b27370de-environment-fixture"
+  }
 }
 
 override_resource {
@@ -169,19 +194,106 @@ override_resource {
 override_resource {
   target          = aws_s3_bucket.container_registry
   override_during = plan
-  values          = { arn = "arn:aws:s3:::test-registry" }
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"
+    bucket = "ona-runner-51cf5b27370ded-registry-fixture"
+    id     = "ona-runner-51cf5b27370ded-registry-fixture"
+  }
 }
 
 override_resource {
   target          = aws_s3_bucket.agent
   override_during = plan
-  values          = { arn = "arn:aws:s3:::test-agent-bucket" }
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-agent-fixture"
+    bucket = "ona-runner-51cf5b27370ded-agent-fixture"
+    id     = "ona-runner-51cf5b27370ded-agent-fixture"
+  }
 }
 
 override_resource {
   target          = aws_s3_bucket.logs
   override_during = plan
-  values          = { arn = "arn:aws:s3:::test-logs-bucket" }
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-logs-fixture"
+    bucket = "ona-runner-51cf5b27370ded-logs-fixture"
+    id     = "ona-runner-51cf5b27370ded-logs-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_dynamodb_table.resources
+  override_during = plan
+  values = {
+    arn  = "arn:aws:dynamodb:us-east-1:123456789012:table/ona-runner-51cf5b27370ded93-reconciler"
+    id   = "ona-runner-51cf5b27370ded93-reconciler"
+    name = "ona-runner-51cf5b27370ded93-reconciler"
+  }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.metrics_config
+  override_during = plan
+  values = {
+    arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-metrics-fixture-AbCdEf"
+    id   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-metrics-fixture-AbCdEf"
+    name = "ona-runner-51cf5b27370ded93-metrics-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.internal_llm_tls
+  override_during = plan
+  values = {
+    arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"
+    id   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"
+    name = "ona-runner-51cf5b27370ded93-llm-tls-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_ssm_parameter.runner_config
+  override_during = plan
+  values = {
+    arn  = "arn:aws:ssm:us-east-1:123456789012:parameter/gitpod/runner/runner-a"
+    id   = "/gitpod/runner/runner-a"
+    name = "/gitpod/runner/runner-a"
+  }
+}
+
+override_resource {
+  target          = aws_ssm_parameter.redis_connection
+  override_during = plan
+  values = {
+    arn  = "arn:aws:ssm:us-east-1:123456789012:parameter/gitpod/runner/runner-a/ai-execution-redis"
+    id   = "/gitpod/runner/runner-a/ai-execution-redis"
+    name = "/gitpod/runner/runner-a/ai-execution-redis"
+  }
+}
+
+override_resource {
+  target          = aws_cloudwatch_log_group.runner
+  override_during = plan
+  values = {
+    arn  = "arn:aws:logs:us-east-1:123456789012:log-group:/gitpod/runner/ona-runner-51cf5b27370ded93/runner-a:*"
+    name = "/gitpod/runner/ona-runner-51cf5b27370ded93/runner-a"
+  }
+}
+
+override_resource {
+  target          = aws_iam_instance_profile.environment
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:instance-profile/ona-runner-51cf5b27370ded93-environment-fixture"
+    id   = "ona-runner-51cf5b27370ded93-environment-fixture"
+    name = "ona-runner-51cf5b27370ded93-environment-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_security_group.environment
+  override_during = plan
+  values          = { id = "sg-00000000000000001" }
 }
 
 override_resource {
@@ -201,6 +313,66 @@ override_resource {
     arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-confined-boundary-fixture"
     id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-confined-boundary-fixture"
     name = "ona-runner-51cf5b27370de-confined-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.ecs_task_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.s3_access_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-s3-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-s3-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-s3-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.runner_control_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-control-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-control-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-control-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.environment_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-environment-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-environment-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-environment-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.ecs_execution_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.proxy_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-proxy-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-proxy-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-proxy-boundary-fixture"
   }
 }
 
@@ -342,9 +514,9 @@ run "ecs_update_role_passing" {
     condition = alltrue([
       for statement in data.aws_iam_policy_document.ecs_task.statement :
       coalesce(statement.effect, "Allow") == "Allow" && statement.resources == toset([
-        "arn:aws:iam::123456789012:role/test-execution",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
         "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
-        "arn:aws:iam::123456789012:role/test-proxy",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture",
       ]) && length(statement.condition) == 1 &&
       one(statement.condition).test == "StringEquals" &&
       one(statement.condition).variable == "iam:PassedToService" &&
@@ -366,10 +538,46 @@ run "restricted_ecs_update_role_passing" {
       for statement in data.aws_iam_policy_document.ecs_task.statement : statement.resources
       if statement.sid == "PassECSTaskRoles"
       ]) == toset([
-      "arn:aws:iam::123456789012:role/test-execution",
+      "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
       "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
     ])
     error_message = "Restricted runners must plan without a proxy role and must not pass one to ECS."
+  }
+}
+
+run "restricted_confined_effective_policy" {
+  command = plan
+  variables {
+    restrict_ingress                = true
+    runner_iam_phase                = "confined"
+    runner_iam_retirement_confirmed = true
+  }
+
+  assert {
+    condition = (
+      length(aws_iam_role.proxy) == 0 &&
+      length(aws_ecs_task_definition.proxy) == 0 &&
+      length(local.runner_control_targets) == 2 &&
+      alltrue([for target in local.runner_control_targets : target.kind != "proxy"])
+    )
+    error_message = "Restricted confined runners must not create or delegate to the proxy target."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in data.aws_iam_policy_document.ecs_task.statement : statement.resources
+        if statement.sid == "ManageInternalLLMTLS"
+      ]) == toset(["arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"]) &&
+      contains(
+        one([
+          for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement.resources
+          if statement.sid == "ExactRunnerSecrets"
+        ]),
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl",
+      )
+    )
+    error_message = "Restricted confined runners must attach the exact internal TLS secret to both identity and boundary policies."
   }
 }
 
@@ -422,7 +630,7 @@ run "cache_session_contract" {
       alltrue([
         for statement in data.aws_iam_policy_document.s3_access.statement :
         statement.actions == toset(["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload"]) &&
-        statement.resources == toset(["arn:aws:s3:::test-registry/$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"]) &&
+        statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture/$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"]) &&
         length(statement.condition) == 0
         if coalesce(statement.effect, "Allow") == "Allow" && statement.actions != toset(["s3:ListBucket"]) && statement.actions != toset(["s3:GetBucketLocation"])
       ]) &&
@@ -437,7 +645,7 @@ run "cache_session_contract" {
   assert {
     condition = alltrue([
       for statement in data.aws_iam_policy_document.s3_access.statement :
-      statement.actions == toset(["s3:ListBucket"]) && statement.resources == toset(["arn:aws:s3:::test-registry"]) &&
+      statement.actions == toset(["s3:ListBucket"]) && statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"]) &&
       length(statement.condition) == 1 && one(statement.condition).test == "StringNotLike" &&
       one(statement.condition).variable == "s3:prefix" &&
       one(statement.condition).values == tolist(["$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"])
@@ -451,7 +659,7 @@ run "cache_session_contract" {
       for action in ["s3:ListBucket", "s3:GetBucketLocation"] : anytrue([
         for statement in data.aws_iam_policy_document.s3_access.statement :
         coalesce(statement.effect, "Allow") == "Allow" && statement.actions == toset([action]) &&
-        statement.resources == toset(["arn:aws:s3:::test-registry"]) && length(statement.condition) == 0
+        statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"]) && length(statement.condition) == 0
       ])
     ])
     error_message = "Cache clients need bucket location and listing grants; the separate deny enforces listing prefixes."
@@ -550,8 +758,8 @@ run "prepare_constructs_control_without_cutover" {
       for statement in one(data.aws_iam_policy_document.runner_control).statement :
       statement.resources == toset([
         "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture",
-        "arn:aws:iam::123456789012:role/test-execution",
-        "arn:aws:iam::123456789012:role/test-proxy",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture",
       ]) && one(statement.condition).values == tolist(["ecs-tasks.amazonaws.com"])
       if statement.sid == "PassFixedTaskRoles"
     ])
@@ -798,8 +1006,8 @@ run "confined_empty_ca_scope_contract" {
       anytrue([
         for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
         statement.sid == "RunnerBuckets" && contains(statement.actions, "s3:GetObject") &&
-        contains(statement.resources, "arn:aws:s3:::test-agent-bucket/*") &&
-        contains(statement.resources, "arn:aws:s3:::test-logs-bucket/*")
+        contains(statement.resources, "arn:aws:s3:::ona-runner-51cf5b27370ded-agent-fixture/*") &&
+        contains(statement.resources, "arn:aws:s3:::ona-runner-51cf5b27370ded-logs-fixture/*")
       ]) &&
       one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_OBJECT_ARN"]) == "" &&
       one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"]) == "true"
