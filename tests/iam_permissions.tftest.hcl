@@ -163,7 +163,7 @@ override_resource {
 override_resource {
   target          = aws_lambda_function.runner_control
   override_during = plan
-  values          = { arn = "arn:aws:lambda:us-east-1:123456789012:function:test-runner-control" }
+  values          = { arn = "arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control" }
 }
 
 override_resource {
@@ -586,7 +586,7 @@ run "confined_control_identity_contract" {
     condition = (
       one(aws_iam_role_policy.confined_runner_control).role == one(aws_iam_role.confined_runner).id &&
       one(one(data.aws_iam_policy_document.confined_runner_control).statement).actions == toset(["lambda:InvokeFunction"]) &&
-      one(one(data.aws_iam_policy_document.confined_runner_control).statement).resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:test-runner-control"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_control).statement).resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control"]) &&
       anytrue([
         for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
         statement.sid == "InvokeRunnerControl" && statement.actions == toset(["lambda:InvokeFunction"]) && statement.resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control"])
