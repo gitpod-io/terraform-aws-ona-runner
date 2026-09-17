@@ -17,8 +17,7 @@ data "http" "runner_release_manifest" {
 }
 
 locals {
-  runner_release_manifest      = local.runner_iam_managed ? try(jsondecode(one(data.http.runner_release_manifest).response_body), {}) : {}
-  runner_release_manifest_json = local.runner_iam_managed ? one(data.http.runner_release_manifest).response_body : "{}"
+  runner_release_manifest = local.runner_iam_managed ? try(jsondecode(one(data.http.runner_release_manifest).response_body), null) : null
   runner_template_url = try(
     local.runner_release_manifest.cloudformation_template_url,
     "${local.runner_releases_base_url}/invalid-runner-template",
@@ -28,7 +27,7 @@ locals {
     can(local.runner_release_manifest.runner_control_protocol) ||
     can(local.runner_release_manifest.runner_control_source_sha256)
   )
-  runner_control_protocol_is_valid = can(regex("\"runner_control_protocol\"[[:space:]]*:[[:space:]]*1[[:space:]]*[,}]", local.runner_release_manifest_json))
+  runner_control_protocol_is_valid = try(local.runner_release_manifest.runner_control_protocol == 1, false)
   runner_control_source_digest     = try(local.runner_release_manifest.runner_control_source_sha256, "")
   capable_runner_release = local.runner_iam_managed && (
     try(local.runner_release_manifest.version, "") == var.runner_template_build_version &&

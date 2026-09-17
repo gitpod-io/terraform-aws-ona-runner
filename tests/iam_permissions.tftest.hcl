@@ -1084,17 +1084,33 @@ run "confined_catalog_read_contract" {
         if statement.sid == "DescribeComputeCatalog"
         ]).actions == toset([
         "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool",
-        "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings", "ec2:DescribeInstanceTypes",
+        "ec2:DescribeImages", "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings", "ec2:DescribeInstanceTypes",
         "ec2:DescribeInternetGateways", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
         "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeTags",
         "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs", "ssm:DescribeParameters",
       ]) &&
       alltrue([
-        for action in ["ec2:DescribeImages", "ec2:DescribeInstanceAttribute", "ec2:DescribeInstances", "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions", "ec2:DescribeSnapshots", "ec2:DescribeVolumes", "ssm:GetCommandInvocation"] :
+        for action in ["ec2:DescribeInstanceAttribute", "ec2:DescribeInstances", "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions", "ec2:DescribeSnapshots", "ec2:DescribeVolumes", "ssm:GetCommandInvocation"] :
         !anytrue([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : contains(statement.actions, action)])
-      ])
+      ]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).actions == toset(["iam:GetRole"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-environment-fixture"]) &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources, "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-sibling") &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources, "arn:aws:iam::999999999999:role/foreign-environment")
     )
-    error_message = "The confined runtime must keep only explicit catalog reads; owner-sensitive reads and command output remain broker-mediated."
+    error_message = "The confined runtime must retain the image catalog read and scope GetRole to this deployment's environment role."
   }
 }
 
@@ -1230,6 +1246,121 @@ run "digest_only_release_does_not_advertise_control" {
   expect_failures = [aws_ecs_cluster.this]
 }
 
+run "top_level_protocol_ignores_nested_numeric_value" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"metadata":{"runner_control_protocol":2},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  assert {
+    condition     = local.capable_runner_release && local.runner_control_protocol_is_valid
+    error_message = "Only the decoded top-level numeric protocol field determines control capability."
+  }
+}
+
+run "nested_protocol_does_not_override_invalid_top_level" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":2,"metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "null_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":null,"metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "boolean_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":true,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "protocol_without_source_hash_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "malformed_manifest_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = "{"
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
 run "string_protocol_fails_closed" {
   command = plan
 
@@ -1241,7 +1372,7 @@ run "string_protocol_fails_closed" {
     target = data.http.runner_release_manifest
     values = {
       response_body = <<-JSON
-        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":"1","runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":"1","metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
       JSON
     }
   }
@@ -1260,7 +1391,7 @@ run "source_hash_without_protocol_fails_closed" {
     target = data.http.runner_release_manifest
     values = {
       response_body = <<-JSON
-        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
       JSON
     }
   }

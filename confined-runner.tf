@@ -177,13 +177,19 @@ data "aws_iam_policy_document" "confined_runner_boundary" {
     sid = "DescribeComputeCatalog"
     actions = [
       "ec2:DescribeInternetGateways", "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings",
-      "ec2:DescribeInstanceTypes", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeImages", "ec2:DescribeInstanceTypes", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
       "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeTags",
       "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs",
       "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool",
       "ssm:DescribeParameters",
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid       = "ReadEnvironmentRole"
+    actions   = ["iam:GetRole"]
+    resources = [aws_iam_role.environment.arn]
   }
 
   statement {

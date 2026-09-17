@@ -117,7 +117,8 @@ Existing installations advance one phase per reviewed apply:
 
 1. `legacy` keeps the original role and task definition.
 2. `prepare` installs the verified control function, confined role, and immutable
-   task baseline while the service continues to use the original task definition.
+   task baseline while preserving the legacy task-role selection. The apply may
+   register a revised legacy task definition and roll the service.
 3. `cutover` deploys the immutable baseline. Both task roles retain cache trust
    during task replacement and existing session expiry.
 4. `confined` removes runtime trust from the original role and replaces its
@@ -161,6 +162,10 @@ Infrastructure fixes require updating the module version and running
 `terraform plan` followed by an approved `terraform apply`; updating runner images
 alone does not change task-role permissions. Review the plan for IAM updates and
 task rollouts.
+
+The selected release origin must be reachable and trusted from both the runner
+and the control function. Runner proxy and custom CA settings do not configure
+the control function's network path or Node trust store.
 
 Before selecting `prepare`, `cutover`, or `confined` for a runner whose custom CA
 resolves to S3, set `custom_ca_s3_object_arn` to that one exact object ARN. This
