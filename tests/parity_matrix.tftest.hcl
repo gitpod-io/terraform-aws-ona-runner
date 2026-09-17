@@ -360,6 +360,11 @@ run "runner_configuration_matches_cloudformation_fixed_contract" {
     condition     = length([for item in local.runner_container.environment : item if item.name == "GITPOD_DEVELOPMENT_VERSION"]) == 0
     error_message = "the runner task must not expose a Terraform-only development-version override."
   }
+
+  assert {
+    condition     = one([for item in local.runner_container.environment : item if item.name == "GITPOD_TERRAFORM_MODULE_VERSION"]).value == trimspace(file("${path.module}/VERSION"))
+    error_message = "the runner task must report the Terraform module version from VERSION."
+  }
 }
 
 run "runner_support_bundle_lifecycle" {
