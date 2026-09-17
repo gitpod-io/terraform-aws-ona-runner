@@ -69,6 +69,10 @@ service and authenticated internal LLM listener remain available.
   YAML list denies all firewall-routed traffic. Upgrading an
   existing empty allowlist enables those baseline destinations; a supplied
   `firewall_policy_arn` continues to replace the generated policy entirely.
+  When the allowlist blocks `containers.dev`, a separate rule rejects its
+  TCP/443 TLS connections from runner subnets to avoid control-manifest fetch
+  timeouts. Explicit hostname allowlisting and empty deny-all YAML policies
+  retain their behavior. This remains a Terraform-only network policy change.
 
 Review counterpart behavior for IAM, ECS/bootstrap commands, networking, storage,
 configuration, and release-default changes. Record the reference release,

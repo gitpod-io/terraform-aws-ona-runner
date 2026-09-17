@@ -50,6 +50,43 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
   }
 }
 
+resource "aws_networkfirewall_rule_group" "control_manifest_reject" {
+  count = (
+    length(aws_networkfirewall_rule_group.allowed_domains) > 0 &&
+    !contains(local.firewall_allowed_domains, "containers.dev") &&
+    !contains(local.firewall_allowed_domains, ".containers.dev")
+  ) ? 1 : 0
+
+  capacity    = 1
+  name        = "${local.network_name}-control-manifest-reject"
+  description = "Reject blocked devcontainer control manifest requests without a TCP timeout."
+  type        = "STATEFUL"
+
+  rule_group {
+    rule_variables {
+      ip_sets {
+        key = "HOME_NET"
+
+        ip_set {
+          definition = values(local.runner_subnet_cidrs)
+        }
+      }
+    }
+
+    rules_source {
+      # Silent drops stall devcontainer startup; a reset lets the CLI use its manifest fallback.
+      # https://github.com/microsoft/vscode-remote-release/issues/8808
+      rules_string = "reject tls $HOME_NET any -> any 443 (ssl_state:client_hello; tls.sni; content:\"containers.dev\"; startswith; endswith; nocase; flow:to_server,established; msg:\"Reject devcontainer control manifest fetch\"; sid:1000001; rev:1;)"
+    }
+
+    stateful_rule_options {
+      rule_order = "STRICT_ORDER"
+    }
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_networkfirewall_firewall_policy" "default" {
   count = local.firewall_managed ? 1 : 0
 
@@ -66,6 +103,15 @@ resource "aws_networkfirewall_firewall_policy" "default" {
       "aws:drop_strict",
       "aws:alert_strict",
     ]
+
+    dynamic "stateful_rule_group_reference" {
+      for_each = aws_networkfirewall_rule_group.control_manifest_reject
+
+      content {
+        priority     = 50
+        resource_arn = stateful_rule_group_reference.value.arn
+      }
+    }
 
     dynamic "stateful_rule_group_reference" {
       for_each = aws_networkfirewall_rule_group.allowed_domains
