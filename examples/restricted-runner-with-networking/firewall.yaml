@@ -2,6 +2,15 @@
 # To replace it, copy this file into your deployment directory, edit the list,
 # and set firewall_config_path to your copy's path.
 allowed_domains:
+  # Ona's fallback devcontainer (no devcontainer.json): MCR image manifests.
+  # Keep access for cache misses even when the runner VM image preloads the base.
+  - mcr.microsoft.com
+  # MCR image layers are delivered from regional data endpoints.
+  - .data.mcr.microsoft.com
+
+  # The fallback adds no package-install commands or Dev Container Features.
+  # Custom images, features, dotfiles, and setup commands may need extra hosts.
+
   # Linear: read and publish issues through its GraphQL API.
   - api.linear.app
 
@@ -20,8 +29,3 @@ allowed_domains:
 
   # OpenAI: direct model requests using a bring-your-own API key.
   - api.openai.com
-
-  # MCR registry: resolve base devcontainer image manifests for new environments.
-  - mcr.microsoft.com
-  # MCR data endpoints: download image layers from regional delivery hosts.
-  - .data.mcr.microsoft.com
