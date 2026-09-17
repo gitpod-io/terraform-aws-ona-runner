@@ -24,36 +24,13 @@ Transit Gateway.
 
 ## AWS provider compatibility
 
-The root module, wrappers, and examples accept AWS provider 5.x and 6.x. The
-root runner module requires at least 5.43.0; the restricted networking example
-and management-plane custom-domain module require at least 5.82.0. CI checks
-5.100.0, 6.0.0, and 6.60.0, including a consuming root that requires `~> 6.60.0`.
-
-Choose the provider series in your root configuration. For example, use
-`~> 5.0` to remain on 5.x, or `~> 6.60.0` to select the 6.60 patch series.
-The module's committed lockfiles retain 5.x for development; a consuming root
-uses its own `.terraform.lock.hcl` and must satisfy every child module's
-constraints.
-
-To use 6.x with an existing deployment, first select a module release or commit
-whose provider constraints allow 6.x. Existing published tags do not change
-when `main` is updated. Review the
-[AWS provider v6 upgrade guide](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade)
-and establish a clean plan on 5.x before changing your root provider constraint.
-Then run:
-
-```bash
-terraform providers
-terraform init -upgrade
-terraform plan
-```
-
-Review and commit the root lockfile changes, and approve the plan before applying.
-Provider 6.x introduces resource-level region metadata and state schema changes;
-the credential-free tests do not verify migration of your deployed state. Do not
-downgrade a state already upgraded by 6.x without a reviewed recovery procedure.
-An existing 5.x lockfile remains usable without `-upgrade`; running `-upgrade`
-with a constraint allowing both majors can select 6.x.
+The modules support AWS provider 5.x and 6.x with their existing minimum versions.
+Choose the series in your root configuration: `~> 5.0` stays on 5.x, while
+`~> 6.60.0` selects the 6.60 patch series. Existing 5.x lockfiles remain usable.
+Before upgrading, select a module release or commit that allows 6.x, follow the
+[AWS provider v6 upgrade guide](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade),
+and review `terraform init -upgrade` lockfile changes and a live `terraform plan`
+before applying. Updates to `main` do not change existing published module tags.
 
 ## Restricted ingress
 

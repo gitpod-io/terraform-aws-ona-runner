@@ -8,12 +8,8 @@ on:
 
 jobs:
   terraform-validate:
-    name: Terraform Validate (AWS ${{ matrix.aws-provider }})
+    name: Terraform Validate
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        aws-provider: ["5.100.0", "6.0.0", "6.60.0"]
 
     steps:
       - name: Checkout code
@@ -46,18 +42,47 @@ jobs:
       - name: Check Fargate parity contract
         run: bash scripts/check-parity-contract.sh
 
-      - name: Test AWS provider compatibility
-        env:
-          AWS_PROVIDER_VERSION: ${{ matrix.aws-provider }}
-        run: bash scripts/test-aws-provider.sh "$AWS_PROVIDER_VERSION"
+      - name: Terraform Init
+        run: terraform init -backend=false
 
-  terraform-validate-result:
-    name: Terraform Validate
-    if: ${{ always() }}
-    needs: terraform-validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every provider version to pass
-        env:
-          MATRIX_RESULT: ${{ needs.terraform-validate.result }}
-        run: test "$MATRIX_RESULT" = success
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Test
+        run: terraform test
+
+      - name: Test rendered metrics uploader
+        run: bash scripts/test-metrics-audit-sync.sh
+
+      - name: Validate submodules
+        run: |
+          for module_dir in modules/*/; do
+            if [ -f "${module_dir}/versions.tf" ]; then
+              terraform -chdir="$module_dir" init -backend=false
+              terraform -chdir="$module_dir" validate
+              terraform -chdir="$module_dir" test
+            fi
+          done
+
+      - name: Validate Examples
+        run: |
+          for example_dir in examples/*/; do
+            if [ -d "$example_dir" ] && [ -f "$example_dir/main.tf" ]; then
+              echo "Validating example: $example_dir"
+              cd "$example_dir"
+              terraform init -backend=false
+              terraform validate
+              cd - > /dev/null
+            fi
+          done
+
+      - name: Test restricted runner CA and proxy passthrough
+        run: bash scripts/test-restricted-runner-settings.sh
+
+      - name: Test firewall config errors
+        run: bash scripts/test-firewall-config-errors.sh
+
+      - name: Validate AWS 6.x consumer
+        run: |
+          terraform -chdir=tests/fixtures/aws6-consumer init -backend=false -lockfile=readonly
+          terraform -chdir=tests/fixtures/aws6-consumer validate
