@@ -61,27 +61,25 @@ Run these checks before opening a pull request:
 
 ```bash
 terraform fmt -recursive
-terraform init -backend=false
-terraform validate
-terraform test
-bash scripts/test-metrics-audit-sync.sh
-
-for module_dir in modules/*/; do
-  terraform -chdir="$module_dir" init -backend=false
-  terraform -chdir="$module_dir" validate
-  terraform -chdir="$module_dir" test
-done
+bash scripts/check-parity-contract.sh
+bash scripts/test-aws-provider.sh
 ```
 
-Validate examples separately:
+The compatibility script validates and tests the root module, submodules, and
+examples. It also runs the rendered-plan, uploader, and firewall-error checks on
+AWS provider 5.100.0, 6.0.0, and 6.60.0. It uses disposable source copies and exact,
+checksum-verified provider selections, leaving the committed 5.x lockfiles
+unchanged. No AWS credentials are needed. To run one matrix entry:
 
 ```bash
-for example_dir in examples/*/; do
-  (cd "$example_dir" && terraform init -backend=false && terraform validate)
-done
-bash scripts/test-restricted-runner-settings.sh
-bash scripts/test-firewall-config-errors.sh
+bash scripts/test-aws-provider.sh 6.60.0
 ```
+
+Keep the default versions in that script and the CI matrix in sync. The 6.60.x
+entry also validates `tests/fixtures/aws6-consumer`, which exercises the complete
+restricted-networking module chain with a root `~> 6.60.0` requirement. Provider
+selections are seeded through lockfiles, not constraint overrides, so a
+conflicting child constraint fails initialization.
 
 The restricted-runner check inspects generated ECS task definitions and runner
 SSM configuration from mocked plans. It verifies API endpoint, proxy, and CA

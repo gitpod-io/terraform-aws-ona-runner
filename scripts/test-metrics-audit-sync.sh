@@ -4,7 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-command="$(terraform console -no-color <<<'jsonencode(local.metrics_audit_sync_container.command[0])' | jq -er 'fromjson')"
+# Console can append provider deprecation warnings to stdout after its JSON result.
+command="$(terraform console -no-color <<<'jsonencode(local.metrics_audit_sync_container.command[0])' |
+  jq -Rers 'split("\n") | map(fromjson?) | if length == 1 then .[0] | fromjson else error("Expected one console result") end')"
 /bin/sh -n <<<"$command"
 
 test_dir="$(mktemp -d -t ona-metrics-test.XXXXXXXX)"

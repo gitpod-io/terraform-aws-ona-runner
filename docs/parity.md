@@ -26,6 +26,9 @@ covers the released CloudFormation path for:
 
 These checks run without an AWS account:
 
+- `scripts/test-aws-provider.sh` runs the regression suite on AWS providers
+  5.100.0, 6.0.0, and 6.60.0, and validates a 6.60.x consuming root against the
+  full restricted-networking module chain without overriding child constraints.
 - `tests/parity_matrix.tftest.hcl` checks selected topology/configuration properties.
 - `tests/iam_permissions.tftest.hcl` uses the real policy-document provider with
   synthetic plan fixtures to check task-role grants, operation scopes, ECS role
@@ -118,3 +121,9 @@ target.
 
 These checks require an AWS account and real runner registration; source-level
 tests are not a substitute for them.
+
+Before publishing AWS provider 6.x support, also review an upgrade plan from an
+existing 5.x deployment using the same module inputs and runner release. Verify
+that provider state/schema migration does not cause unexpected replacements or
+configuration changes, then repeat the deployment checks with 6.x. Keep this
+live upgrade evidence separate from the credential-free compatibility matrix.
