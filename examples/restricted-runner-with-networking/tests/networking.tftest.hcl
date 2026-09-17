@@ -221,12 +221,13 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].rule_order == "STRICT_ORDER" &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].stream_exception_policy == "DROP" &&
-      length(aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference) == 2 &&
       length(aws_networkfirewall_rule_group.allowed_domains) == 1
     )
     error_message = "the default firewall policy must retain strict-order default denial and attach the baseline domain allowlist."
   }
 
+  # Computed attributes added by provider 6.x can make the set's length unknown
+  # during plan. Compare the configured identities and priorities instead.
   assert {
     condition = {
       for reference in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference :
