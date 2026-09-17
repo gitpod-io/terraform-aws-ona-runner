@@ -135,6 +135,8 @@ mock_provider "aws" {
     }
   }
 }
+mock_provider "http" {}
+mock_provider "archive" {}
 
 mock_provider "random" {}
 
@@ -976,5 +978,45 @@ run "api_endpoint_custom" {
       aws_vpc_endpoint.management_plane.private_dns_enabled
     )
     error_message = "a custom API endpoint must not alter the default firewall policy or management-plane PrivateLink endpoint."
+  }
+}
+
+run "prepare_forwards_control_through_restricted_networking" {
+  command = plan
+
+  variables {
+    runner_iam_phase    = "prepare"
+    runner_releases_url = "https://releases.example.com"
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.example.com/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.http.runner_release_template
+    values = {
+      response_body = <<-JSON
+        {"Resources":{"Control":{"Type":"AWS::Lambda::Function","Properties":{"Handler":"index.handler","Code":{"ZipFile":"exports.handler = async () => ({ ok: true });"},"Environment":{"Variables":{"APPROVED_IMAGE_IDS":"ami-00000000000000001"}}}}}}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.archive_file.runner_control
+    values = {
+      output_path         = "/tmp/networking-runner-control.zip"
+      output_base64sha256 = "YWJj"
+    }
+  }
+
+  assert {
+    condition     = output.runner_iam_phase == "prepare"
+    error_message = "the restricted-networking example must forward the validated runner IAM phase through both modules."
   }
 }

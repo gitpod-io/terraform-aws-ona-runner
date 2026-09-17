@@ -76,14 +76,14 @@ data "aws_iam_policy_document" "ecs_execution" {
 
 resource "aws_iam_role" "ecs_task" {
   name_prefix          = "${local.iam_role_name_prefix}-ecs-task-"
-  assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
+  assume_role_policy   = local.runner_iam_confined ? data.aws_iam_policy_document.retired_runner_assume.json : data.aws_iam_policy_document.fargate_task_assume_role.json
   permissions_boundary = aws_iam_policy.ecs_task_boundary.arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy" "ecs_task" {
   role   = aws_iam_role.ecs_task.id
-  policy = data.aws_iam_policy_document.ecs_task.json
+  policy = local.runner_iam_confined ? data.aws_iam_policy_document.retired_runner.json : data.aws_iam_policy_document.ecs_task.json
 }
 
 data "aws_iam_policy_document" "ecs_task" {
@@ -596,8 +596,10 @@ data "aws_iam_policy_document" "s3_access_assume" {
     actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      type = "AWS"
+      identifiers = local.runner_iam_managed ? (
+        local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
+      ) : [aws_iam_role.ecs_task.arn]
     }
 
     condition {
@@ -668,8 +670,10 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access_assume" {
     actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      type = "AWS"
+      identifiers = local.runner_iam_managed ? (
+        local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
+      ) : [aws_iam_role.ecs_task.arn]
     }
   }
 }

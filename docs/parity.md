@@ -29,7 +29,9 @@ These checks run without an AWS account:
 - `tests/parity_matrix.tftest.hcl` checks selected topology/configuration properties.
 - `tests/iam_permissions.tftest.hcl` uses the real policy-document provider with
   synthetic plan fixtures to check task-role grants, operation scopes, ECS role
-  passing, creator-scoped cache sessions, custom CA reads, and environment trust.
+  passing, policy attachments, creator-scoped cache sessions, custom CA reads,
+  environment trust, immutable control settings, and fail-closed release
+  metadata validation.
 - `scripts/test-metrics-audit-sync.sh` executes the rendered upload command with
   a fake AWS CLI, checking successful cleanup, failed-upload retention, quoted
   filenames, and empty rotations.
@@ -52,6 +54,9 @@ service and authenticated internal LLM listener remain available.
 
 - Terraform owns resource names, tags, task definitions, and initial service
   desired counts. A plan after runtime updates or autoscaling needs review.
+- Terraform retains the legacy runtime role at its stable address in
+  `confined`, removes its runtime trust, and attaches an explicit deny policy
+  so existing state does not require an address-changing migration.
 - Runner configuration and Redis connection parameters use `SecureString`.
 - Runner buckets are force-destroyed, unlike CloudFormation-retained resources.
 - Public IP assignment defaults to false.
@@ -107,6 +112,10 @@ verify:
    creator's objects or list a foreign prefix.
 10. A second `terraform plan` after runtime configuration changes reports only
    intentional drift.
+11. Advance an existing installation through `prepare`, `cutover`, and
+    `confined`. Confirm the control function rejects unapproved task changes,
+    old tasks and sessions are retired before confinement, and the legacy role
+    cannot be assumed afterward.
 
 Before publishing restricted ingress, use a runner release containing the
 absent-ingress runtime support and validate a fresh deployment. Verify

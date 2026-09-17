@@ -9,6 +9,46 @@ provider "aws" {
   skip_metadata_api_check     = true
 }
 
+mock_provider "http" {}
+mock_provider "archive" {}
+
+override_data {
+  target = data.http.runner_release_manifest
+  values = {
+    response_body = <<-JSON
+      {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+    JSON
+  }
+}
+
+override_data {
+  target = data.http.runner_release_template
+  values = {
+    response_body = jsonencode({
+      Resources = {
+        Control = {
+          Type = "AWS::Lambda::Function"
+          Properties = {
+            Handler = "index.handler"
+            Code    = { ZipFile = "exports.handler = async () => ({ ok: true });" }
+            Environment = { Variables = {
+              APPROVED_IMAGE_IDS = "ami-00000000000000001,ami-00000000000000002"
+            } }
+          }
+        }
+      }
+    })
+  }
+}
+
+override_data {
+  target = data.archive_file.runner_control
+  values = {
+    output_path         = "/tmp/runner-control.zip"
+    output_base64sha256 = "YWJj"
+  }
+}
+
 override_data {
   override_during = plan
   target          = data.aws_caller_identity.current
@@ -37,6 +77,51 @@ override_resource {
   values = {
     arn = "arn:aws:iam::123456789012:role/test-runner"
     id  = "test-runner"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.confined_runner
+  override_during = plan
+  values = {
+    arn = "arn:aws:iam::123456789012:role/test-confined-runner"
+    id  = "test-confined-runner"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.runner_control
+  override_during = plan
+  values = {
+    arn = "arn:aws:iam::123456789012:role/test-runner-control"
+    id  = "test-runner-control"
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.runner
+  override_during = plan
+  values = {
+    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-runner:1"
+    family = "test-runner"
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.confined_runner_baseline
+  override_during = plan
+  values = {
+    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-runner:2"
+    family = "test-runner"
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.proxy
+  override_during = plan
+  values = {
+    arn    = "arn:aws:ecs:us-east-1:123456789012:task-definition/test-proxy:1"
+    family = "test-proxy"
   }
 }
 
@@ -324,4 +409,209 @@ run "task_ca_and_environment_contracts" {
     ])) && anytrue([for statement in data.aws_iam_policy_document.environment.statement : statement.sid == "AllowWriteOwnLogs"])
     error_message = "Environment logging uses its own S3 prefix, without unused CloudWatch Logs grants."
   }
+}
+
+run "legacy_release_preserves_existing_addresses_and_authority" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_iam_role.confined_runner) == 0 &&
+      length(aws_iam_role.runner_control) == 0 &&
+      length(aws_lambda_function.runner_control) == 0 &&
+      length(aws_ecs_task_definition.confined_runner_baseline) == 0 &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.fargate_task_assume_role.json
+    )
+    error_message = "legacy must retain the existing task/role addresses and behavior without control resources."
+  }
+}
+
+run "prepare_constructs_control_without_cutover" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  assert {
+    condition = (
+      local.capable_runner_release && local.runner_control_source_is_valid &&
+      length(aws_lambda_function.runner_control) == 1 &&
+      length(aws_ecs_task_definition.confined_runner_baseline) == 1 &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn &&
+      local.runner_control_targets[0].baselineTaskDefinition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_iam_role_policy.runner_control).role == one(aws_iam_role.runner_control).id &&
+      one(aws_iam_role_policy.confined_runner).role == one(aws_iam_role.confined_runner).id
+    )
+    error_message = "prepare must build the validated control path and immutable baseline while keeping the legacy task selected."
+  }
+
+
+  assert {
+    condition = (
+      alltrue([
+        for container in local.confined_runner_container_definitions :
+        endswith(container.image, "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+      ]) &&
+      one([for container in local.confined_runner_container_definitions : container if container.name == "ec2-runner"]).environment[index(one([for container in local.confined_runner_container_definitions : container if container.name == "ec2-runner"]).environment[*].name, "GITPOD_RUNNER_CONTROL_REQUIRED")].value == "true" &&
+      local.runner_control_environment.RELEASES_URL == "https://releases.gitpod.io" &&
+      local.runner_control_environment.APPROVED_IMAGE_IDS == "ami-00000000000000001,ami-00000000000000002"
+    )
+    error_message = "The prepared baseline and control function must render pinned images and verified control settings."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in one(data.aws_iam_policy_document.runner_control).statement :
+      statement.resources == toset([
+        "arn:aws:iam::123456789012:role/test-confined-runner",
+        "arn:aws:iam::123456789012:role/test-execution",
+        "arn:aws:iam::123456789012:role/test-proxy",
+      ]) && one(statement.condition).values == tolist(["ecs-tasks.amazonaws.com"])
+      if statement.sid == "PassFixedTaskRoles"
+    ])
+    error_message = "the control function must pass only the fixed task and execution roles to ECS."
+  }
+
+  assert {
+    condition = one([
+      for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+      if statement.sid == "UpdateOwnedServices"
+      ]).resources == toset([
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-2ec33d556332a866-ona-cluster/ona-runner-2ec33d556332a866-adot",
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-2ec33d556332a866-ona-cluster/ona-runner-2ec33d556332a866-proxy",
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-2ec33d556332a866-ona-cluster/ona-runner-2ec33d556332a866-runner",
+    ])
+    error_message = "the control function must update only this deployment's runner services."
+  }
+
+  assert {
+    condition = alltrue([
+      for action in ["ecs:RegisterTaskDefinition", "ecs:UpdateService", "iam:PassRole", "ec2:RunInstances", "ssm:SendCommand"] :
+      !anytrue([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : contains(statement.actions, action)])
+    ])
+    error_message = "the confined task boundary must leave task registration, service mutation, role passing, instance launch, and commands to the control function."
+  }
+}
+
+run "cutover_selects_the_immutable_baseline" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "cutover"
+  }
+
+  assert {
+    condition = (
+      aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.fargate_task_assume_role.json
+    )
+    error_message = "cutover must select the confined baseline while retaining legacy rollback trust."
+  }
+}
+
+run "confined_retires_legacy_authority" {
+  command = plan
+
+  variables {
+    runner_iam_phase                = "confined"
+    runner_iam_retirement_confirmed = true
+  }
+
+  assert {
+    condition = (
+      aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.retired_runner_assume.json &&
+      jsondecode(aws_iam_role_policy.ecs_task.policy) == jsondecode(data.aws_iam_policy_document.retired_runner.json) &&
+      one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/test-confined-runner"])
+    )
+    error_message = "confined must keep the legacy address inert and trust only the confined task for delegated cache sessions."
+  }
+}
+
+run "confined_requires_retirement_confirmation" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "confined"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "digest_only_release_does_not_advertise_control" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "string_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":"1","runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "source_hash_without_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "mismatched_control_source_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
 }

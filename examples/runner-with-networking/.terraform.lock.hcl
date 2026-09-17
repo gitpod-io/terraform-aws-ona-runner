@@ -1,9 +1,17 @@
 # This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
+provider "registry.terraform.io/hashicorp/archive" {
+  version     = "2.7.1"
+  constraints = "~> 2.7"
+  hashes = [
+    "h1:62VrkalDPMKB9zerCBS4iKTbvxejwnAWn/XXYZZQWD4=",
+  ]
+}
+
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "5.100.0"
-  constraints = "~> 5.0"
+  constraints = ">= 5.0.0, >= 5.43.0, < 7.0.0"
   hashes = [
     "h1:edXOJWE4ORX8Fm+dpVpICzMZJat4AX0VRCAy/xkcOc0=",
     "zh:054b8dd49f0549c9a7cc27d159e45327b7b65cf404da5e5a20da154b90b8a644",
@@ -21,6 +29,14 @@ provider "registry.terraform.io/hashicorp/aws" {
     "zh:f0ddf0eaf052766cfe09dea8200a946519f653c384ab4336e2a4a64fdd6310e9",
     "zh:f1b7e684f4c7ae1eed272b6de7d2049bb87a0275cb04dbb7cda6636f600699c9",
     "zh:ff461571e3f233699bf690db319dfe46aec75e58726636a0d97dd9ac6e32fb70",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/http" {
+  version     = "3.5.0"
+  constraints = "~> 3.5"
+  hashes = [
+    "h1:8bUoPwS4hahOvzCBj6b04ObLVFXCEmEN8T/5eOHmWOM=",
   ]
 }
 

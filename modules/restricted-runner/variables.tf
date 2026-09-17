@@ -57,3 +57,26 @@ variable "custom_ca_trust_bundle" {
   type        = string
   default     = ""
 }
+
+variable "runner_iam_phase" {
+  description = "Runner IAM migration phase forwarded to the root runner module."
+  type        = string
+  default     = "legacy"
+
+  validation {
+    condition     = contains(["legacy", "prepare", "cutover", "confined"], var.runner_iam_phase)
+    error_message = "runner_iam_phase must be legacy, prepare, cutover, or confined."
+  }
+}
+
+variable "runner_iam_retirement_confirmed" {
+  description = "Confirms legacy task and role-session retirement before the confined phase."
+  type        = bool
+  default     = false
+}
+
+variable "runner_releases_url" {
+  description = "Trusted base URL for immutable runner release manifests and templates."
+  type        = string
+  default     = "https://releases.gitpod.io"
+}

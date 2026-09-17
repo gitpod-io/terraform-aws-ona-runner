@@ -12,6 +12,10 @@ module "runner" {
   vpc_id            = aws_vpc.this.id
   runner_subnet_ids = [for zone in var.availability_zones : aws_subnet.runner[zone].id]
 
+  runner_iam_phase                = var.runner_iam_phase
+  runner_iam_retirement_confirmed = var.runner_iam_retirement_confirmed
+  runner_releases_url             = var.runner_releases_url
+
   proxy_config           = var.proxy_config
   custom_ca_trust_bundle = var.custom_ca_trust_bundle
 }

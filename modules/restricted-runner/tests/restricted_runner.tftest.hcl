@@ -63,6 +63,8 @@ mock_provider "aws" {
 }
 
 mock_provider "random" {}
+mock_provider "http" {}
+mock_provider "archive" {}
 
 variables {
   runner_id         = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
@@ -141,5 +143,45 @@ run "api_endpoint_custom" {
 
   variables {
     api_endpoint = "https://ona.example.com/api"
+  }
+}
+
+run "prepare_forwards_validated_control_inputs" {
+  command = plan
+
+  variables {
+    runner_iam_phase    = "prepare"
+    runner_releases_url = "https://releases.example.com"
+  }
+
+  override_data {
+    target = module.runner.data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.example.com/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.data.http.runner_release_template
+    values = {
+      response_body = <<-JSON
+        {"Resources":{"Control":{"Type":"AWS::Lambda::Function","Properties":{"Handler":"index.handler","Code":{"ZipFile":"exports.handler = async () => ({ ok: true });"},"Environment":{"Variables":{"APPROVED_IMAGE_IDS":"ami-00000000000000001"}}}}}}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.data.archive_file.runner_control
+    values = {
+      output_path         = "/tmp/restricted-runner-control.zip"
+      output_base64sha256 = "YWJj"
+    }
+  }
+
+  assert {
+    condition     = output.runner_iam_phase == "prepare"
+    error_message = "the restricted wrapper must forward phase/release inputs and retain its proxy-free topology."
   }
 }

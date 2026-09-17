@@ -83,6 +83,11 @@ output "release_version" {
   value       = module.runner.release_version
 }
 
+output "runner_iam_phase" {
+  description = "Runner IAM migration phase recorded by the root runner module."
+  value       = module.runner.runner_iam_phase
+}
+
 output "ssh_port" {
   description = "SSH port used by environment instances."
   value       = module.runner.ssh_port

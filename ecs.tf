@@ -46,6 +46,26 @@ resource "aws_ecs_cluster" "this" {
       condition     = var.restrict_ingress || local.private_ecr_images_are_consistent
       error_message = "runner_image and proxy_image must either both be public or use the same private ECR prefix, matching the CloudFormation private-ECR template."
     }
+
+    precondition {
+      condition     = !local.runner_iam_managed || local.capable_runner_release
+      error_message = "runner_iam_phase requires a complete matching immutable release manifest with runner control protocol 1, image digests, source integrity, and the expected versioned template URL (version=${try(local.runner_release_manifest.version, "missing")}, advertised=${local.runner_control_advertised}, protocol=${local.runner_control_protocol_is_valid}, source=${can(regex("^sha256:[0-9a-f]{64}$", local.runner_control_source_digest))}, runner=${can(regex("@sha256:[0-9a-f]{64}$", try(local.runner_release_manifest.image_digest, "")))}, proxy=${can(regex("@sha256:[0-9a-f]{64}$", try(local.runner_release_manifest.proxy_image_digest, "")))}, template=${local.runner_template_url == local.expected_runner_template_url})."
+    }
+
+    precondition {
+      condition     = !local.runner_iam_managed || local.runner_control_source_is_valid
+      error_message = "the versioned runner template must contain exactly one inline runner control function matching the manifest source digest."
+    }
+
+    precondition {
+      condition     = !local.runner_iam_managed || local.runner_control_approved_image_ids != ""
+      error_message = "the versioned runner template must provide the approved runner image IDs used by its control function."
+    }
+
+    precondition {
+      condition     = !local.runner_iam_confined || var.runner_iam_retirement_confirmed
+      error_message = "runner_iam_retirement_confirmed must be true before selecting confined."
+    }
   }
 
   setting {
@@ -349,6 +369,37 @@ resource "aws_ecs_task_definition" "runner" {
   tags = local.common_tags
 }
 
+locals {
+  confined_runner_container_definitions = [
+    merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
+    merge(local.runner_container, {
+      environment = concat(local.runner_container.environment, [
+        { name = "GITPOD_RUNNER_CONTROL_FUNCTION", value = local.runner_control_function_name },
+        { name = "GITPOD_RUNNER_CONTROL_REQUIRED", value = "true" },
+      ])
+      logConfiguration = { logDriver = "awslogs", options = local.runner_log_options }
+    }),
+  ]
+}
+
+resource "aws_ecs_task_definition" "confined_runner_baseline" {
+  count = local.runner_iam_managed ? 1 : 0
+
+  family                   = "${local.name_prefix}-runner"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = local.runner_task_cpu
+  memory                   = local.runner_task_memory
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = one(aws_iam_role.confined_runner).arn
+  container_definitions    = jsonencode(local.confined_runner_container_definitions)
+  dynamic "volume" {
+    for_each = local.ca_volumes
+    content { name = volume.value.name }
+  }
+  tags = local.common_tags
+}
+
 resource "aws_ecs_task_definition" "proxy" {
   count = var.restrict_ingress ? 0 : 1
 
@@ -392,9 +443,11 @@ resource "aws_ecs_task_definition" "adot" {
 }
 
 resource "aws_ecs_service" "runner" {
-  name                               = "${local.name_prefix}-runner"
-  cluster                            = aws_ecs_cluster.this.id
-  task_definition                    = aws_ecs_task_definition.runner.arn
+  name    = "${local.name_prefix}-runner"
+  cluster = aws_ecs_cluster.this.id
+  task_definition = local.runner_iam_cutover || local.runner_iam_confined ? (
+    one(aws_ecs_task_definition.confined_runner_baseline).arn
+  ) : aws_ecs_task_definition.runner.arn
   desired_count                      = local.runner_is_large ? 2 : 1
   launch_type                        = "FARGATE"
   deployment_minimum_healthy_percent = 100

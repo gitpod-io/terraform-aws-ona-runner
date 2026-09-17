@@ -19,6 +19,13 @@ The module creates no resources independently. All runner resources are owned
 by the child root module, so validation errors and resource behavior remain
 consistent with the standard runner implementation.
 
+The wrapper forwards `runner_iam_phase`, `runner_iam_retirement_confirmed`, and
+`runner_releases_url`. Existing installations use the root module's
+`legacy` → `prepare` → `cutover` → `confined` migration. A confirmed fresh
+installation can start in `confined` only with a complete control-capable
+release; validate that choice with the root module's state-aware transition
+checker.
+
 ## Usage
 
 ```hcl

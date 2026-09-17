@@ -14,6 +14,24 @@ variable "runner_token" {
   sensitive   = true
 }
 
+variable "runner_iam_phase" {
+  description = "Runner IAM migration phase. Use confined for a declared fresh capable installation; existing installations advance through prepare and cutover."
+  type        = string
+  default     = "legacy"
+}
+
+variable "runner_iam_retirement_confirmed" {
+  description = "Confirms legacy task and role-session retirement before the confined phase."
+  type        = bool
+  default     = false
+}
+
+variable "runner_releases_url" {
+  description = "Trusted base URL for immutable runner release manifests and templates."
+  type        = string
+  default     = "https://releases.gitpod.io"
+}
+
 variable "api_endpoint" {
   description = "Ona management plane API endpoint. Changing this does not reconfigure PrivateLink, DNS, firewall rules, or proxy bypass settings."
   type        = string

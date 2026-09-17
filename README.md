@@ -102,6 +102,48 @@ Terraform remains authoritative for the runner and proxy task definitions. A
 Terraform apply deploys the configured release and task settings, reconciling
 any task-definition change made by the runner's runtime updater between applies.
 
+### Runner IAM migration
+
+`runner_iam_phase` controls migration from the original runner task role to a
+fixed control function and a confined runtime role. It defaults to `legacy`, so
+existing installations retain their task definitions, custom image behavior,
+and IAM resource addresses until an operator starts the migration. A release is
+eligible for a managed phase only when its manifest and versioned public
+template provide protocol 1, both image digests, a matching template URL, and a
+SHA-256 digest for the unique inline control source. Image digests by themselves
+remain a valid legacy release and do not advertise control support.
+
+Existing installations advance one phase per reviewed apply:
+
+1. `legacy` keeps the original role and task definition.
+2. `prepare` installs the verified control function, confined role, and immutable
+   task baseline while the service continues to use the original task definition.
+3. `cutover` deploys the immutable baseline. Both task roles retain cache trust
+   during task replacement and existing session expiry.
+4. `confined` removes runtime trust from the original role and replaces its
+   identity policy with an explicit deny. Set `runner_iam_retirement_confirmed`
+   only after the old tasks have stopped and their role sessions have expired.
+
+Create a saved plan and run the state-aware transition check before each apply:
+
+```bash
+terraform plan -out=runner-iam.tfplan
+terraform show -json runner-iam.tfplan >runner-iam-plan.json
+bash scripts/check-runner-iam-transition.sh runner-iam-plan.json
+```
+
+For a confirmed new installation with no previous module state, select
+`confined` and pass `--new-install` to the checker. The checker rejects this
+shortcut when it finds an existing phase resource. Terraform cannot infer
+whether an untracked deployment is fresh, so the operator must make that choice.
+
+Keep the current phase while rolling back a compatible application release.
+Phase reversals and skipped phases are rejected because old role sessions and
+tasks cannot be reconstructed safely from Terraform state. Recover a failed
+phase by correcting the same phase or advancing after validation. The original
+role remains at its stable Terraform address after `confined`, but has no
+runtime trust or usable permissions.
+
 Infrastructure fixes require updating the module version and running
 `terraform plan` followed by an approved `terraform apply`; updating runner images
 alone does not change task-role permissions. Review the plan for IAM updates and
