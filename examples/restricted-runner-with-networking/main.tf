@@ -13,9 +13,11 @@ module "runner" {
   runner_subnet_ids = [for zone in var.availability_zones : aws_subnet.runner[zone].id]
 
   runner_iam_phase                = var.runner_iam_phase
+  runner_template_build_version   = var.runner_template_build_version
   runner_iam_retirement_confirmed = var.runner_iam_retirement_confirmed
   runner_releases_url             = var.runner_releases_url
 
-  proxy_config           = var.proxy_config
-  custom_ca_trust_bundle = var.custom_ca_trust_bundle
+  proxy_config            = var.proxy_config
+  custom_ca_trust_bundle  = var.custom_ca_trust_bundle
+  custom_ca_s3_object_arn = var.custom_ca_s3_object_arn
 }

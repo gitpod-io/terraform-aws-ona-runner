@@ -82,8 +82,8 @@ run "restricted_runner_plans_without_ingress_inputs" {
   }
 
   assert {
-    condition     = can(regex("^[0-9]{8}\\.[0-9]+$", output.release_version)) && output.ssh_port == 29222
-    error_message = "the wrapper must inherit the root module release and SSH output contract."
+    condition     = output.release_version == "20260917.866" && output.ssh_port == 29222
+    error_message = "the wrapper must preserve the current production release default and SSH output contract when the version input is omitted."
   }
 
   assert {
@@ -150,8 +150,11 @@ run "prepare_forwards_validated_control_inputs" {
   command = plan
 
   variables {
-    runner_iam_phase    = "prepare"
-    runner_releases_url = "https://releases.example.com"
+    runner_iam_phase              = "prepare"
+    runner_releases_url           = "https://releases.example.com"
+    runner_template_build_version = "20260917.657"
+    custom_ca_trust_bundle        = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn       = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
   }
 
   override_data {
@@ -181,7 +184,7 @@ run "prepare_forwards_validated_control_inputs" {
   }
 
   assert {
-    condition     = output.runner_iam_phase == "prepare"
-    error_message = "the restricted wrapper must forward phase/release inputs and retain its proxy-free topology."
+    condition     = output.runner_iam_phase == "prepare" && output.release_version == "20260917.657"
+    error_message = "the restricted wrapper must forward the explicit fixture phase and version while retaining its proxy-free topology."
   }
 }

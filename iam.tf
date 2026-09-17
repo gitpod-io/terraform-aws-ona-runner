@@ -675,6 +675,40 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access_assume" {
         local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
       ) : [aws_iam_role.ecs_task.arn]
     }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/gitpod.dev/runner-id"
+      values   = [var.runner_id]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/gitpod.dev/project-id"
+      values   = ["?*"]
+    }
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values = [
+        "gitpod.dev/runner-id",
+        "gitpod.dev/project-id",
+        "gitpod.dev/push",
+      ]
+    }
+
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/gitpod.dev/runner-id"
+      values   = ["false"]
+    }
+
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/gitpod.dev/project-id"
+      values   = ["false"]
+    }
   }
 }
 
@@ -691,7 +725,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:DescribeImages",
       "ecr:DescribeRepositories",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
   }
 
   statement {
@@ -703,7 +737,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:CompleteLayerUpload",
       "ecr:BatchCheckLayerAvailability",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
 
     condition {
       test     = "StringEquals"

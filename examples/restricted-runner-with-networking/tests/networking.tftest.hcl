@@ -380,6 +380,11 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
     condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
     error_message = "the example must pass its VPC and runner subnets to the restricted runner module."
   }
+
+  assert {
+    condition     = module.runner.release_version == "20260917.866"
+    error_message = "omitting runner_template_build_version must preserve the current production runner release."
+  }
 }
 
 run "explicit_network_name_overrides_the_derived_name" {
@@ -985,8 +990,11 @@ run "prepare_forwards_control_through_restricted_networking" {
   command = plan
 
   variables {
-    runner_iam_phase    = "prepare"
-    runner_releases_url = "https://releases.example.com"
+    runner_iam_phase              = "prepare"
+    runner_releases_url           = "https://releases.example.com"
+    runner_template_build_version = "20260917.657"
+    custom_ca_trust_bundle        = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn       = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
   }
 
   override_data {
@@ -1016,7 +1024,7 @@ run "prepare_forwards_control_through_restricted_networking" {
   }
 
   assert {
-    condition     = output.runner_iam_phase == "prepare"
-    error_message = "the restricted-networking example must forward the validated runner IAM phase through both modules."
+    condition     = output.runner_iam_phase == "prepare" && module.runner.release_version == "20260917.657"
+    error_message = "the restricted-networking example must forward the explicit fixture phase and version through both modules."
   }
 }

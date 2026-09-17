@@ -90,8 +90,9 @@ passthrough through both restricted wrappers, including unchanged defaults and
 partially configured proxy settings.
 The firewall check verifies native file, YAML, and type errors without AWS access.
 The runner IAM transition check uses synthetic previous and planned states to
-reject skipped phases, reversals, and use of the new-install shortcut with an
-existing deployment.
+reject skipped phases, reversals, unknown or replacing phase resources, and use
+of the new-install shortcut with an existing deployment. It also covers exact
+root, nested, count, and `for_each` module-instance selection.
 
 ## Releases
 

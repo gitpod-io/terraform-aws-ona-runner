@@ -132,10 +132,23 @@ terraform show -json runner-iam.tfplan >runner-iam-plan.json
 bash scripts/check-runner-iam-transition.sh runner-iam-plan.json
 ```
 
-For a confirmed new installation with no previous module state, select
-`confined` and pass `--new-install` to the checker. The checker rejects this
-shortcut when it finds an existing phase resource. Terraform cannot infer
-whether an untracked deployment is fresh, so the operator must make that choice.
+The checker selects the full resource address automatically when the plan has
+one runner. For several runner module instances, select one exactly or validate
+all of them deliberately:
+
+```bash
+bash scripts/check-runner-iam-transition.sh \
+  --address 'module.runner["blue"].terraform_data.runner_iam_phase' \
+  runner-iam-plan.json
+bash scripts/check-runner-iam-transition.sh --all runner-iam-plan.json
+```
+
+For a confirmed new installation with no previous managed resources in that
+module instance, select `confined` and pass `--new-install` to the checker. The
+checker rejects this shortcut when prior runner resources exist without the
+phase marker; those installations must start with `prepare`. Terraform cannot
+infer whether resources outside its prior state belong to an untracked
+deployment, so the operator must still confirm that choice.
 
 Keep the current phase while rolling back a compatible application release.
 Phase reversals and skipped phases are rejected because old role sessions and
@@ -147,9 +160,22 @@ runtime trust or usable permissions.
 Infrastructure fixes require updating the module version and running
 `terraform plan` followed by an approved `terraform apply`; updating runner images
 alone does not change task-role permissions. Review the plan for IAM updates and
-task rollouts. The runner, proxy, and telemetry tasks support S3-hosted CA bundles
-under `s3://gitpod-*/`; custom bucket policies and encryption keys may require
-additional customer-managed access.
+task rollouts.
+
+Before selecting `prepare`, `cutover`, or `confined` for a runner whose custom CA
+resolves to S3, set `custom_ca_s3_object_arn` to that one exact object ARN. This
+is required even when `custom_ca_trust_bundle` is itself an S3 object ARN. The
+module validates the declared ARN shape and uses it as the confined runner's
+only external CA-object grant. Confined initialization fails before the S3
+request when the resolved bucket and key do not match the declaration.
+
+PEM and HTTP(S) CA inputs do not need an S3 declaration. The declaration scopes
+artifact access; it does not make the object's contents immutable or prove an
+indirect CA value before task initialization. The legacy runner, proxy, and
+telemetry task roles retain their existing `gitpod-*` bucket limit, so every S3
+CA used by those tasks must still use a matching bucket. Bucket policies and
+encryption keys may require additional customer-managed access. Remove an
+unused declaration to remove its object grant from the confined role.
 
 ## Supported configuration
 

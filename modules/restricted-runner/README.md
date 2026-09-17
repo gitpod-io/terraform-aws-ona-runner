@@ -76,7 +76,8 @@ proxy_config = {
   http_proxy  = "http://proxy.example.com:3128"
   https_proxy = "http://proxy.example.com:3128"
 }
-custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_trust_bundle  = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-example/shared/ca-bundle.pem"
 ```
 
 `proxy_config` accepts `http_proxy`, `https_proxy`, `all_proxy`, and `no_proxy`.
@@ -95,7 +96,15 @@ rules. The proxy and CA source must be reachable through your existing network
 policy. CA initialization downloads the bundle before the runner starts and
 does not inherit `proxy_config`; use a directly reachable bundle source.
 
-For S3, the task roles permit CA reads from `gitpod-*` buckets;
+For `prepare`, `cutover`, or `confined`, every S3 CA source requires the exact
+matching `custom_ca_s3_object_arn`, including when the bundle value is already
+an ARN. The declaration is the confined runner's only external CA-object grant,
+and a missing or mismatched declaration fails confined initialization. PEM and
+HTTP(S) inputs do not need it. This scopes access to the selected object; it
+does not make that object's contents immutable. Remove an unused declaration to
+remove its object grant from the confined role.
+
+The telemetry task retains its existing CA-read limit to `gitpod-*` buckets;
 bucket policies and any KMS permissions must also permit access. For SSM,
 resolve the value with Terraform and pass the resulting PEM content;
 CloudFormation `{{resolve:ssm:...}}` references are not expanded by Terraform.

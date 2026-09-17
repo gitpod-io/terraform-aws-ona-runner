@@ -38,7 +38,8 @@ These checks run without an AWS account:
 - `scripts/check-parity-contract.sh` checks selected source-level contracts.
 - `scripts/test-restricted-runner-settings.sh` checks rendered runner and telemetry
   task definitions through both restricted wrappers, including proxy/CA values,
-  bypass defaults, and the absence of inbound proxy resources.
+  confined CA scope enforcement, bypass defaults, and the absence of inbound
+  proxy resources.
 
 These are regression checks, not a generated comparison of every CloudFormation
 property or a complete AWS policy simulator. Do not replace policy assertions
@@ -58,6 +59,8 @@ service and authenticated internal LLM listener remain available.
   `confined`, removes its runtime trust, and attaches an explicit deny policy
   so existing state does not require an address-changing migration.
 - Runner configuration and Redis connection parameters use `SecureString`.
+- Managed runner CA access uses one declared exact S3 object ARN. Legacy,
+  proxy, and telemetry task roles retain the released `gitpod-*` bucket limit.
 - Runner buckets are force-destroyed, unlike CloudFormation-retained resources.
 - Public IP assignment defaults to false.
 - Large-runner scaling bounds are 2–16 for both runner and proxy. The published
@@ -107,7 +110,9 @@ verify:
 6. A metrics configuration change rewrites the ADOT configuration, restarts the
    ADOT service, and uploads rotated audit files to the logs bucket.
 7. Both cache-engine options accept runner traffic.
-8. All task init containers accept an S3-hosted custom CA bundle.
+8. All task init containers accept an S3-hosted custom CA bundle. For managed
+   phases, verify the exact object declaration and confirm a missing or
+   mismatched declaration fails confined initialization before its S3 request.
 9. Cache sessions read/write their creator's prefix and cannot access another
    creator's objects or list a foreign prefix.
 10. A second `terraform plan` after runtime configuration changes reports only

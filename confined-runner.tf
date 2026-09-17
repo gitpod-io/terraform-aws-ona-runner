@@ -71,10 +71,14 @@ data "aws_iam_policy_document" "confined_runner_boundary" {
     resources = [aws_s3_bucket.agent.arn, "${aws_s3_bucket.agent.arn}/*", aws_s3_bucket.logs.arn, "${aws_s3_bucket.logs.arn}/*"]
   }
 
-  statement {
-    sid       = "ReadCABundles"
-    actions   = ["s3:GetObject"]
-    resources = ["arn:aws:s3:::gitpod-*/*"]
+  dynamic "statement" {
+    for_each = var.custom_ca_s3_object_arn == "" ? [] : [var.custom_ca_s3_object_arn]
+
+    content {
+      sid       = "ReadConfiguredCABundle"
+      actions   = ["s3:GetObject"]
+      resources = [statement.value]
+    }
   }
 
   statement {
@@ -98,7 +102,7 @@ data "aws_iam_policy_document" "confined_runner_boundary" {
     sid = "OwnedComputeMutation"
     actions = [
       "ec2:AttachNetworkInterface", "ec2:AttachVolume", "ec2:CancelSpotInstanceRequests", "ec2:DeleteNetworkInterface",
-      "ec2:DeleteSnapshot", "ec2:DeleteTags", "ec2:DeleteVolume", "ec2:DeregisterImage",
+      "ec2:DeleteLaunchTemplate", "ec2:DeleteSnapshot", "ec2:DeleteVolume", "ec2:DeregisterImage",
       "ec2:DetachNetworkInterface", "ec2:DetachVolume", "ec2:GetConsoleOutput", "ec2:ModifyInstanceAttribute",
       "ec2:ModifyVolume", "ec2:StartInstances", "ec2:StopInstances", "ec2:TerminateInstances",
     ]
@@ -108,6 +112,8 @@ data "aws_iam_policy_document" "confined_runner_boundary" {
       "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:snapshot/*",
       "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:image/*",
       "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
     ]
     condition {
       test     = "StringEquals"
@@ -117,8 +123,66 @@ data "aws_iam_policy_document" "confined_runner_boundary" {
   }
 
   statement {
-    sid       = "DescribeCompute"
-    actions   = ["ec2:Describe*", "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool", "ssm:DescribeParameters", "ssm:GetCommandInvocation"]
+    sid = "TagOwnedComputeMetadata"
+    actions = [
+      "ec2:CreateTags",
+      "ec2:DeleteTags",
+    ]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:snapshot/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:image/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:spot-instances-request/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:ResourceTag/gitpod.dev/runner-id"
+      values   = [var.runner_id]
+    }
+  }
+
+  statement {
+    sid       = "DenyRunnerOwnerReassignment"
+    effect    = "Deny"
+    actions   = ["ec2:CreateTags"]
+    resources = ["*"]
+    condition {
+      test     = "StringNotEquals"
+      variable = "aws:RequestTag/gitpod.dev/runner-id"
+      values   = [var.runner_id]
+    }
+    condition {
+      test     = "Null"
+      variable = "aws:RequestTag/gitpod.dev/runner-id"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid       = "DenyRunnerOwnerTagDeletion"
+    effect    = "Deny"
+    actions   = ["ec2:DeleteTags"]
+    resources = ["*"]
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["gitpod.dev/runner-id"]
+    }
+  }
+
+  statement {
+    sid = "DescribeComputeCatalog"
+    actions = [
+      "ec2:DescribeInternetGateways", "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings",
+      "ec2:DescribeInstanceTypes", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeTags",
+      "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs",
+      "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool",
+      "ssm:DescribeParameters",
+    ]
     resources = ["*"]
   }
 
@@ -196,4 +260,36 @@ resource "aws_iam_role_policy" "confined_runner" {
   count  = local.runner_iam_managed ? 1 : 0
   role   = one(aws_iam_role.confined_runner).id
   policy = data.aws_iam_policy_document.ecs_task.json
+}
+
+data "aws_iam_policy_document" "confined_runner_ca" {
+  count = local.runner_iam_managed && var.custom_ca_s3_object_arn != "" ? 1 : 0
+
+  statement {
+    sid       = "ReadConfiguredCABundle"
+    actions   = ["s3:GetObject"]
+    resources = [var.custom_ca_s3_object_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "confined_runner_ca" {
+  count  = local.runner_iam_managed && var.custom_ca_s3_object_arn != "" ? 1 : 0
+  role   = one(aws_iam_role.confined_runner).id
+  policy = one(data.aws_iam_policy_document.confined_runner_ca).json
+}
+
+data "aws_iam_policy_document" "confined_runner_control" {
+  count = local.runner_iam_managed ? 1 : 0
+
+  statement {
+    sid       = "InvokeRunnerControl"
+    actions   = ["lambda:InvokeFunction"]
+    resources = [one(aws_lambda_function.runner_control).arn]
+  }
+}
+
+resource "aws_iam_role_policy" "confined_runner_control" {
+  count  = local.runner_iam_managed ? 1 : 0
+  role   = one(aws_iam_role.confined_runner).id
+  policy = one(data.aws_iam_policy_document.confined_runner_control).json
 }

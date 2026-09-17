@@ -77,11 +77,18 @@ data "aws_iam_policy_document" "runner_control" {
 
   statement {
     sid     = "RegisterOwnedTaskDefinitions"
-    actions = ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition", "ecs:TagResource"]
+    actions = ["ecs:RegisterTaskDefinition", "ecs:TagResource"]
     resources = concat(
       ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${aws_ecs_task_definition.runner.family}:*"],
       var.restrict_ingress ? [] : ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:task-definition/${one(aws_ecs_task_definition.proxy).family}:*"],
     )
+  }
+
+
+  statement {
+    sid       = "DescribeTaskDefinitions"
+    actions   = ["ecs:DescribeTaskDefinition"]
+    resources = ["*"]
   }
 
   statement {

@@ -62,13 +62,14 @@ override_data {
 }
 
 variables {
-  runner_id                = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
-  runner_token             = "test-token"
-  runner_domain            = "runner.example.com"
-  certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/test"
-  vpc_id                   = "vpc-00000000000000000"
-  runner_subnet_ids        = ["subnet-00000000000000000"]
-  load_balancer_subnet_ids = ["subnet-00000000000000000"]
+  runner_id                     = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_token                  = "test-token"
+  runner_domain                 = "runner.example.com"
+  certificate_arn               = "arn:aws:acm:us-east-1:123456789012:certificate/test"
+  vpc_id                        = "vpc-00000000000000000"
+  runner_subnet_ids             = ["subnet-00000000000000000"]
+  load_balancer_subnet_ids      = ["subnet-00000000000000000"]
+  runner_template_build_version = "20260917.657"
 }
 
 override_resource {
@@ -138,9 +139,51 @@ override_resource {
 }
 
 override_resource {
+  target          = aws_iam_role.s3_access
+  override_during = plan
+  values          = { arn = "arn:aws:iam::123456789012:role/test-s3-access" }
+}
+
+override_resource {
+  target          = aws_iam_role.devcontainer_cache_registry_access
+  override_during = plan
+  values          = { arn = "arn:aws:iam::123456789012:role/test-ecr-cache" }
+}
+
+override_resource {
+  target          = aws_lambda_function.runner_control
+  override_during = plan
+  values          = { arn = "arn:aws:lambda:us-east-1:123456789012:function:test-runner-control" }
+}
+
+override_resource {
   target          = aws_s3_bucket.container_registry
   override_during = plan
   values          = { arn = "arn:aws:s3:::test-registry" }
+}
+
+override_resource {
+  target          = aws_s3_bucket.agent
+  override_during = plan
+  values          = { arn = "arn:aws:s3:::test-agent-bucket" }
+}
+
+override_resource {
+  target          = aws_s3_bucket.logs
+  override_during = plan
+  values          = { arn = "arn:aws:s3:::test-logs-bucket" }
+}
+
+override_resource {
+  target          = aws_iam_policy.devcontainer_cache_boundary
+  override_during = plan
+  values          = { arn = "arn:aws:iam::123456789012:policy/test-ecr-cache-boundary" }
+}
+
+override_resource {
+  target          = aws_iam_policy.confined_runner_boundary
+  override_during = plan
+  values          = { arn = "arn:aws:iam::123456789012:policy/test-confined-runner-boundary" }
 }
 
 run "warm_pool_runtime_permissions" {
@@ -334,6 +377,34 @@ run "cache_session_contract" {
   }
 
   assert {
+    condition = try(
+      one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).actions == toset(["sts:AssumeRole", "sts:TagSession"]) &&
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/test-runner"]) &&
+      length(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition) == 5 &&
+      alltrue([
+        for condition in one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition :
+        (condition.test == "StringEquals" && condition.variable == "aws:RequestTag/gitpod.dev/runner-id" && condition.values == tolist(["019d6999-807b-7e52-ab6f-c9202f13ecf2"])) ||
+        (condition.test == "StringLike" && condition.variable == "aws:RequestTag/gitpod.dev/project-id" && condition.values == tolist(["?*"])) ||
+        (condition.test == "ForAllValues:StringEquals" && condition.variable == "aws:TagKeys" && condition.values == tolist(["gitpod.dev/runner-id", "gitpod.dev/project-id", "gitpod.dev/push"])) ||
+        (condition.test == "Null" && contains(["aws:RequestTag/gitpod.dev/runner-id", "aws:RequestTag/gitpod.dev/project-id"], condition.variable) && condition.values == tolist(["false"]))
+      ]), false
+    )
+    error_message = "Devcontainer cache trust must require the configured runner tag, a nonempty project tag, and only the supported runner/project/push session tags."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement :
+      statement.resources == toset(["arn:aws:ecr:us-east-1:123456789012:repository/gitpod-runner-019d6999-807b-7e52-ab6f-c9202f13ecf2/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"])
+      if statement.sid == "AllowPullFromProject" || statement.sid == "AllowPushToProject"
+      ]) && anytrue([
+      for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement :
+      statement.sid == "AllowPushToProject" && one(statement.condition).variable == "aws:PrincipalTag/gitpod.dev/push" && one(statement.condition).values == tolist(["true"])
+    ])
+    error_message = "Delegated cache access must bind the repository to the configured runner while preserving project and push session semantics."
+  }
+
+  assert {
     condition = (
       length(data.aws_iam_policy_document.s3_access.statement) == 4 &&
       length([for statement in data.aws_iam_policy_document.s3_access.statement : statement if statement.effect == "Deny"]) == 1 &&
@@ -431,7 +502,9 @@ run "prepare_constructs_control_without_cutover" {
   command = plan
 
   variables {
-    runner_iam_phase = "prepare"
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
   }
 
   assert {
@@ -495,16 +568,343 @@ run "prepare_constructs_control_without_cutover" {
   }
 }
 
+run "confined_control_identity_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_control).role == one(aws_iam_role.confined_runner).id &&
+      one(one(data.aws_iam_policy_document.confined_runner_control).statement).actions == toset(["lambda:InvokeFunction"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_control).statement).resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:test-runner-control"]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "InvokeRunnerControl" && statement.actions == toset(["lambda:InvokeFunction"]) && statement.resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:ona-runner-2ec33d556332a866-runner-control"])
+      ])
+    )
+    error_message = "The actual confined role identity and boundary must both allow only this deployment's runner-control function."
+  }
+}
+
+run "managed_cache_session_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+
+  assert {
+    condition = (
+      one([
+        for statement in data.aws_iam_policy_document.ecs_task.statement : statement
+        if statement.sid == "AssumeRunnerManagedRoles"
+        ]).resources == toset([
+        "arn:aws:iam::123456789012:role/test-ecr-cache",
+        "arn:aws:iam::123456789012:role/test-s3-access",
+      ]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "AssumeExactCacheRoles"
+        ]).resources == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-2ec33d556332a-ecr-cache-*",
+        "arn:aws:iam::123456789012:role/ona-runner-2ec33d556332a-s3-access-*",
+      ]) &&
+      aws_iam_role.devcontainer_cache_registry_access.permissions_boundary == aws_iam_policy.devcontainer_cache_boundary.arn &&
+      aws_iam_role_policy.devcontainer_cache_registry_access.role == aws_iam_role.devcontainer_cache_registry_access.id
+    )
+    error_message = "Managed cache delegation must intersect the runtime identity, its runner-specific boundary, and the delegated role boundary at the actual attached roles."
+  }
+
+  assert {
+    condition = try(
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset([
+        "arn:aws:iam::123456789012:role/test-confined-runner",
+        "arn:aws:iam::123456789012:role/test-runner",
+      ]) &&
+      anytrue([
+        for condition in one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition :
+        condition.test == "StringEquals" && condition.variable == "aws:RequestTag/gitpod.dev/runner-id" && condition.values == tolist(["019d6999-807b-7e52-ab6f-c9202f13ecf2"])
+      ]), false
+    )
+    error_message = "Prepare cache trust must admit only the overlapping runner roles and reject a foreign runner request tag."
+  }
+}
+
+run "runner_control_task_definition_scope" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "DescribeTaskDefinitions"
+      ]).resources == toset(["*"]) &&
+      length(one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).resources) == 2 &&
+      alltrue([for resource in one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).resources : startswith(resource, "arn:aws:ecs:us-east-1:123456789012:task-definition/") && endswith(resource, ":*")]) &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).actions, "ecs:DescribeTaskDefinition")
+    )
+    error_message = "DescribeTaskDefinition must use Resource *, while registration remains limited to the configured task families."
+  }
+}
+
+run "confined_ca_scope_contract" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
+  }
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions == toset(["s3:GetObject"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).actions == toset(["s3:GetObject"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"]) &&
+      length([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement if statement.sid == "ReadCABundles"]) == 0 &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_OBJECT_ARN"]) == "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem" &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"]) == "true" &&
+      length([for item in local.ca_init_container.environment : item if startswith(item.name, "GITPOD_CUSTOM_CA_S3_")]) == 0
+    )
+    error_message = "Only the confined init identity may require and receive the exact declared CA object scope; legacy and sibling init definitions stay unchanged."
+  }
+}
+
+run "confined_external_ca_identity_contract" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://customer-ca-bucket/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn
+    )
+    error_message = "Prepare must bind the dormant confined baseline to the confined role while the service stays on the legacy task."
+  }
+
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      jsondecode(one(aws_iam_role_policy.confined_runner_ca).policy) == jsondecode(one(data.aws_iam_policy_document.confined_runner_ca).json)
+    )
+    error_message = "The external CA identity document must be attached to the actual confined role."
+  }
+
+  assert {
+    condition     = one(aws_iam_role.confined_runner).permissions_boundary == one(aws_iam_policy.confined_runner_boundary).arn
+    error_message = "The matching boundary document must be attached to the actual confined role."
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions == toset(["s3:GetObject"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"]) &&
+      coalesce(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).effect, "Allow") == "Allow" &&
+      length(one(data.aws_iam_policy_document.confined_runner_ca).statement) == 1 &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"]) &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:PutObject") &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:DeleteObject") &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:ListBucket")
+    )
+    error_message = "The confined identity and boundary must allow only GetObject on the declared external CA object."
+  }
+}
+
+run "confined_empty_ca_scope_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+
+  assert {
+    condition = (
+      length([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]) == 0 &&
+      length(data.aws_iam_policy_document.confined_runner_ca) == 0 &&
+      length(aws_iam_role_policy.confined_runner_ca) == 0 &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "RunnerBuckets" && contains(statement.actions, "s3:GetObject") &&
+        contains(statement.resources, "arn:aws:s3:::test-agent-bucket/*") &&
+        contains(statement.resources, "arn:aws:s3:::test-logs-bucket/*")
+      ]) &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_OBJECT_ARN"]) == "" &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"]) == "true"
+    )
+    error_message = "The confined init must require the CA scope declaration even when it is empty, without creating an external S3 grant."
+  }
+}
+
+run "legacy_ignores_external_ca_declaration" {
+  command = plan
+  variables {
+    custom_ca_trust_bundle  = "s3://customer-ca-bucket/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      length(aws_iam_role.confined_runner) == 0 &&
+      length(data.aws_iam_policy_document.confined_runner_ca) == 0 &&
+      length(aws_iam_role_policy.confined_runner_ca) == 0 &&
+      length([for item in local.ca_init_container.environment : item if startswith(item.name, "GITPOD_CUSTOM_CA_S3_")]) == 0
+    )
+    error_message = "An explicit CA declaration must not create confined authority or change the active legacy init environment in legacy phase."
+  }
+}
+
+run "unused_external_ca_declaration_stays_explicit" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "https://ca.example.com/root.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/unused/root.pem"
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/unused/root.pem"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/unused/root.pem"])
+    )
+    error_message = "A valid declaration remains explicit authority even when the current CA value is HTTP; removing the declaration removes that authority."
+  }
+}
+
+run "external_ca_declaration_switches_exact_key" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"]) &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources, "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem") &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"])
+    )
+    error_message = "Changing the declaration must move both grants to the new exact key without retaining the prior key or another bucket."
+  }
+}
+
+run "confined_catalog_read_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "DescribeComputeCatalog"
+        ]).actions == toset([
+        "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool",
+        "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings", "ec2:DescribeInstanceTypes",
+        "ec2:DescribeInternetGateways", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeTags",
+        "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs", "ssm:DescribeParameters",
+      ]) &&
+      alltrue([
+        for action in ["ec2:DescribeImages", "ec2:DescribeInstanceAttribute", "ec2:DescribeInstances", "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions", "ec2:DescribeSnapshots", "ec2:DescribeVolumes", "ssm:GetCommandInvocation"] :
+        !anytrue([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : contains(statement.actions, action)])
+      ])
+    )
+    error_message = "The confined runtime must keep only explicit catalog reads; owner-sensitive reads and command output remain broker-mediated."
+  }
+}
+
+run "confined_owned_compute_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      anytrue([
+        for statement in data.aws_iam_policy_document.ecs_task.statement :
+        contains(statement.actions, "ec2:CreateTags") && contains(statement.actions, "ec2:DeleteTags")
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "TagOwnedComputeMetadata" && contains(statement.actions, "ec2:CreateTags") && contains(statement.actions, "ec2:DeleteTags") &&
+        one(statement.condition).variable == "ec2:ResourceTag/gitpod.dev/runner-id"
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "DenyRunnerOwnerReassignment" && statement.effect == "Deny" && contains([for condition in statement.condition : condition.variable], "aws:RequestTag/gitpod.dev/runner-id")
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "DenyRunnerOwnerTagDeletion" && statement.effect == "Deny" && one(statement.condition).test == "ForAnyValue:StringEquals"
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "OwnedComputeMutation" && contains(statement.actions, "ec2:DeleteLaunchTemplate") && contains(statement.actions, "ec2:CancelSpotInstanceRequests") &&
+        contains(statement.resources, "arn:aws:ec2:us-east-1:123456789012:launch-template/*") &&
+        contains(statement.resources, "arn:aws:ec2:us-east-1:123456789012:spot-instances-request/*")
+      ])
+    )
+    error_message = "Owned metadata updates, launch-template deletion, and spot cancellation need identity and boundary grants while owner reassignment and deletion remain explicit denies."
+  }
+}
+
+run "custom_ca_object_arn_rejects_bucket_scope" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_wildcards" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/*" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_policy_expansion" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/$${aws:username}.pem" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_unsupported_partition" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws-us-gov:s3:::customer-ca-bucket/shared/ca-bundle.pem" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
 run "cutover_selects_the_immutable_baseline" {
   command = plan
 
   variables {
-    runner_iam_phase = "cutover"
+    runner_iam_phase        = "cutover"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
   }
 
   assert {
     condition = (
       aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
       aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.fargate_task_assume_role.json
     )
     error_message = "cutover must select the confined baseline while retaining legacy rollback trust."
@@ -517,11 +917,14 @@ run "confined_retires_legacy_authority" {
   variables {
     runner_iam_phase                = "confined"
     runner_iam_retirement_confirmed = true
+    custom_ca_s3_object_arn         = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
   }
 
   assert {
     condition = (
       aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
       aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.retired_runner_assume.json &&
       jsondecode(aws_iam_role_policy.ecs_task.policy) == jsondecode(data.aws_iam_policy_document.retired_runner.json) &&
       one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/test-confined-runner"])

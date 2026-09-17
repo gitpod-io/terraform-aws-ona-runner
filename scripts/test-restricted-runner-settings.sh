@@ -75,7 +75,39 @@ check_api_endpoint() {
     '
 }
 
+check_confined_ca_scope() {
+  local module_dir="$1"
+  local test_file="$2"
+
+  echo "Checking restricted confined CA scope: ${module_dir}"
+  terraform -chdir="$module_dir" test -filter="$test_file" -json -verbose |
+    jq -es '
+      def environment:
+        (.environment // [] | map({key: .name, value: .value}) | from_entries);
+      def init_environment:
+        (.change.after.container_definitions | fromjson |
+          [.[] | select(.name == "init-container")][0] | environment);
+
+      [.[] | select(.type == "test_plan") |
+        select(.["@testrun"] | startswith("prepare_forwards_")) |
+        [.test_plan.resource_changes[] | select(.type == "aws_ecs_task_definition")]
+      ] as $runs |
+      ($runs[0] | [.[] | select(.name == "confined_runner_baseline")][0] | init_environment) as $confined |
+      ($runs[0] | [.[] | select(.name == "runner")][0] | init_environment) as $legacy |
+      ($runs[0] | [.[] | select(.name == "adot")][0] | init_environment) as $adot |
+      ($runs | length) == 1 and
+      ($runs[0] | map(.name) | sort) == ["adot", "confined_runner_baseline", "runner"] and
+      $confined.GITPOD_CUSTOM_CA_BUNDLE == "s3://gitpod-customer-ca/shared/ca-bundle.pem" and
+      $confined.GITPOD_CUSTOM_CA_S3_OBJECT_ARN == "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem" and
+      $confined.GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED == "true" and
+      ((($legacy | has("GITPOD_CUSTOM_CA_S3_OBJECT_ARN")) or ($legacy | has("GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"))) | not) and
+      ((($adot | has("GITPOD_CUSTOM_CA_S3_OBJECT_ARN")) or ($adot | has("GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"))) | not)
+    '
+}
+
 check_settings modules/restricted-runner tests/restricted_runner.tftest.hcl
 check_settings examples/restricted-runner-with-networking tests/networking.tftest.hcl
 check_api_endpoint modules/restricted-runner tests/restricted_runner.tftest.hcl
 check_api_endpoint examples/restricted-runner-with-networking tests/networking.tftest.hcl
+check_confined_ca_scope modules/restricted-runner tests/restricted_runner.tftest.hcl
+check_confined_ca_scope examples/restricted-runner-with-networking tests/networking.tftest.hcl

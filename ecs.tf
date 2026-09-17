@@ -186,6 +186,13 @@ locals {
     mountPoints = local.ca_init_mounts
   }
 
+  confined_ca_init_container = merge(local.ca_init_container, {
+    environment = concat(local.ca_init_container.environment, [
+      { name = "GITPOD_CUSTOM_CA_S3_OBJECT_ARN", value = var.custom_ca_s3_object_arn },
+      { name = "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED", value = "true" },
+    ])
+  })
+
   ca_mount      = [{ sourceVolume = "ca-certificates", containerPath = "/etc/ssl/certs", readOnly = true }]
   ca_dependency = [{ containerName = "init-container", condition = "SUCCESS" }]
 
@@ -371,7 +378,7 @@ resource "aws_ecs_task_definition" "runner" {
 
 locals {
   confined_runner_container_definitions = [
-    merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
+    merge(local.confined_ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
     merge(local.runner_container, {
       environment = concat(local.runner_container.environment, [
         { name = "GITPOD_RUNNER_CONTROL_FUNCTION", value = local.runner_control_function_name },
@@ -507,6 +514,7 @@ resource "aws_ecs_service" "runner" {
   }
   depends_on = [
     aws_iam_role_policy.ecs_task,
+    aws_iam_role_policy.confined_runner_ca,
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]

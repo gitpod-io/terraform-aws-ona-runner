@@ -100,7 +100,8 @@ proxy_config = {
   http_proxy  = "http://proxy.example.com:3128"
   https_proxy = "http://proxy.example.com:3128"
 }
-custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_trust_bundle  = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-example/shared/ca-bundle.pem"
 ```
 
 See [the restricted module's proxy and CA settings](../../modules/restricted-runner/README.md#outbound-proxy-and-custom-ca)

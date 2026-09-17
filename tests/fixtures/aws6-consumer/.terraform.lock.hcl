@@ -1,6 +1,17 @@
 # This file is maintained automatically by "terraform init".
 # Manual edits may be lost in future updates.
 
+provider "registry.terraform.io/hashicorp/archive" {
+  version     = "2.7.1"
+  constraints = "~> 2.7"
+  hashes = [
+    "h1:62VrkalDPMKB9zerCBS4iKTbvxejwnAWn/XXYZZQWD4=",
+    "h1:A7EnRBVm4h9ryO9LwxYnKr4fy7ExPMwD5a1DsY7m1Y0=",
+    "h1:MwZ8uhTOmj3W8wiMeitCnzuf+897qka4/NBIAWFrm+k=",
+    "h1:Tr6LvLbm30zX4BRNPHhXo8SnOP0vg5UKAeunRNfnas8=",
+  ]
+}
+
 provider "registry.terraform.io/hashicorp/aws" {
   version     = "6.60.0"
   constraints = ">= 5.43.0, >= 5.82.0, ~> 6.60.0, < 7.0.0"
@@ -25,6 +36,17 @@ provider "registry.terraform.io/hashicorp/aws" {
     "zh:effc513566df2f5b5921a5df884817b1de57790db1c485eece566c5d4c55c4ee",
     "zh:f2be12b976d10a91289835056ff962721e65f47f8e52b368211c4bd3ce9e20e6",
     "zh:fb7ef7e405b05789cec32c8ea06a353789c6e3a336b876508cf2ac98984f0558",
+  ]
+}
+
+provider "registry.terraform.io/hashicorp/http" {
+  version     = "3.5.0"
+  constraints = "~> 3.5"
+  hashes = [
+    "h1:8bUoPwS4hahOvzCBj6b04ObLVFXCEmEN8T/5eOHmWOM=",
+    "h1:AW5AUlPPG8wmIRpxowGHzfvwBiXoVUI6FoOf78NaxH0=",
+    "h1:KsglDyFg9a9CIlOKxSSl8gDi+SAKfY+uvIZO1+SpeAc=",
+    "h1:dl73+8wzQR++HFGoJgDqY3mj3pm14HUuH/CekVyOj5s=",
   ]
 }
 

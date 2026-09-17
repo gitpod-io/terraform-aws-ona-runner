@@ -221,6 +221,20 @@ variable "custom_ca_trust_bundle" {
   default     = ""
 }
 
+variable "custom_ca_s3_object_arn" {
+  description = "Exact S3 object ARN for a custom CA bundle used by a managed runner. Required for every S3 CA source, including an ARN in custom_ca_trust_bundle."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.custom_ca_s3_object_arn == "" ||
+      can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[^*?\\$\\{\\}[:space:]]([^*?\\$\\{\\}]*)$", var.custom_ca_s3_object_arn))
+    )
+    error_message = "custom_ca_s3_object_arn must be empty or a literal exact arn:aws:s3:::bucket/key object ARN; wildcards and policy or dynamic-reference syntax are not supported."
+  }
+}
+
 variable "tags" {
   description = "Tags to apply to AWS resources."
   type        = map(string)
