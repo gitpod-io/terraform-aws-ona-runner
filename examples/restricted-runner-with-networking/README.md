@@ -168,8 +168,9 @@ availability zone.
 
 The firewall is enabled by default. Its default-deny policy allows the
 baseline in [`firewall.yaml`](firewall.yaml); other established traffic through
-the firewall is dropped and logged. Filtering uses TLS Server Name Indication
-(SNI). Choose one of the three configuration methods below.
+the firewall is dropped and logged, except for the explicit rejection described
+below. Filtering uses TLS Server Name Indication (SNI). Choose one of the three
+configuration methods below.
 
 | Service | Baseline domains | Purpose |
 | --- | --- | --- |
@@ -250,6 +251,37 @@ The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls
 back to the baseline. Do not edit `.terraform/modules`, which Terraform can
 replace during an update.
+
+### Control manifest requests
+
+When `containers.dev` is not allowlisted, the generated policy rejects TLS
+connections to that exact hostname on TCP port 443 from the runner subnets.
+The reject rule runs before the domain allowlist's generated drop rule and
+sends a TCP reset instead of silently dropping the request. This lets the
+Dev Containers CLI use its existing fallback without waiting for a network
+timeout. See the [upstream issue](https://github.com/microsoft/vscode-remote-release/issues/8808).
+
+The rule covers both runner tasks and environment VMs, including test sessions,
+in this dedicated network. It matches the hostname, not just the manifest URL
+path. Other destinations, subdomains, ports, and private endpoint routes retain
+their existing behavior. An outbound proxy that bypasses Network Firewall
+requires its own policy.
+
+Explicitly allowing `containers.dev` or `.containers.dev` through either
+allowlist configuration omits the reject rule. A custom `firewall_policy_arn`
+remains entirely caller-managed. An empty YAML allowlist keeps its deny-all
+policy and does not add this rule or permit TCP establishment.
+
+Blocked requests do not refresh feature safety data: CLI 0.84.1 uses the cached
+manifest if present, or an empty manifest otherwise. This does not disable
+feature installation or allow feature downloads.
+
+Existing deployments must apply the updated Terraform configuration. Review
+the plan for a new stateful rule group and an in-place policy update; no runner
+or VM replacement is required by this change. After the firewall update has
+propagated, retry with a new connection and verify a prompt reset and a matching
+firewall alert. Restart an already-stuck devcontainer invocation, then check
+that a test session starts and previously allowed destinations still work.
 
 ### Domain matching and scope
 
