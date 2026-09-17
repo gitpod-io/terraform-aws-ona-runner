@@ -150,7 +150,7 @@ override_resource {
 
 variables {
   aws_region         = "us-east-1"
-  runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_id          = "runner-a"
   runner_token       = "test-token"
   availability_zones = ["us-east-1a", "us-east-1b"]
   routable_vpc_cidr  = "10.42.0.0/24"
@@ -213,7 +213,7 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-2ec33d556332a866"
+    condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-51cf5b27370ded93"
     error_message = "the default network name must derive from runner_name and the full runner ID."
   }
 
@@ -377,12 +377,12 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
+    condition     = output.runner_config_parameter_name == "/gitpod/runner/runner-a"
     error_message = "the example must pass its VPC and runner subnets to the restricted runner module."
   }
 
   assert {
-    condition     = module.runner.release_version == "20260917.866"
+    condition     = module.runner.release_version == "20260917.975"
     error_message = "omitting runner_template_build_version must preserve the current production runner release."
   }
 }

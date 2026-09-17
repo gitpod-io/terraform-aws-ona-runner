@@ -29,9 +29,9 @@ These checks run without an AWS account:
 - `tests/parity_matrix.tftest.hcl` checks selected topology/configuration properties.
 - `tests/iam_permissions.tftest.hcl` uses the real policy-document provider with
   synthetic plan fixtures to check task-role grants, operation scopes, ECS role
-  passing, policy attachments, creator-scoped cache sessions, custom CA reads,
-  environment trust, immutable control settings, and fail-closed release
-  metadata validation.
+  passing, policy attachments, creator-scoped S3 cache sessions, project-scoped
+  ECR cache sessions, custom CA reads, environment trust, immutable control
+  settings, and fail-closed release metadata validation.
 - `scripts/test-metrics-audit-sync.sh` executes the rendered upload command with
   a fake AWS CLI, checking successful cleanup, failed-upload retention, quoted
   filenames, and empty rotations.
@@ -113,8 +113,11 @@ verify:
 8. All task init containers accept an S3-hosted custom CA bundle. For managed
    phases, verify the exact object declaration and confirm a missing or
    mismatched declaration fails confined initialization before its S3 request.
-9. Cache sessions read/write their creator's prefix and cannot access another
-   creator's objects or list a foreign prefix.
+9. S3 cache sessions read/write their creator's prefix and cannot access another
+   creator's objects or list a foreign prefix. ECR cache sessions use the
+   configured runner, a nonempty project, optional creator metadata, and an
+   explicit `allow-push` boolean; verify pull and push against the selected
+   repository policy and reject foreign runner/project repositories.
 10. A second `terraform plan` after runtime configuration changes reports only
    intentional drift.
 11. Advance an existing installation through `prepare`, `cutover`, and

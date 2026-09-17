@@ -676,38 +676,63 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access_assume" {
       ) : [aws_iam_role.ecs_task.arn]
     }
 
-    condition {
-      test     = "StringEquals"
-      variable = "aws:RequestTag/gitpod.dev/runner-id"
-      values   = [var.runner_id]
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringEquals"
+        variable = "aws:RequestTag/gitpod.dev/runner-id"
+        values   = [var.runner_id]
+      }
     }
 
-    condition {
-      test     = "StringLike"
-      variable = "aws:RequestTag/gitpod.dev/project-id"
-      values   = ["?*"]
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringLike"
+        variable = "aws:RequestTag/gitpod.dev/project-id"
+        values   = ["?*"]
+      }
     }
 
-    condition {
-      test     = "ForAllValues:StringEquals"
-      variable = "aws:TagKeys"
-      values = [
-        "gitpod.dev/runner-id",
-        "gitpod.dev/project-id",
-        "gitpod.dev/push",
-      ]
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringEquals"
+        variable = "aws:RequestTag/gitpod.dev/allow-push"
+        values   = ["false", "true"]
+      }
     }
 
-    condition {
-      test     = "Null"
-      variable = "aws:RequestTag/gitpod.dev/runner-id"
-      values   = ["false"]
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "ForAllValues:StringEquals"
+        variable = "aws:TagKeys"
+        values = [
+          "gitpod.dev/runner-id",
+          "gitpod.dev/project-id",
+          "gitpod.dev/environment-creator-id",
+          "gitpod.dev/allow-push",
+        ]
+      }
     }
 
-    condition {
-      test     = "Null"
-      variable = "aws:RequestTag/gitpod.dev/project-id"
-      values   = ["false"]
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "Null"
+        variable = "aws:RequestTag/gitpod.dev/runner-id"
+        values   = ["false"]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "Null"
+        variable = "aws:RequestTag/gitpod.dev/project-id"
+        values   = ["false"]
+      }
     }
   }
 }
@@ -725,7 +750,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:DescribeImages",
       "ecr:DescribeRepositories",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = [local.runner_iam_managed ? "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build" : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
   }
 
   statement {
@@ -737,7 +762,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:CompleteLayerUpload",
       "ecr:BatchCheckLayerAvailability",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = [local.runner_iam_managed ? "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build" : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
 
     condition {
       test     = "StringEquals"

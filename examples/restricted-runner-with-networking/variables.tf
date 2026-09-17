@@ -23,7 +23,7 @@ variable "runner_iam_phase" {
 variable "runner_template_build_version" {
   description = "Runner template build version from the same runner release manifest as the container images."
   type        = string
-  default     = "20260917.866"
+  default     = "20260917.975"
 
   validation {
     condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")

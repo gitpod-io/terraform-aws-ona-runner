@@ -67,7 +67,7 @@ mock_provider "http" {}
 mock_provider "archive" {}
 
 variables {
-  runner_id         = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_id         = "runner-a"
   runner_token      = "test-token"
   vpc_id            = "vpc-00000000000000000"
   runner_subnet_ids = ["subnet-00000000000000000"]
@@ -77,17 +77,17 @@ run "restricted_runner_plans_without_ingress_inputs" {
   command = plan
 
   assert {
-    condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
+    condition     = output.runner_config_parameter_name == "/gitpod/runner/runner-a"
     error_message = "the wrapper must forward runner configuration outputs from the restricted child module."
   }
 
   assert {
-    condition     = output.release_version == "20260917.866" && output.ssh_port == 29222
+    condition     = output.release_version == "20260917.975" && output.ssh_port == 29222
     error_message = "the wrapper must preserve the current production release default and SSH output contract when the version input is omitted."
   }
 
   assert {
-    condition     = output.ecs_cluster_name == "ona-runner-2ec33d556332a866-ona-cluster"
+    condition     = output.ecs_cluster_name == "ona-runner-51cf5b27370ded93-ona-cluster"
     error_message = "the wrapper must preserve the root module runner_name default."
   }
 }
@@ -100,7 +100,7 @@ run "custom_runner_name_is_forwarded" {
   }
 
   assert {
-    condition     = output.ecs_cluster_name == "defense-2ec33d556332a866-ona-cluster"
+    condition     = output.ecs_cluster_name == "defense-51cf5b27370ded93-ona-cluster"
     error_message = "the wrapper must forward runner_name to the root module."
   }
 }
