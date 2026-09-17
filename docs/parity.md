@@ -37,6 +37,9 @@ These checks run without an AWS account:
 - `scripts/test-restricted-runner-settings.sh` checks rendered runner and telemetry
   task definitions through both restricted wrappers, including proxy/CA values,
   bypass defaults, and the absence of inbound proxy resources.
+- `scripts/test-cloud-map-health-upgrade.sh` checks that an existing custom health
+  check remains unchanged when the deprecated threshold setting is omitted,
+  using synthetic state and the locked AWS 5.x and 6.x providers.
 
 These are regression checks, not a generated comparison of every CloudFormation
 property or a complete AWS policy simulator. Do not replace policy assertions

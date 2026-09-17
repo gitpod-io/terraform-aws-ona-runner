@@ -99,8 +99,11 @@ resource "aws_service_discovery_service" "internal_runner" {
     }
   }
 
-  health_check_custom_config {
-    failure_threshold = 1
+  health_check_custom_config {}
+
+  lifecycle {
+    # AWS fixes this deprecated value at 1; removing it must not replace the service.
+    ignore_changes = [health_check_custom_config[0].failure_threshold]
   }
 
   tags = local.common_tags
@@ -119,19 +122,19 @@ locals {
   }
 
   runner_log_options = {
-    awslogs-region        = data.aws_region.current.name
+    awslogs-region        = local.region
     awslogs-group         = aws_cloudwatch_log_group.runner.name
     awslogs-stream-prefix = "/gitpod/runner/${local.name_prefix}"
   }
 
   proxy_log_options = {
-    awslogs-region        = data.aws_region.current.name
+    awslogs-region        = local.region
     awslogs-group         = try(aws_cloudwatch_log_group.proxy[0].name, "")
     awslogs-stream-prefix = "/gitpod/runner-proxy/${local.name_prefix}"
   }
 
   adot_log_options = {
-    awslogs-region        = data.aws_region.current.name
+    awslogs-region        = local.region
     awslogs-group         = aws_cloudwatch_log_group.adot.name
     awslogs-stream-prefix = "aws-otel-collector"
   }
@@ -160,7 +163,7 @@ locals {
     entryPoint             = ["/bin/sh", "-c"]
     command                = ["update-ca-certificates && /app/gitpod-ec2-runner setup-ca"]
     environment = [
-      { name = "AWS_REGION", value = data.aws_region.current.name },
+      { name = "AWS_REGION", value = local.region },
       { name = "GITPOD_CUSTOM_CA_BUNDLE", value = var.custom_ca_trust_bundle },
     ]
     mountPoints = local.ca_init_mounts
@@ -237,7 +240,7 @@ locals {
       "--enable-environment-snapshots",
     ]
     environment = concat([
-      { name = "AWS_REGION", value = data.aws_region.current.name },
+      { name = "AWS_REGION", value = local.region },
       { name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix },
       { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
@@ -284,7 +287,7 @@ locals {
       "--management-plane-api-url=${var.api_endpoint}",
     ]
     environment = concat([
-      { name = "AWS_REGION", value = data.aws_region.current.name },
+      { name = "AWS_REGION", value = local.region },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       ], [for item in local.proxy_env : {
         name = split("=", item)[0], value = join("=", slice(split("=", item), 1, length(split("=", item))))
@@ -425,7 +428,7 @@ resource "aws_ecs_service" "runner" {
       log_driver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.runner.name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = local.region
         awslogs-stream-prefix = "service-connect-runner"
       }
     }
@@ -490,7 +493,7 @@ resource "aws_ecs_service" "proxy" {
       log_driver = "awslogs"
       options = {
         awslogs-group         = aws_cloudwatch_log_group.proxy[0].name
-        awslogs-region        = data.aws_region.current.name
+        awslogs-region        = local.region
         awslogs-stream-prefix = "service-connect-proxy"
       }
     }

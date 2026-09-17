@@ -15,7 +15,8 @@ mock_provider "aws" {
 
   mock_data "aws_region" {
     defaults = {
-      name = "us-east-1"
+      region = "us-east-1"
+      name   = "us-east-1"
     }
   }
 
@@ -232,6 +233,7 @@ run "restricted_ingress_limits_environment_access_to_supervisor" {
       one(aws_service_discovery_private_dns_namespace.internal_runner).vpc == var.vpc_id &&
       length(aws_service_discovery_service.internal_runner) == 1 &&
       one(aws_service_discovery_service.internal_runner).name == "runner" &&
+      length(one(aws_service_discovery_service.internal_runner).health_check_custom_config) == 1 &&
       one(one(aws_service_discovery_service.internal_runner).dns_config).routing_policy == "MULTIVALUE" &&
       one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).type == "A" &&
       one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).ttl == 10 &&
@@ -309,7 +311,7 @@ run "public_elasticache_large_matches_cloudformation_options" {
   }
 
   assert {
-    condition     = !one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1
+    condition     = !one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1 && one(aws_elasticache_user.this).engine == "redis"
     error_message = "the public ElastiCache option must create only the supported ElastiCache branch."
   }
 
@@ -326,6 +328,31 @@ run "public_elasticache_large_matches_cloudformation_options" {
   assert {
     condition     = aws_ecs_service.runner.network_configuration[0].assign_public_ip && one(aws_ecs_service.proxy).network_configuration[0].assign_public_ip && aws_ecs_service.adot.network_configuration[0].assign_public_ip
     error_message = "AssignPublicIp must apply to all supported Fargate services."
+  }
+}
+
+run "provider_region_preserves_regional_configuration" {
+  command = plan
+
+  override_data {
+    target = data.aws_region.current
+    values = { region = "eu-west-3", name = "eu-west-3" }
+  }
+
+  variables {
+    cache_engine = "ElastiCache"
+  }
+
+  assert {
+    condition = (
+      local.region == "eu-west-3" &&
+      local.runner_log_options["awslogs-region"] == "eu-west-3" &&
+      one([for item in local.runner_container.environment : item.value if item.name == "AWS_REGION"]) == "eu-west-3" &&
+      local.runner_token_secret_name == "eu-west-3-${var.runner_id}-runner-token" &&
+      local.private_ecr_prefix == "025066274397.dkr.ecr.eu-west-3.amazonaws.com/gitpod/ecr" &&
+      one(aws_elasticache_cluster.this).node_type == "cache.t3.small"
+    )
+    error_message = "Provider region resolution must preserve regional logs, runtime settings, secrets, image mirrors, and non-Graviton cache sizing."
   }
 }
 

@@ -21,7 +21,8 @@ mock_provider "aws" {
 
   mock_data "aws_region" {
     defaults = {
-      name = "us-east-1"
+      region = "us-east-1"
+      name   = "us-east-1"
     }
   }
 
