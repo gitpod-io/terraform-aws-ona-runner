@@ -94,6 +94,11 @@ output "runner_config_parameter_name" {
   value       = module.runner.runner_config_parameter_name
 }
 
+output "runner_iam_phase" {
+  description = "Runner IAM migration phase recorded by the runner module."
+  value       = module.runner.runner_iam_phase
+}
+
 output "environment_instance_profile_name" {
   description = "Instance profile used by environment instances."
   value       = module.runner.environment_instance_profile_name

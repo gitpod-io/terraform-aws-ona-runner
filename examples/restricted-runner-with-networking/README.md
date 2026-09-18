@@ -23,6 +23,12 @@ The network resources intentionally live directly in this example. Inspect and
 adapt them for your organization's egress policy instead of treating this
 topology as a separately supported networking module.
 
+The example forwards the runner IAM migration inputs to the restricted runner
+module. Existing deployments advance through `legacy`, `prepare`, `cutover`,
+and `confined`; only a confirmed fresh deployment with no previous module state
+can start in `confined`. Follow the migration and saved-plan check in the root
+module README before applying a managed phase.
+
 ## Deploy
 
 From this directory, copy `terraform.tfvars.example` to `terraform.tfvars` and
@@ -94,7 +100,8 @@ proxy_config = {
   http_proxy  = "http://proxy.example.com:3128"
   https_proxy = "http://proxy.example.com:3128"
 }
-custom_ca_trust_bundle = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_trust_bundle  = "s3://gitpod-example/shared/ca-bundle.pem"
+custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-example/shared/ca-bundle.pem"
 ```
 
 See [the restricted module's proxy and CA settings](../../modules/restricted-runner/README.md#outbound-proxy-and-custom-ca)

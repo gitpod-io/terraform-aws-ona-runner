@@ -76,14 +76,14 @@ data "aws_iam_policy_document" "ecs_execution" {
 
 resource "aws_iam_role" "ecs_task" {
   name_prefix          = "${local.iam_role_name_prefix}-ecs-task-"
-  assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
+  assume_role_policy   = local.runner_iam_confined ? data.aws_iam_policy_document.retired_runner_assume.json : data.aws_iam_policy_document.fargate_task_assume_role.json
   permissions_boundary = aws_iam_policy.ecs_task_boundary.arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy" "ecs_task" {
   role   = aws_iam_role.ecs_task.id
-  policy = data.aws_iam_policy_document.ecs_task.json
+  policy = local.runner_iam_confined ? data.aws_iam_policy_document.retired_runner.json : data.aws_iam_policy_document.ecs_task.json
 }
 
 data "aws_iam_policy_document" "ecs_task" {
@@ -596,8 +596,10 @@ data "aws_iam_policy_document" "s3_access_assume" {
     actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      type = "AWS"
+      identifiers = local.runner_iam_managed ? (
+        local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
+      ) : [aws_iam_role.ecs_task.arn]
     }
 
     condition {
@@ -668,8 +670,69 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access_assume" {
     actions = ["sts:AssumeRole", "sts:TagSession"]
 
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      type = "AWS"
+      identifiers = local.runner_iam_managed ? (
+        local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
+      ) : [aws_iam_role.ecs_task.arn]
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringEquals"
+        variable = "aws:RequestTag/gitpod.dev/runner-id"
+        values   = [var.runner_id]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringLike"
+        variable = "aws:RequestTag/gitpod.dev/project-id"
+        values   = ["?*"]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "StringEquals"
+        variable = "aws:RequestTag/gitpod.dev/allow-push"
+        values   = ["false", "true"]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "ForAllValues:StringEquals"
+        variable = "aws:TagKeys"
+        values = [
+          "gitpod.dev/runner-id",
+          "gitpod.dev/project-id",
+          "gitpod.dev/environment-creator-id",
+          "gitpod.dev/allow-push",
+        ]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "Null"
+        variable = "aws:RequestTag/gitpod.dev/runner-id"
+        values   = ["false"]
+      }
+    }
+
+    dynamic "condition" {
+      for_each = local.runner_iam_managed ? [1] : []
+      content {
+        test     = "Null"
+        variable = "aws:RequestTag/gitpod.dev/project-id"
+        values   = ["false"]
+      }
     }
   }
 }
@@ -687,7 +750,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:DescribeImages",
       "ecr:DescribeRepositories",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = [local.runner_iam_managed ? "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build" : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
   }
 
   statement {
@@ -699,7 +762,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:CompleteLayerUpload",
       "ecr:BatchCheckLayerAvailability",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = [local.runner_iam_managed ? "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build" : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
 
     condition {
       test     = "StringEquals"

@@ -9,6 +9,46 @@ provider "aws" {
   skip_metadata_api_check     = true
 }
 
+mock_provider "http" {}
+mock_provider "archive" {}
+
+override_data {
+  target = data.http.runner_release_manifest
+  values = {
+    response_body = <<-JSON
+      {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+    JSON
+  }
+}
+
+override_data {
+  target = data.http.runner_release_template
+  values = {
+    response_body = jsonencode({
+      Resources = {
+        Control = {
+          Type = "AWS::Lambda::Function"
+          Properties = {
+            Handler = "index.handler"
+            Code    = { ZipFile = "exports.handler = async () => ({ ok: true });" }
+            Environment = { Variables = {
+              APPROVED_IMAGE_IDS = "ami-00000000000000001,ami-00000000000000002"
+            } }
+          }
+        }
+      }
+    })
+  }
+}
+
+override_data {
+  target = data.archive_file.runner_control
+  values = {
+    output_path         = "/tmp/runner-control.zip"
+    output_base64sha256 = "YWJj"
+  }
+}
+
 override_data {
   override_during = plan
   target          = data.aws_caller_identity.current
@@ -22,40 +62,318 @@ override_data {
 }
 
 variables {
-  runner_id                = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
-  runner_token             = "test-token"
-  runner_domain            = "runner.example.com"
-  certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/test"
-  vpc_id                   = "vpc-00000000000000000"
-  runner_subnet_ids        = ["subnet-00000000000000000"]
-  load_balancer_subnet_ids = ["subnet-00000000000000000"]
+  runner_id                     = "runner-a"
+  runner_token                  = "test-token"
+  runner_domain                 = "runner.example.com"
+  certificate_arn               = "arn:aws:acm:us-east-1:123456789012:certificate/test"
+  vpc_id                        = "vpc-00000000000000000"
+  runner_subnet_ids             = ["subnet-00000000000000000"]
+  load_balancer_subnet_ids      = ["subnet-00000000000000000"]
+  runner_template_build_version = "20260917.657"
 }
 
 override_resource {
   target          = aws_iam_role.ecs_task
   override_during = plan
   values = {
-    arn = "arn:aws:iam::123456789012:role/test-runner"
-    id  = "test-runner"
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture"
+    id   = "ona-runner-51cf5b27370de-ecs-task-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-task-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.confined_runner
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture"
+    id   = "ona-runner-51cf5b27370de-conf-task-fixture"
+    name = "ona-runner-51cf5b27370de-conf-task-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.runner_control
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-control-fixture"
+    id   = "ona-runner-51cf5b27370de-control-fixture"
+    name = "ona-runner-51cf5b27370de-control-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.runner
+  override_during = plan
+  values = {
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner:1"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner"
+    family               = "ona-runner-51cf5b27370ded93-runner"
+    revision             = 1
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.confined_runner_baseline
+  override_during = plan
+  values = {
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner:2"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-runner"
+    family               = "ona-runner-51cf5b27370ded93-runner"
+    revision             = 2
+  }
+}
+
+override_resource {
+  target          = aws_ecs_task_definition.proxy
+  override_during = plan
+  values = {
+    arn                  = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-proxy:1"
+    arn_without_revision = "arn:aws:ecs:us-east-1:123456789012:task-definition/ona-runner-51cf5b27370ded93-proxy"
+    family               = "ona-runner-51cf5b27370ded93-proxy"
+    revision             = 1
   }
 }
 
 override_resource {
   target          = aws_iam_role.ecs_execution
   override_during = plan
-  values          = { arn = "arn:aws:iam::123456789012:role/test-execution" }
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture"
+    id   = "ona-runner-51cf5b27370de-ecs-exec-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-exec-fixture"
+  }
 }
 
 override_resource {
   target          = aws_iam_role.proxy
   override_during = plan
-  values          = { arn = "arn:aws:iam::123456789012:role/test-proxy" }
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture"
+    id   = "ona-runner-51cf5b27370de-proxy-fixture"
+    name = "ona-runner-51cf5b27370de-proxy-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.environment
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-environment-fixture"
+    id   = "ona-runner-51cf5b27370de-environment-fixture"
+    name = "ona-runner-51cf5b27370de-environment-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.s3_access
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-s3-access-fixture"
+    id   = "ona-runner-51cf5b27370de-s3-access-fixture"
+    name = "ona-runner-51cf5b27370de-s3-access-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_role.devcontainer_cache_registry_access
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecr-cache-fixture"
+    id   = "ona-runner-51cf5b27370de-ecr-cache-fixture"
+    name = "ona-runner-51cf5b27370de-ecr-cache-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_lambda_function.runner_control
+  override_during = plan
+  values          = { arn = "arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control" }
 }
 
 override_resource {
   target          = aws_s3_bucket.container_registry
   override_during = plan
-  values          = { arn = "arn:aws:s3:::test-registry" }
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"
+    bucket = "ona-runner-51cf5b27370ded-registry-fixture"
+    id     = "ona-runner-51cf5b27370ded-registry-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_s3_bucket.agent
+  override_during = plan
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-agent-fixture"
+    bucket = "ona-runner-51cf5b27370ded-agent-fixture"
+    id     = "ona-runner-51cf5b27370ded-agent-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_s3_bucket.logs
+  override_during = plan
+  values = {
+    arn    = "arn:aws:s3:::ona-runner-51cf5b27370ded-logs-fixture"
+    bucket = "ona-runner-51cf5b27370ded-logs-fixture"
+    id     = "ona-runner-51cf5b27370ded-logs-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_dynamodb_table.resources
+  override_during = plan
+  values = {
+    arn  = "arn:aws:dynamodb:us-east-1:123456789012:table/ona-runner-51cf5b27370ded93-reconciler"
+    id   = "ona-runner-51cf5b27370ded93-reconciler"
+    name = "ona-runner-51cf5b27370ded93-reconciler"
+  }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.metrics_config
+  override_during = plan
+  values = {
+    arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-metrics-fixture-AbCdEf"
+    id   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-metrics-fixture-AbCdEf"
+    name = "ona-runner-51cf5b27370ded93-metrics-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_secretsmanager_secret.internal_llm_tls
+  override_during = plan
+  values = {
+    arn  = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"
+    id   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"
+    name = "ona-runner-51cf5b27370ded93-llm-tls-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_ssm_parameter.runner_config
+  override_during = plan
+  values = {
+    arn  = "arn:aws:ssm:us-east-1:123456789012:parameter/gitpod/runner/runner-a"
+    id   = "/gitpod/runner/runner-a"
+    name = "/gitpod/runner/runner-a"
+  }
+}
+
+override_resource {
+  target          = aws_ssm_parameter.redis_connection
+  override_during = plan
+  values = {
+    arn  = "arn:aws:ssm:us-east-1:123456789012:parameter/gitpod/runner/runner-a/ai-execution-redis"
+    id   = "/gitpod/runner/runner-a/ai-execution-redis"
+    name = "/gitpod/runner/runner-a/ai-execution-redis"
+  }
+}
+
+override_resource {
+  target          = aws_cloudwatch_log_group.runner
+  override_during = plan
+  values = {
+    arn  = "arn:aws:logs:us-east-1:123456789012:log-group:/gitpod/runner/ona-runner-51cf5b27370ded93/runner-a:*"
+    name = "/gitpod/runner/ona-runner-51cf5b27370ded93/runner-a"
+  }
+}
+
+override_resource {
+  target          = aws_iam_instance_profile.environment
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:instance-profile/ona-runner-51cf5b27370ded93-environment-fixture"
+    id   = "ona-runner-51cf5b27370ded93-environment-fixture"
+    name = "ona-runner-51cf5b27370ded93-environment-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_security_group.environment
+  override_during = plan
+  values          = { id = "sg-00000000000000001" }
+}
+
+override_resource {
+  target          = aws_iam_policy.devcontainer_cache_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecr-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecr-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-ecr-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.confined_runner_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-confined-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-confined-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-confined-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.ecs_task_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-task-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.s3_access_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-s3-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-s3-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-s3-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.runner_control_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-control-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-control-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-control-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.environment_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-environment-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-environment-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-environment-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.ecs_execution_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-ecs-exec-boundary-fixture"
+  }
+}
+
+override_resource {
+  target          = aws_iam_policy.proxy_boundary
+  override_during = plan
+  values = {
+    arn  = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-proxy-boundary-fixture"
+    id   = "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-proxy-boundary-fixture"
+    name = "ona-runner-51cf5b27370de-proxy-boundary-fixture"
+  }
 }
 
 run "warm_pool_runtime_permissions" {
@@ -196,9 +514,9 @@ run "ecs_update_role_passing" {
     condition = alltrue([
       for statement in data.aws_iam_policy_document.ecs_task.statement :
       coalesce(statement.effect, "Allow") == "Allow" && statement.resources == toset([
-        "arn:aws:iam::123456789012:role/test-execution",
-        "arn:aws:iam::123456789012:role/test-runner",
-        "arn:aws:iam::123456789012:role/test-proxy",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture",
       ]) && length(statement.condition) == 1 &&
       one(statement.condition).test == "StringEquals" &&
       one(statement.condition).variable == "iam:PassedToService" &&
@@ -220,10 +538,46 @@ run "restricted_ecs_update_role_passing" {
       for statement in data.aws_iam_policy_document.ecs_task.statement : statement.resources
       if statement.sid == "PassECSTaskRoles"
       ]) == toset([
-      "arn:aws:iam::123456789012:role/test-execution",
-      "arn:aws:iam::123456789012:role/test-runner",
+      "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
+      "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
     ])
     error_message = "Restricted runners must plan without a proxy role and must not pass one to ECS."
+  }
+}
+
+run "restricted_confined_effective_policy" {
+  command = plan
+  variables {
+    restrict_ingress                = true
+    runner_iam_phase                = "confined"
+    runner_iam_retirement_confirmed = true
+  }
+
+  assert {
+    condition = (
+      length(aws_iam_role.proxy) == 0 &&
+      length(aws_ecs_task_definition.proxy) == 0 &&
+      length(local.runner_control_targets) == 2 &&
+      alltrue([for target in local.runner_control_targets : target.kind != "proxy"])
+    )
+    error_message = "Restricted confined runners must not create or delegate to the proxy target."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in data.aws_iam_policy_document.ecs_task.statement : statement.resources
+        if statement.sid == "ManageInternalLLMTLS"
+      ]) == toset(["arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl"]) &&
+      contains(
+        one([
+          for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement.resources
+          if statement.sid == "ExactRunnerSecrets"
+        ]),
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:ona-runner-51cf5b27370ded93-llm-tls-fixture-GhIjKl",
+      )
+    )
+    error_message = "Restricted confined runners must attach the exact internal TLS secret to both identity and boundary policies."
   }
 }
 
@@ -237,7 +591,7 @@ run "cache_session_contract" {
       one(data.aws_iam_policy_document.s3_access_assume.statement).actions == toset(["sts:AssumeRole", "sts:TagSession"]) &&
       length(one(data.aws_iam_policy_document.s3_access_assume.statement).principals) == 1 &&
       one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).type == "AWS" &&
-      one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/test-runner"]) &&
+      one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture"]) &&
       length(one(data.aws_iam_policy_document.s3_access_assume.statement).condition) == 2 &&
       alltrue([
         for condition in one(data.aws_iam_policy_document.s3_access_assume.statement).condition :
@@ -249,13 +603,34 @@ run "cache_session_contract" {
   }
 
   assert {
+    condition = try(
+      one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).actions == toset(["sts:AssumeRole", "sts:TagSession"]) &&
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture"]) &&
+      length(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition) == 0, false
+    )
+    error_message = "Legacy devcontainer cache trust must preserve the original task principal and unconstrained session-tag behavior."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement :
+      statement.resources == toset(["arn:aws:ecr:us-east-1:123456789012:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"])
+      if statement.sid == "AllowPullFromProject" || statement.sid == "AllowPushToProject"
+      ]) && anytrue([
+      for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement :
+      statement.sid == "AllowPushToProject" && one(statement.condition).variable == "aws:PrincipalTag/gitpod.dev/push" && one(statement.condition).values == tolist(["true"])
+    ])
+    error_message = "Legacy delegated cache access must preserve session runner/project resources and the existing dormant push condition."
+  }
+
+  assert {
     condition = (
       length(data.aws_iam_policy_document.s3_access.statement) == 4 &&
       length([for statement in data.aws_iam_policy_document.s3_access.statement : statement if statement.effect == "Deny"]) == 1 &&
       alltrue([
         for statement in data.aws_iam_policy_document.s3_access.statement :
         statement.actions == toset(["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListMultipartUploadParts", "s3:AbortMultipartUpload"]) &&
-        statement.resources == toset(["arn:aws:s3:::test-registry/$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"]) &&
+        statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture/$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"]) &&
         length(statement.condition) == 0
         if coalesce(statement.effect, "Allow") == "Allow" && statement.actions != toset(["s3:ListBucket"]) && statement.actions != toset(["s3:GetBucketLocation"])
       ]) &&
@@ -270,7 +645,7 @@ run "cache_session_contract" {
   assert {
     condition = alltrue([
       for statement in data.aws_iam_policy_document.s3_access.statement :
-      statement.actions == toset(["s3:ListBucket"]) && statement.resources == toset(["arn:aws:s3:::test-registry"]) &&
+      statement.actions == toset(["s3:ListBucket"]) && statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"]) &&
       length(statement.condition) == 1 && one(statement.condition).test == "StringNotLike" &&
       one(statement.condition).variable == "s3:prefix" &&
       one(statement.condition).values == tolist(["$${aws:PrincipalTag/gitpod.dev/environment-creator-id}/*"])
@@ -284,7 +659,7 @@ run "cache_session_contract" {
       for action in ["s3:ListBucket", "s3:GetBucketLocation"] : anytrue([
         for statement in data.aws_iam_policy_document.s3_access.statement :
         coalesce(statement.effect, "Allow") == "Allow" && statement.actions == toset([action]) &&
-        statement.resources == toset(["arn:aws:s3:::test-registry"]) && length(statement.condition) == 0
+        statement.resources == toset(["arn:aws:s3:::ona-runner-51cf5b27370ded-registry-fixture"]) && length(statement.condition) == 0
       ])
     ])
     error_message = "Cache clients need bucket location and listing grants; the separate deny enforces listing prefixes."
@@ -324,4 +699,721 @@ run "task_ca_and_environment_contracts" {
     ])) && anytrue([for statement in data.aws_iam_policy_document.environment.statement : statement.sid == "AllowWriteOwnLogs"])
     error_message = "Environment logging uses its own S3 prefix, without unused CloudWatch Logs grants."
   }
+}
+
+run "legacy_release_preserves_existing_addresses_and_authority" {
+  command = plan
+
+  assert {
+    condition = (
+      length(aws_iam_role.confined_runner) == 0 &&
+      length(aws_iam_role.runner_control) == 0 &&
+      length(aws_lambda_function.runner_control) == 0 &&
+      length(aws_ecs_task_definition.confined_runner_baseline) == 0 &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.fargate_task_assume_role.json
+    )
+    error_message = "legacy must retain the existing task/role addresses and behavior without control resources."
+  }
+}
+
+run "prepare_constructs_control_without_cutover" {
+  command = plan
+
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      local.capable_runner_release && local.runner_control_source_is_valid &&
+      length(aws_lambda_function.runner_control) == 1 &&
+      length(aws_ecs_task_definition.confined_runner_baseline) == 1 &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn &&
+      local.runner_control_targets[0].baselineTaskDefinition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_iam_role_policy.runner_control).role == one(aws_iam_role.runner_control).id &&
+      one(aws_iam_role_policy.confined_runner).role == one(aws_iam_role.confined_runner).id
+    )
+    error_message = "prepare must build the validated control path and immutable baseline while keeping the legacy task selected."
+  }
+
+
+  assert {
+    condition = (
+      alltrue([
+        for container in local.confined_runner_container_definitions :
+        endswith(container.image, "@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+      ]) &&
+      one([for container in local.confined_runner_container_definitions : container if container.name == "ec2-runner"]).environment[index(one([for container in local.confined_runner_container_definitions : container if container.name == "ec2-runner"]).environment[*].name, "GITPOD_RUNNER_CONTROL_REQUIRED")].value == "true" &&
+      local.runner_control_environment.RELEASES_URL == "https://releases.gitpod.io" &&
+      local.runner_control_environment.APPROVED_IMAGE_IDS == "ami-00000000000000001,ami-00000000000000002"
+    )
+    error_message = "The prepared baseline and control function must render pinned images and verified control settings."
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in one(data.aws_iam_policy_document.runner_control).statement :
+      statement.resources == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-exec-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-proxy-fixture",
+      ]) && one(statement.condition).values == tolist(["ecs-tasks.amazonaws.com"])
+      if statement.sid == "PassFixedTaskRoles"
+    ])
+    error_message = "the control function must pass only the fixed task and execution roles to ECS."
+  }
+
+  assert {
+    condition = one([
+      for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+      if statement.sid == "UpdateOwnedServices"
+      ]).resources == toset([
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-51cf5b27370ded93-ona-cluster/ona-runner-51cf5b27370ded93-adot",
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-51cf5b27370ded93-ona-cluster/ona-runner-51cf5b27370ded93-proxy",
+      "arn:aws:ecs:us-east-1:123456789012:service/ona-runner-51cf5b27370ded93-ona-cluster/ona-runner-51cf5b27370ded93-runner",
+    ])
+    error_message = "the control function must update only this deployment's runner services."
+  }
+
+  assert {
+    condition = alltrue([
+      for action in ["ecs:RegisterTaskDefinition", "ecs:UpdateService", "iam:PassRole", "ec2:RunInstances", "ssm:SendCommand"] :
+      !anytrue([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : contains(statement.actions, action)])
+    ])
+    error_message = "the confined task boundary must leave task registration, service mutation, role passing, instance launch, and commands to the control function."
+  }
+}
+
+run "confined_control_identity_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_control).role == one(aws_iam_role.confined_runner).id &&
+      one(one(data.aws_iam_policy_document.confined_runner_control).statement).actions == toset(["lambda:InvokeFunction"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_control).statement).resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control"]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "InvokeRunnerControl" && statement.actions == toset(["lambda:InvokeFunction"]) && statement.resources == toset(["arn:aws:lambda:us-east-1:123456789012:function:ona-runner-51cf5b27370ded93-runner-control"])
+      ])
+    )
+    error_message = "The actual confined role identity and boundary must both allow only this deployment's runner-control function."
+  }
+}
+
+run "managed_cache_session_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+
+  assert {
+    condition = (
+      one([
+        for statement in data.aws_iam_policy_document.ecs_task.statement : statement
+        if statement.sid == "AssumeRunnerManagedRoles"
+        ]).resources == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecr-cache-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-s3-access-fixture",
+      ]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "AssumeExactCacheRoles"
+        ]).resources == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecr-cache-*",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-s3-access-*",
+      ]) &&
+      aws_iam_role.devcontainer_cache_registry_access.permissions_boundary == aws_iam_policy.devcontainer_cache_boundary.arn &&
+      aws_iam_role_policy.devcontainer_cache_registry_access.role == aws_iam_role.devcontainer_cache_registry_access.id
+    )
+    error_message = "Managed cache delegation must intersect the runtime identity, its runner-specific boundary, and the delegated role boundary at the actual attached roles."
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.devcontainer_cache_registry_access.name_prefix == "ona-runner-51cf5b27370de-ecr-cache-" &&
+      aws_iam_role.devcontainer_cache_registry_access.name == "ona-runner-51cf5b27370de-ecr-cache-fixture" &&
+      aws_iam_role.devcontainer_cache_registry_access.arn == "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecr-cache-fixture" &&
+      aws_iam_role.devcontainer_cache_registry_access.id == aws_iam_role_policy.devcontainer_cache_registry_access.role &&
+      aws_iam_role.devcontainer_cache_registry_access.permissions_boundary == "arn:aws:iam::123456789012:policy/ona-runner-51cf5b27370de-ecr-boundary-fixture" &&
+      startswith(aws_iam_role.devcontainer_cache_registry_access.name, trimsuffix(aws_iam_role.devcontainer_cache_registry_access.name_prefix, "-"))
+    )
+    error_message = "The rendered cache role, inline attachment, and boundary must use one internally consistent generated-name identity."
+  }
+
+  assert {
+    condition = try(
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
+      ]) &&
+      length(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition) == 6 &&
+      alltrue([
+        for condition in one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).condition :
+        (condition.test == "StringEquals" && condition.variable == "aws:RequestTag/gitpod.dev/runner-id" && condition.values == tolist(["runner-a"])) ||
+        (condition.test == "StringLike" && condition.variable == "aws:RequestTag/gitpod.dev/project-id" && condition.values == tolist(["?*"])) ||
+        (condition.test == "StringEquals" && condition.variable == "aws:RequestTag/gitpod.dev/allow-push" && toset(condition.values) == toset(["false", "true"])) ||
+        (condition.test == "ForAllValues:StringEquals" && condition.variable == "aws:TagKeys" && toset(condition.values) == toset(["gitpod.dev/runner-id", "gitpod.dev/project-id", "gitpod.dev/environment-creator-id", "gitpod.dev/allow-push"])) ||
+        (condition.test == "Null" && contains(["aws:RequestTag/gitpod.dev/runner-id", "aws:RequestTag/gitpod.dev/project-id"], condition.variable) && condition.values == tolist(["false"]))
+      ]) &&
+      alltrue([
+        for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement :
+        statement.resources == toset(["arn:aws:ecr:us-east-1:123456789012:repository/gitpod-runner-runner-a/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"])
+        if statement.sid == "AllowPullFromProject" || statement.sid == "AllowPushToProject"
+      ]), false
+    )
+    error_message = "Managed cache trust must admit the real four-tag request contract, reject unsupported tags, and bind resources to the configured runner."
+  }
+
+  assert {
+    condition = (
+      one([
+        for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement : statement
+        if statement.sid == "AllowPullFromProject"
+      ]).actions == toset(["ecr:BatchGetImage", "ecr:DescribeImages", "ecr:DescribeRepositories"]) &&
+      one([
+        for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement : statement
+        if statement.sid == "AllowPushToProject"
+      ]).actions == toset(["ecr:PutImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:BatchCheckLayerAvailability"]) &&
+      one(one([
+        for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement : statement
+        if statement.sid == "AllowPushToProject"
+      ]).condition).variable == "aws:PrincipalTag/gitpod.dev/push" &&
+      one([
+        for statement in data.aws_iam_policy_document.devcontainer_cache_registry_access.statement : statement
+        if statement.sid == "AllowGetAuthorizationToken"
+      ]).resources == toset(["*"])
+    )
+    error_message = "The existing cache identity policy must retain its bounded reads, dormant push condition, and identity-only authorization token grant."
+  }
+}
+
+run "runner_control_task_definition_scope" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "DescribeTaskDefinitions"
+      ]).resources == toset(["*"]) &&
+      length(one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).resources) == 2 &&
+      alltrue([for resource in one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).resources : startswith(resource, "arn:aws:ecs:us-east-1:123456789012:task-definition/") && endswith(resource, ":*")]) &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.runner_control).statement : statement
+        if statement.sid == "RegisterOwnedTaskDefinitions"
+      ]).actions, "ecs:DescribeTaskDefinition")
+    )
+    error_message = "DescribeTaskDefinition must use Resource *, while registration remains limited to the configured task families."
+  }
+}
+
+run "confined_ca_scope_contract" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
+  }
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions == toset(["s3:GetObject"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).actions == toset(["s3:GetObject"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"]) &&
+      length([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement if statement.sid == "ReadCABundles"]) == 0 &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_OBJECT_ARN"]) == "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem" &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"]) == "true" &&
+      length([for item in local.ca_init_container.environment : item if startswith(item.name, "GITPOD_CUSTOM_CA_S3_")]) == 0
+    )
+    error_message = "Only the confined init identity may require and receive the exact declared CA object scope; legacy and sibling init definitions stay unchanged."
+  }
+}
+
+run "confined_external_ca_identity_contract" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "s3://customer-ca-bucket/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      aws_ecs_service.runner.task_definition == aws_ecs_task_definition.runner.arn
+    )
+    error_message = "Prepare must bind the dormant confined baseline to the confined role while the service stays on the legacy task."
+  }
+
+  assert {
+    condition = (
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      jsondecode(one(aws_iam_role_policy.confined_runner_ca).policy) == jsondecode(one(data.aws_iam_policy_document.confined_runner_ca).json)
+    )
+    error_message = "The external CA identity document must be attached to the actual confined role."
+  }
+
+  assert {
+    condition     = one(aws_iam_role.confined_runner).permissions_boundary == one(aws_iam_policy.confined_runner_boundary).arn
+    error_message = "The matching boundary document must be attached to the actual confined role."
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions == toset(["s3:GetObject"]) &&
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"]) &&
+      coalesce(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).effect, "Allow") == "Allow" &&
+      length(one(data.aws_iam_policy_document.confined_runner_ca).statement) == 1 &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"]) &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:PutObject") &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:DeleteObject") &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).actions, "s3:ListBucket")
+    )
+    error_message = "The confined identity and boundary must allow only GetObject on the declared external CA object."
+  }
+}
+
+run "confined_empty_ca_scope_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+
+  assert {
+    condition = (
+      length([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]) == 0 &&
+      length(data.aws_iam_policy_document.confined_runner_ca) == 0 &&
+      length(aws_iam_role_policy.confined_runner_ca) == 0 &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "RunnerBuckets" && contains(statement.actions, "s3:GetObject") &&
+        contains(statement.resources, "arn:aws:s3:::ona-runner-51cf5b27370ded-agent-fixture/*") &&
+        contains(statement.resources, "arn:aws:s3:::ona-runner-51cf5b27370ded-logs-fixture/*")
+      ]) &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_OBJECT_ARN"]) == "" &&
+      one([for item in local.confined_ca_init_container.environment : item.value if item.name == "GITPOD_CUSTOM_CA_S3_SCOPE_REQUIRED"]) == "true"
+    )
+    error_message = "The confined init must require the CA scope declaration even when it is empty, without creating an external S3 grant."
+  }
+}
+
+run "legacy_ignores_external_ca_declaration" {
+  command = plan
+  variables {
+    custom_ca_trust_bundle  = "s3://customer-ca-bucket/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      length(aws_iam_role.confined_runner) == 0 &&
+      length(data.aws_iam_policy_document.confined_runner_ca) == 0 &&
+      length(aws_iam_role_policy.confined_runner_ca) == 0 &&
+      length([for item in local.ca_init_container.environment : item if startswith(item.name, "GITPOD_CUSTOM_CA_S3_")]) == 0
+    )
+    error_message = "An explicit CA declaration must not create confined authority or change the active legacy init environment in legacy phase."
+  }
+}
+
+run "unused_external_ca_declaration_stays_explicit" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_trust_bundle  = "https://ca.example.com/root.pem"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/unused/root.pem"
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/unused/root.pem"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/unused/root.pem"])
+    )
+    error_message = "A valid declaration remains explicit authority even when the current CA value is HTTP; removing the declaration removes that authority."
+  }
+}
+
+run "external_ca_declaration_switches_exact_key" {
+  command = plan
+  variables {
+    runner_iam_phase        = "prepare"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources == toset(["arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"]) &&
+      !contains(one(one(data.aws_iam_policy_document.confined_runner_ca).statement).resources, "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem") &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadConfiguredCABundle"
+      ]).resources == toset(["arn:aws:s3:::customer-ca-bucket/rotated/ca-bundle.pem"])
+    )
+    error_message = "Changing the declaration must move both grants to the new exact key without retaining the prior key or another bucket."
+  }
+}
+
+run "confined_catalog_read_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "DescribeComputeCatalog"
+        ]).actions == toset([
+        "autoscaling:DescribeAutoScalingGroups", "autoscaling:DescribePolicies", "autoscaling:DescribeWarmPool",
+        "ec2:DescribeImages", "ec2:DescribeInstanceStatus", "ec2:DescribeInstanceTypeOfferings", "ec2:DescribeInstanceTypes",
+        "ec2:DescribeInternetGateways", "ec2:DescribeNatGateways", "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeTags",
+        "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs", "ssm:DescribeParameters",
+      ]) &&
+      alltrue([
+        for action in ["ec2:DescribeInstanceAttribute", "ec2:DescribeInstances", "ec2:DescribeLaunchTemplates", "ec2:DescribeLaunchTemplateVersions", "ec2:DescribeSnapshots", "ec2:DescribeVolumes", "ssm:GetCommandInvocation"] :
+        !anytrue([for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : contains(statement.actions, action)])
+      ]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).actions == toset(["iam:GetRole"]) &&
+      one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-environment-fixture"]) &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources, "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-sibling") &&
+      !contains(one([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement : statement
+        if statement.sid == "ReadEnvironmentRole"
+      ]).resources, "arn:aws:iam::999999999999:role/foreign-environment")
+    )
+    error_message = "The confined runtime must retain the image catalog read and scope GetRole to this deployment's environment role."
+  }
+}
+
+run "confined_owned_compute_contract" {
+  command = plan
+  variables { runner_iam_phase = "prepare" }
+  assert {
+    condition = (
+      anytrue([
+        for statement in data.aws_iam_policy_document.ecs_task.statement :
+        contains(statement.actions, "ec2:CreateTags") && contains(statement.actions, "ec2:DeleteTags")
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "TagOwnedComputeMetadata" && contains(statement.actions, "ec2:CreateTags") && contains(statement.actions, "ec2:DeleteTags") &&
+        one(statement.condition).variable == "ec2:ResourceTag/gitpod.dev/runner-id"
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "DenyRunnerOwnerReassignment" && statement.effect == "Deny" && contains([for condition in statement.condition : condition.variable], "aws:RequestTag/gitpod.dev/runner-id")
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "DenyRunnerOwnerTagDeletion" && statement.effect == "Deny" && one(statement.condition).test == "ForAnyValue:StringEquals"
+      ]) &&
+      anytrue([
+        for statement in one(data.aws_iam_policy_document.confined_runner_boundary).statement :
+        statement.sid == "OwnedComputeMutation" && contains(statement.actions, "ec2:DeleteLaunchTemplate") && contains(statement.actions, "ec2:CancelSpotInstanceRequests") &&
+        contains(statement.resources, "arn:aws:ec2:us-east-1:123456789012:launch-template/*") &&
+        contains(statement.resources, "arn:aws:ec2:us-east-1:123456789012:spot-instances-request/*")
+      ])
+    )
+    error_message = "Owned metadata updates, launch-template deletion, and spot cancellation need identity and boundary grants while owner reassignment and deletion remain explicit denies."
+  }
+}
+
+run "custom_ca_object_arn_rejects_bucket_scope" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_wildcards" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/*" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_policy_expansion" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/$${aws:username}.pem" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "custom_ca_object_arn_rejects_unsupported_partition" {
+  command = plan
+  variables { custom_ca_s3_object_arn = "arn:aws-us-gov:s3:::customer-ca-bucket/shared/ca-bundle.pem" }
+  expect_failures = [var.custom_ca_s3_object_arn]
+}
+
+run "cutover_selects_the_immutable_baseline" {
+  command = plan
+
+  variables {
+    runner_iam_phase        = "cutover"
+    custom_ca_s3_object_arn = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.fargate_task_assume_role.json &&
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset([
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture",
+        "arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-ecs-task-fixture",
+      ])
+    )
+    error_message = "cutover must select the confined baseline while retaining legacy rollback trust."
+  }
+}
+
+run "confined_retires_legacy_authority" {
+  command = plan
+
+  variables {
+    runner_iam_phase                = "confined"
+    runner_iam_retirement_confirmed = true
+    custom_ca_s3_object_arn         = "arn:aws:s3:::customer-ca-bucket/shared/ca-bundle.pem"
+  }
+
+  assert {
+    condition = (
+      aws_ecs_service.runner.task_definition == one(aws_ecs_task_definition.confined_runner_baseline).arn &&
+      one(aws_ecs_task_definition.confined_runner_baseline).task_role_arn == one(aws_iam_role.confined_runner).arn &&
+      one(aws_iam_role_policy.confined_runner_ca).role == one(aws_iam_role.confined_runner).id &&
+      aws_iam_role.ecs_task.assume_role_policy == data.aws_iam_policy_document.retired_runner_assume.json &&
+      jsondecode(aws_iam_role_policy.ecs_task.policy) == jsondecode(data.aws_iam_policy_document.retired_runner.json) &&
+      one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture"]) &&
+      one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset(["arn:aws:iam::123456789012:role/ona-runner-51cf5b27370de-conf-task-fixture"])
+    )
+    error_message = "confined must keep the legacy address inert and trust only the confined task for delegated cache sessions."
+  }
+}
+
+run "confined_requires_retirement_confirmation" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "confined"
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "digest_only_release_does_not_advertise_control" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "top_level_protocol_ignores_nested_numeric_value" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"metadata":{"runner_control_protocol":2},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  assert {
+    condition     = local.capable_runner_release && local.runner_control_protocol_is_valid
+    error_message = "Only the decoded top-level numeric protocol field determines control capability."
+  }
+}
+
+run "nested_protocol_does_not_override_invalid_top_level" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":2,"metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "null_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":null,"metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "boolean_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":true,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "protocol_without_source_hash_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "malformed_manifest_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = "{"
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "string_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":"1","metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "source_hash_without_protocol_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","metadata":{"runner_control_protocol":1},"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
+}
+
+run "mismatched_control_source_fails_closed" {
+  command = plan
+
+  variables {
+    runner_iam_phase = "prepare"
+  }
+
+  override_data {
+    target = data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","cloudformation_template_url":"https://releases.gitpod.io/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  expect_failures = [aws_ecs_cluster.this]
 }

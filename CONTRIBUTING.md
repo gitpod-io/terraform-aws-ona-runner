@@ -65,6 +65,7 @@ terraform init -backend=false
 terraform validate
 terraform test
 bash scripts/test-metrics-audit-sync.sh
+bash scripts/test-runner-iam-transition.sh
 
 for module_dir in modules/*/; do
   terraform -chdir="$module_dir" init -backend=false
@@ -88,6 +89,10 @@ SSM configuration from mocked plans. It verifies API endpoint, proxy, and CA
 passthrough through both restricted wrappers, including unchanged defaults and
 partially configured proxy settings.
 The firewall check verifies native file, YAML, and type errors without AWS access.
+The runner IAM transition check uses synthetic previous and planned states to
+reject skipped phases, reversals, unknown or replacing phase resources, and use
+of the new-install shortcut with an existing deployment. It also covers exact
+root, nested, count, and `for_each` module-instance selection.
 
 ## Releases
 

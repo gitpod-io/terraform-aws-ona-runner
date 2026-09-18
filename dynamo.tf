@@ -43,7 +43,9 @@ data "aws_iam_policy_document" "dynamodb_resource" {
     condition {
       test     = "StringNotEquals"
       variable = "aws:PrincipalArn"
-      values   = [aws_iam_role.ecs_task.arn]
+      values = local.runner_iam_managed ? (
+        local.runner_iam_confined ? [one(aws_iam_role.confined_runner).arn] : [aws_iam_role.ecs_task.arn, one(aws_iam_role.confined_runner).arn]
+      ) : [aws_iam_role.ecs_task.arn]
     }
   }
 }

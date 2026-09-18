@@ -7,6 +7,7 @@ terraform init -backend=false
 terraform validate
 terraform test
 bash scripts/test-metrics-audit-sync.sh
+bash scripts/test-runner-iam-transition.sh
 
 for module_dir in modules/*/; do
   if [[ -f "${module_dir}/versions.tf" ]]; then

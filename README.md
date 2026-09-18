@@ -102,12 +102,85 @@ Terraform remains authoritative for the runner and proxy task definitions. A
 Terraform apply deploys the configured release and task settings, reconciling
 any task-definition change made by the runner's runtime updater between applies.
 
+### Runner IAM migration
+
+`runner_iam_phase` controls migration from the original runner task role to a
+fixed control function and a confined runtime role. It defaults to `legacy`, so
+existing installations retain their task definitions, custom image behavior,
+and IAM resource addresses until an operator starts the migration. A release is
+eligible for a managed phase only when its manifest and versioned public
+template provide protocol 1, both image digests, a matching template URL, and a
+SHA-256 digest for the unique inline control source. Image digests by themselves
+remain a valid legacy release and do not advertise control support.
+
+Existing installations advance one phase per reviewed apply:
+
+1. `legacy` keeps the original role and task definition.
+2. `prepare` installs the verified control function, confined role, and immutable
+   task baseline while preserving the legacy task-role selection. The apply may
+   register a revised legacy task definition and roll the service.
+3. `cutover` deploys the immutable baseline. Both task roles retain cache trust
+   during task replacement and existing session expiry.
+4. `confined` removes runtime trust from the original role and replaces its
+   identity policy with an explicit deny. Set `runner_iam_retirement_confirmed`
+   only after the old tasks have stopped and their role sessions have expired.
+
+Create a saved plan and run the state-aware transition check before each apply:
+
+```bash
+terraform plan -out=runner-iam.tfplan
+terraform show -json runner-iam.tfplan >runner-iam-plan.json
+bash scripts/check-runner-iam-transition.sh runner-iam-plan.json
+```
+
+The checker selects the full resource address automatically when the plan has
+one runner. For several runner module instances, select one exactly or validate
+all of them deliberately:
+
+```bash
+bash scripts/check-runner-iam-transition.sh \
+  --address 'module.runner["blue"].terraform_data.runner_iam_phase' \
+  runner-iam-plan.json
+bash scripts/check-runner-iam-transition.sh --all runner-iam-plan.json
+```
+
+For a confirmed new installation with no previous managed resources in that
+module instance, select `confined` and pass `--new-install` to the checker. The
+checker rejects this shortcut when prior runner resources exist without the
+phase marker; those installations must start with `prepare`. Terraform cannot
+infer whether resources outside its prior state belong to an untracked
+deployment, so the operator must still confirm that choice.
+
+Keep the current phase while rolling back a compatible application release.
+Phase reversals and skipped phases are rejected because old role sessions and
+tasks cannot be reconstructed safely from Terraform state. Recover a failed
+phase by correcting the same phase or advancing after validation. The original
+role remains at its stable Terraform address after `confined`, but has no
+runtime trust or usable permissions.
+
 Infrastructure fixes require updating the module version and running
 `terraform plan` followed by an approved `terraform apply`; updating runner images
 alone does not change task-role permissions. Review the plan for IAM updates and
-task rollouts. The runner, proxy, and telemetry tasks support S3-hosted CA bundles
-under `s3://gitpod-*/`; custom bucket policies and encryption keys may require
-additional customer-managed access.
+task rollouts.
+
+The selected release origin must be reachable and trusted from both the runner
+and the control function. Runner proxy and custom CA settings do not configure
+the control function's network path or Node trust store.
+
+Before selecting `prepare`, `cutover`, or `confined` for a runner whose custom CA
+resolves to S3, set `custom_ca_s3_object_arn` to that one exact object ARN. This
+is required even when `custom_ca_trust_bundle` is itself an S3 object ARN. The
+module validates the declared ARN shape and uses it as the confined runner's
+only external CA-object grant. Confined initialization fails before the S3
+request when the resolved bucket and key do not match the declaration.
+
+PEM and HTTP(S) CA inputs do not need an S3 declaration. The declaration scopes
+artifact access; it does not make the object's contents immutable or prove an
+indirect CA value before task initialization. The legacy runner, proxy, and
+telemetry task roles retain their existing `gitpod-*` bucket limit, so every S3
+CA used by those tasks must still use a matching bucket. Bucket policies and
+encryption keys may require additional customer-managed access. Remove an
+unused declaration to remove its object grant from the confined role.
 
 ## Supported configuration
 

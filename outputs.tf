@@ -108,6 +108,11 @@ output "release_version" {
   value       = var.runner_template_build_version
 }
 
+output "runner_iam_phase" {
+  description = "Runner IAM migration phase recorded by this module."
+  value       = var.runner_iam_phase
+}
+
 output "ssh_port" {
   description = "SSH port used by environment instances."
   value       = 29222
