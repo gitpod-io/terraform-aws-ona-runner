@@ -2,6 +2,9 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
+  # AWS provider 5.x lacks region; 6.x deprecates name.
+  region = lookup(data.aws_region.current, "region", lookup(data.aws_region.current, "name", null))
+
   subnet_indices = {
     for index, subnet_id in sort(tolist(var.subnet_ids)) : subnet_id => index
   }
@@ -147,7 +150,7 @@ resource "aws_lb_listener" "https" {
 
   lifecycle {
     precondition {
-      condition     = can(regex("^arn:[^:]+:acm:${data.aws_region.current.name}:[0-9]{12}:certificate/.+$", var.certificate_arn))
+      condition     = can(regex("^arn:[^:]+:acm:${local.region}:[0-9]{12}:certificate/.+$", var.certificate_arn))
       error_message = "certificate_arn must identify an ACM certificate in the AWS provider region."
     }
   }

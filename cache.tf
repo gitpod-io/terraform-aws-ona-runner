@@ -163,7 +163,7 @@ resource "aws_elasticache_user" "this" {
   count         = var.cache_engine == "ElastiCache" ? 1 : 0
   user_id       = "ecu-${var.runner_id}"
   user_name     = "default"
-  engine        = "REDIS"
+  engine        = "redis"
   access_string = "on ~* +@all"
   passwords     = [random_password.elasticache_cache[0].result]
 }

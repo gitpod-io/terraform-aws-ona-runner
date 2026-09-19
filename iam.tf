@@ -21,7 +21,7 @@ data "aws_iam_policy_document" "fargate_task_assume_role" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
+      values   = ["arn:aws:ecs:${local.region}:${data.aws_caller_identity.current.account_id}:*"]
     }
   }
 }
@@ -38,7 +38,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
+      values   = ["arn:aws:ec2:${local.region}:${data.aws_caller_identity.current.account_id}:instance/*"]
     }
   }
 }
@@ -192,14 +192,14 @@ data "aws_iam_policy_document" "ecs_task" {
       "ecr:GetRegistryScanningConfiguration",
       "ecr:GetImageScanningConfiguration",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/*"]
+    resources = ["arn:aws:ecr:${local.region}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-${var.runner_id}/*"]
   }
 
   statement {
     sid     = "BedrockInvocation"
     actions = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
     resources = [
-      "arn:aws:bedrock:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+      "arn:aws:bedrock:${local.region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
       "arn:aws:bedrock:*::foundation-model/*",
     ]
   }
@@ -223,7 +223,7 @@ data "aws_iam_policy_document" "ecs_task" {
       "ec2:DeleteLaunchTemplate",
       "ec2:DescribeLaunchTemplateVersions",
     ]
-    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*"]
+    resources = ["arn:aws:ec2:${local.region}:${data.aws_caller_identity.current.account_id}:launch-template/*"]
   }
 
   statement {
@@ -239,7 +239,7 @@ data "aws_iam_policy_document" "ecs_task" {
       "autoscaling:StartInstanceRefresh",
       "autoscaling:UpdateAutoScalingGroup",
     ]
-    resources = ["arn:aws:autoscaling:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/ona-wp-*"]
+    resources = ["arn:aws:autoscaling:${local.region}:${data.aws_caller_identity.current.account_id}:autoScalingGroup:*:autoScalingGroupName/ona-wp-*"]
   }
 
   statement {
@@ -322,7 +322,7 @@ data "aws_iam_policy_document" "ecs_task" {
       "ssm:GetParametersByPath",
       "ssm:PutParameter",
     ]
-    resources = ["arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/gitpod/runner/*"]
+    resources = ["arn:aws:ssm:${local.region}:${data.aws_caller_identity.current.account_id}:parameter/gitpod/runner/*"]
   }
 
   statement {
@@ -335,7 +335,7 @@ data "aws_iam_policy_document" "ecs_task" {
     sid     = "SSMSendRunShellScript"
     actions = ["ssm:SendCommand"]
     resources = [
-      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${local.region}:${data.aws_caller_identity.current.account_id}:instance/*",
       "arn:aws:ssm:*:*:document/AWS-RunShellScript",
     ]
   }
@@ -351,9 +351,9 @@ data "aws_iam_policy_document" "ecs_task" {
       "secretsmanager:TagResource",
     ]
     resources = [
-      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*${var.runner_id}*",
-      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*gitpod*",
-      "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:*ona*",
+      "arn:aws:secretsmanager:${local.region}:${data.aws_caller_identity.current.account_id}:secret:*${var.runner_id}*",
+      "arn:aws:secretsmanager:${local.region}:${data.aws_caller_identity.current.account_id}:secret:*gitpod*",
+      "arn:aws:secretsmanager:${local.region}:${data.aws_caller_identity.current.account_id}:secret:*ona*",
     ]
   }
 
@@ -426,7 +426,7 @@ data "aws_iam_policy_document" "ecs_task" {
   statement {
     sid       = "ReadRunnerCloudWatchLogs"
     actions   = ["logs:FilterLogEvents"]
-    resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/gitpod/*"]
+    resources = ["arn:aws:logs:${local.region}:${data.aws_caller_identity.current.account_id}:log-group:/gitpod/*"]
   }
 }
 
@@ -557,12 +557,12 @@ data "aws_iam_policy_document" "environment" {
   statement {
     sid       = "AllowSelfTaggingOperational"
     actions   = ["ec2:CreateTags"]
-    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
+    resources = ["arn:aws:ec2:${local.region}:${data.aws_caller_identity.current.account_id}:instance/*"]
 
     condition {
       test     = "StringEquals"
       variable = "ec2:SourceInstanceARN"
-      values   = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/$${ec2:InstanceId}"]
+      values   = ["arn:aws:ec2:${local.region}:${data.aws_caller_identity.current.account_id}:instance/$${ec2:InstanceId}"]
     }
 
     condition {
@@ -687,7 +687,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:DescribeImages",
       "ecr:DescribeRepositories",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = ["arn:aws:ecr:${local.region}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
   }
 
   statement {
@@ -699,7 +699,7 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access" {
       "ecr:CompleteLayerUpload",
       "ecr:BatchCheckLayerAvailability",
     ]
-    resources = ["arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
+    resources = ["arn:aws:ecr:${local.region}:${data.aws_caller_identity.current.account_id}:repository/gitpod-runner-$${aws:PrincipalTag/gitpod.dev/runner-id}/projects/$${aws:PrincipalTag/gitpod.dev/project-id}/image-build"]
 
     condition {
       test     = "StringEquals"

@@ -1,6 +1,5 @@
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
-data "aws_region" "current" {}
 
 resource "aws_cloudwatch_log_group" "network_firewall_flow" {
   count = var.enable_firewall ? 1 : 0
@@ -130,7 +129,7 @@ data "aws_iam_policy_document" "resolver_query_logs" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:route53resolver:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:resolver-query-log-config/*"]
+      values   = ["arn:${data.aws_partition.current.partition}:route53resolver:${var.aws_region}:${data.aws_caller_identity.current.account_id}:resolver-query-log-config/*"]
     }
   }
 }

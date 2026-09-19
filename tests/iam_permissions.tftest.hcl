@@ -18,7 +18,7 @@ override_data {
 override_data {
   override_during = plan
   target          = data.aws_region.current
-  values          = { name = "us-east-1" }
+  values          = { region = "us-east-1", name = "us-east-1" }
 }
 
 variables {

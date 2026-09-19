@@ -81,6 +81,7 @@ for example_dir in examples/*/; do
 done
 bash scripts/test-restricted-runner-settings.sh
 bash scripts/test-firewall-config-errors.sh
+bash scripts/test-cloud-map-health-upgrade.sh
 ```
 
 The restricted-runner check inspects generated ECS task definitions and runner

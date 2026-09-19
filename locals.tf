@@ -2,6 +2,9 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
+  # AWS provider 5.x lacks region; 6.x deprecates name.
+  region = lookup(data.aws_region.current, "region", lookup(data.aws_region.current, "name", null))
+
   runner_name_prefix    = trimsuffix(substr(lower(var.runner_name), 0, 12), "-")
   runner_id_name_suffix = substr(sha256(lower(var.runner_id)), 0, 16)
   default_name_prefix   = "${local.runner_name_prefix}-${local.runner_id_name_suffix}"
@@ -37,7 +40,7 @@ locals {
 
   runner_is_large = var.runner_size == "large"
 
-  non_graviton_cache_region = contains(["eu-west-3", "eu-south-2"], data.aws_region.current.name)
+  non_graviton_cache_region = contains(["eu-west-3", "eu-south-2"], local.region)
   elasticache_node_type = local.runner_is_large ? (
     local.non_graviton_cache_region ? "cache.r5.large" : "cache.r7g.large"
     ) : (
@@ -45,8 +48,8 @@ locals {
   )
   memorydb_node_type = local.runner_is_large ? "db.t4g.medium" : "db.t4g.small"
 
-  runner_token_secret_name = "${data.aws_region.current.name}-${var.runner_id}-runner-token"
-  runner_token_secret_arn  = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${local.runner_token_secret_name}-??????"
+  runner_token_secret_name = "${local.region}-${var.runner_id}-runner-token"
+  runner_token_secret_arn  = "arn:aws:secretsmanager:${local.region}:${data.aws_caller_identity.current.account_id}:secret:${local.runner_token_secret_name}-??????"
 
   redis_parameter_name = "/gitpod/runner/${var.runner_id}/ai-execution-redis"
   runner_config_key    = "/gitpod/runner/${var.runner_id}"
@@ -77,7 +80,7 @@ locals {
 
   # Keep these paths aligned with the private-ECR template renderer in
   # gitpod-next/dev/ci-jobs/tasks/ec2-runner/releasebundle.
-  release_private_ecr_prefix = "025066274397.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/gitpod/ecr"
+  release_private_ecr_prefix = "025066274397.dkr.ecr.${local.region}.amazonaws.com/gitpod/ecr"
   runner_image = startswith(local.release_runner_image, "${local.release_public_ecr_prefix}/") ? (
     "${local.release_private_ecr_prefix}/${trimprefix(local.release_runner_image, "public.ecr.aws/")}"
   ) : local.release_runner_image
