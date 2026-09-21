@@ -304,23 +304,52 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
-    error_message = "the bundled firewall.yaml must use the explicit three-role schema."
+    condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains", "runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
+    error_message = "the bundled firewall.yaml must expose one shared extension list and all three role baselines."
   }
 
   assert {
-    condition = alltrue([for role in ["runner", "environment", "prebuild"] : local.firewall_allowed_domains[role] == toset([
-      "api.linear.app",
-      "github.com",
-      "api.github.com",
-      "codeload.github.com",
-      ".githubusercontent.com",
-      "api.atlassian.com",
-      "api.openai.com",
-      "mcr.microsoft.com",
-      ".data.mcr.microsoft.com",
-    ])])
-    error_message = "all default allowlists must retain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
+    condition = (
+      local.firewall_allowed_domains.runner == toset([
+        "api.linear.app",
+        "github.com",
+        "api.github.com",
+        "api.atlassian.com",
+        "api.openai.com",
+      ]) &&
+      local.firewall_allowed_domains.environment == toset([
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        ".githubusercontent.com",
+        "mcr.microsoft.com",
+        ".data.mcr.microsoft.com",
+      ]) &&
+      local.firewall_allowed_domains.prebuild == toset([
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        ".githubusercontent.com",
+        "mcr.microsoft.com",
+        ".data.mcr.microsoft.com",
+      ])
+    )
+    error_message = "the default role baselines must contain only the reviewed destinations required by each workload."
+  }
+
+  assert {
+    condition     = local.firewall_config.allowed_domains == []
+    error_message = "the bundled shared extension list must start empty so it does not silently widen any role."
+  }
+
+  assert {
+    condition = !contains(local.firewall_allowed_domains.runner, "mcr.microsoft.com") && alltrue([
+      for role in ["environment", "prebuild"] :
+      !contains(local.firewall_allowed_domains[role], "api.linear.app") &&
+      !contains(local.firewall_allowed_domains[role], "api.atlassian.com") &&
+      !contains(local.firewall_allowed_domains[role], "api.openai.com")
+    ])
+    error_message = "runner image-registry access and environment integration/model access must remain excluded from their role baselines."
   }
 
   assert {
@@ -461,21 +490,27 @@ run "firewall_domain_allowlist_adds_to_baseline_and_normalizes_duplicates" {
       aws_networkfirewall_rule_group.allowed_domains[0].capacity == 1000 &&
       aws_networkfirewall_rule_group.allowed_domains[0].type == "STATEFUL" &&
       aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].stateful_rule_options[0].rule_order == "STRICT_ORDER" &&
-      local.firewall_allowed_domains["runner"] == local.firewall_allowed_domains["environment"] &&
-      local.firewall_allowed_domains["runner"] == local.firewall_allowed_domains["prebuild"] &&
       local.firewall_allowed_domains["runner"] == toset([
         "api.linear.app",
         "github.com",
         "api.github.com",
-        "codeload.github.com",
-        ".githubusercontent.com",
         "api.atlassian.com",
         "api.openai.com",
+        "mcr.microsoft.com",
+        "packages.example.com",
+        ".corp.example",
+      ]) &&
+      local.firewall_allowed_domains["environment"] == toset([
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        ".githubusercontent.com",
         "mcr.microsoft.com",
         ".data.mcr.microsoft.com",
         "packages.example.com",
         ".corp.example",
-      ])
+      ]) &&
+      local.firewall_allowed_domains["prebuild"] == local.firewall_allowed_domains["environment"]
     )
     error_message = "additional domains must extend, not replace, the TLS SNI baseline and must be deduplicated after lowercasing."
   }
@@ -499,9 +534,10 @@ run "explicit_empty_allowlist_retains_baseline" {
   assert {
     condition = (
       length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
-      length(local.firewall_allowed_domains["runner"]) == 9 &&
+      length(local.firewall_allowed_domains["runner"]) == 5 &&
+      length(local.firewall_allowed_domains["environment"]) == 6 &&
       contains(local.firewall_allowed_domains["runner"], "api.openai.com") &&
-      contains(local.firewall_allowed_domains["runner"], ".data.mcr.microsoft.com")
+      contains(local.firewall_allowed_domains["environment"], ".data.mcr.microsoft.com")
     )
     error_message = "an explicitly empty additional allowlist must retain the baseline, including model access and base-image layers."
   }
@@ -511,11 +547,11 @@ run "combined_firewall_allowlist_accepts_capacity_boundary" {
   command = plan
 
   variables {
-    firewall_allowed_domains = [for index in range(990) : "extra-${index}.example.com"]
+    firewall_allowed_domains = [for index in range(993) : "extra-${index}.example.com"]
   }
 
   assert {
-    condition     = length(local.firewall_allowed_domains["runner"]) == 999
+    condition     = length(local.firewall_allowed_domains["environment"]) == 999
     error_message = "the baseline and additional domains must fit within the 1000-rule capacity, while preserving the existing 999-hostname limit."
   }
 }
@@ -524,7 +560,7 @@ run "combined_firewall_allowlist_rejects_capacity_overflow" {
   command = plan
 
   variables {
-    firewall_allowed_domains = [for index in range(991) : "extra-${index}.example.com"]
+    firewall_allowed_domains = [for index in range(994) : "extra-${index}.example.com"]
   }
 
   expect_failures = [aws_networkfirewall_rule_group.allowed_domains]
@@ -1170,14 +1206,21 @@ run "empty_environment_and_prebuild_lists_have_no_allow_exception" {
   }
 }
 
-run "mixed_shared_and_role_lists_are_rejected" {
+run "shared_and_role_lists_are_merged" {
   command = plan
 
   variables {
     firewall_config_path = "tests/fixtures/firewall-mixed.yaml"
   }
 
-  expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
+  assert {
+    condition = (
+      local.firewall_allowed_domains.runner == toset(["shared.example.com", "runner.example.com"]) &&
+      local.firewall_allowed_domains.environment == toset(["shared.example.com", "environment.example.com"]) &&
+      local.firewall_allowed_domains.prebuild == toset(["shared.example.com", "prebuild.example.com"])
+    )
+    error_message = "allowed_domains must extend each complete role-specific list without leaking one role's entries into another."
+  }
 }
 
 run "all_roles_empty_denies_all_inspected_traffic" {

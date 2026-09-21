@@ -146,7 +146,7 @@ variable "firewall_allowed_domains" {
 }
 
 variable "firewall_config_path" {
-  description = "Local YAML file replacing the baseline. Use allowed_domains for all roles, or runner_allowed_domains, environment_allowed_domains, and prebuild_allowed_domains for separate complete lists. Empty lists give no allow exceptions. Copy firewall.yaml into your deployment directory, edit it, and pass its path. Cannot be combined with firewall_policy_arn or non-empty firewall_allowed_domains."
+  description = "Local YAML file replacing the baseline. Use allowed_domains for a list shared by all roles, the three role-specific keys for separate complete lists, or both forms to add shared domains to each role list. Empty lists give no allow exceptions. Copy firewall.yaml into your deployment directory, edit it, and pass its path. Cannot be combined with firewall_policy_arn or non-empty firewall_allowed_domains."
   type        = string
   default     = null
 

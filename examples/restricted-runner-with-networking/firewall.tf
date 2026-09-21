@@ -2,9 +2,17 @@ locals {
   firewall_managed     = var.enable_firewall && var.firewall_policy_arn == null
   firewall_config_file = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
   firewall_config      = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
+  firewall_role_keys   = ["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"]
+  firewall_has_role_domains = local.firewall_managed && anytrue([
+    for key in local.firewall_role_keys : contains(keys(local.firewall_config), key)
+  ])
+  firewall_shared_domains = local.firewall_managed && contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config.allowed_domains : []
   firewall_config_domains = {
     for role in ["runner", "environment", "prebuild"] : role => local.firewall_managed ? (
-      contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config.allowed_domains : local.firewall_config["${role}_allowed_domains"]
+      concat(
+        local.firewall_shared_domains,
+        local.firewall_has_role_domains || !contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config["${role}_allowed_domains"] : [],
+      )
     ) : []
   }
   firewall_allowed_domains = {
@@ -232,9 +240,10 @@ resource "aws_networkfirewall_firewall_policy" "default" {
     precondition {
       condition = (
         toset(keys(local.firewall_config)) == toset(["allowed_domains"]) ||
-        toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
+        toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"]) ||
+        toset(keys(local.firewall_config)) == toset(["allowed_domains", "runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
       )
-      error_message = "Firewall YAML must contain either allowed_domains, or runner_allowed_domains, environment_allowed_domains, and prebuild_allowed_domains. Do not mix these forms or add other keys."
+      error_message = "Firewall YAML must contain allowed_domains, all three role-specific lists, or allowed_domains plus all three role-specific lists. Do not add other keys."
     }
 
     precondition {

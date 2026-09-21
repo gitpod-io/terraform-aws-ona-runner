@@ -182,18 +182,24 @@ source membership with TLS Server Name Indication (SNI):
 AWS maintains membership as tasks and instances change; no per-IP Terraform
 updates are needed. Unmatched established traffic is dropped and logged.
 The bundled [`firewall.yaml`](firewall.yaml) has explicit lists for all three
-roles. They start with the same baseline for upgrade compatibility and can be
-edited independently in a custom YAML file.
+roles plus an empty shared list. Adding a hostname to `allowed_domains` allows
+it for all three roles; role-specific entries remain isolated.
 Choose one of the three configuration methods below. The generated policy also
 contains the explicit `containers.dev` rejection described below.
 
-| Service | Baseline domains | Purpose |
-| --- | --- | --- |
-| Linear | `api.linear.app` | Read and publish issues. |
-| GitHub | `github.com`, `api.github.com`, `codeload.github.com`, `.githubusercontent.com` | HTTPS Git access, repository APIs, source archives, raw files, and release assets. |
-| Jira Cloud | `api.atlassian.com` | Issue access through the OAuth API gateway. |
-| OpenAI | `api.openai.com` | Direct model access with your own API key. |
-| Microsoft Container Registry | `mcr.microsoft.com`, `.data.mcr.microsoft.com` | Base-image manifests and image-layer downloads. |
+| Role | Service | Baseline domains | Purpose |
+| --- | --- | --- | --- |
+| Runner | Linear | `api.linear.app` | Read and publish issues. |
+| Runner | GitHub | `github.com`, `api.github.com` | OAuth, context parsing, and repository APIs. |
+| Runner | Jira Cloud | `api.atlassian.com` | Issue access through the OAuth API gateway. |
+| Runner | OpenAI | `api.openai.com` | Direct model access with your own API key. |
+| Environment and prebuild | GitHub | `github.com`, `api.github.com`, `codeload.github.com`, `.githubusercontent.com` | HTTPS Git access, repository APIs, source archives, raw files, and release assets. |
+| Environment and prebuild | Microsoft Container Registry | `mcr.microsoft.com`, `.data.mcr.microsoft.com` | Base-image manifests and image-layer downloads. |
+
+The runner needs `github.com` for GitHub OAuth endpoints and `api.github.com`
+for context parsing, repository search, and repository metadata. Runner-side
+code does not fetch from the archive or raw-content hosts; those remain scoped
+to environments and prebuilds.
 
 The YAML comments explain each entry. Endpoint references:
 [Linear](https://linear.app/developers/graphql),
@@ -234,9 +240,9 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-its `runner_allowed_domains`, `environment_allowed_domains`, and
-`prebuild_allowed_domains` lists. Your file supplies the **complete
-allowlists** without merging the baseline or additional domains.
+its `allowed_domains`, `runner_allowed_domains`, `environment_allowed_domains`,
+and `prebuild_allowed_domains` lists. The three role lists are complete
+replacements for the bundled baselines. The shared list is added to each role.
 
 When running this example directly, make a separate copy:
 
@@ -259,8 +265,8 @@ firewall_config_path = "${path.module}/firewall.yaml"
 ```
 
 Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
-all firewall-routed traffic, set `allowed_domains: []`, or set all three role
-lists to `[]`. Private endpoint routes are unaffected. YAML configures the TLS
+all firewall-routed traffic, set `allowed_domains: []` and all three role lists
+to `[]`. Private endpoint routes are unaffected. YAML configures the TLS
 hostname allowlist; for other rule types, use a policy ARN.
 
 #### Separate runner, environment, and prebuild access
@@ -270,6 +276,7 @@ access from the runner, base-image downloads from normal environments, and a
 narrower set of package downloads from prebuilds:
 
 ```yaml
+allowed_domains: []
 runner_allowed_domains:
   - api.openai.com
 environment_allowed_domains:
@@ -279,11 +286,11 @@ prebuild_allowed_domains:
   - mcr.microsoft.com
 ```
 
-Set `firewall_config_path` as above. These lists do not inherit the baseline or
-each other; add any repository, integration, and package hosts your workflow
-needs to the role that calls them. `[]` gives that role no allow exceptions.
-For one shared list, replace all three keys with `allowed_domains`; do not
-combine the shared and separate forms.
+Set `firewall_config_path` as above. The role lists do not inherit the bundled
+baseline or each other; add any repository, integration, and package hosts your
+workflow needs to the role that calls them. `[]` gives that role only the
+destinations in `allowed_domains`. A legacy file containing only
+`allowed_domains` remains valid and applies that list to all three roles.
 
 The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls

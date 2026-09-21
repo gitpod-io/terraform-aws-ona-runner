@@ -1,17 +1,17 @@
 # Baseline TLS hostnames for the example-managed egress policy.
-# To replace it, copy this file into your deployment directory, edit the three
-# complete role allowlists, and set firewall_config_path to your copy's path.
-# The bundled lists are intentionally identical for upgrade compatibility.
+# To replace it, copy this file into your deployment directory, edit the shared
+# and role-specific allowlists, and set firewall_config_path to your copy's path.
+
+# Domains added here are allowed for the runner, environments, and prebuilds.
+allowed_domains: []
 
 runner_allowed_domains:
   # Linear: read and publish issues through its GraphQL API.
   - api.linear.app
 
-  # GitHub: HTTPS Git, APIs, archives, raw files, and release assets.
+  # GitHub: runner-side context parsing, repository APIs, and OAuth.
   - github.com
   - api.github.com
-  - codeload.github.com
-  - .githubusercontent.com
 
   # Jira Cloud: issue access through the OAuth API gateway.
   - api.atlassian.com
@@ -19,28 +19,24 @@ runner_allowed_domains:
   # OpenAI: direct model requests using a bring-your-own API key.
   - api.openai.com
 
+environment_allowed_domains:
+  # GitHub: HTTPS Git, APIs, archives, raw files, and release assets.
+  - github.com
+  - api.github.com
+  - codeload.github.com
+  - .githubusercontent.com
+
   # MCR: base-image manifests and image-layer downloads.
   - mcr.microsoft.com
   - .data.mcr.microsoft.com
 
-environment_allowed_domains:
-  - api.linear.app
-  - github.com
-  - api.github.com
-  - codeload.github.com
-  - .githubusercontent.com
-  - api.atlassian.com
-  - api.openai.com
-  - mcr.microsoft.com
-  - .data.mcr.microsoft.com
-
 prebuild_allowed_domains:
-  - api.linear.app
+  # GitHub: clone source and download repository-hosted build inputs.
   - github.com
   - api.github.com
   - codeload.github.com
   - .githubusercontent.com
-  - api.atlassian.com
-  - api.openai.com
+
+  # MCR: resolve and download base images used by prebuilds.
   - mcr.microsoft.com
   - .data.mcr.microsoft.com

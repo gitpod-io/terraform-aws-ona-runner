@@ -1,5 +1,8 @@
 allowed_domains:
   - shared.example.com
-runner_allowed_domains: []
-environment_allowed_domains: []
-prebuild_allowed_domains: []
+runner_allowed_domains:
+  - runner.example.com
+environment_allowed_domains:
+  - environment.example.com
+prebuild_allowed_domains:
+  - prebuild.example.com
