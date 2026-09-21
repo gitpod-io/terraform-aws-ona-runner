@@ -27,7 +27,6 @@ expect_error() {
 expect_error does-not-exist.yaml 'no file exists at'
 expect_error firewall-malformed.txt 'Call to function "yamldecode" failed'
 expect_error firewall-missing-key.yaml 'The given key does not identify an element'
-expect_error firewall-missing-role.yaml 'The given key does not identify an element'
 expect_error firewall-scalar.yaml 'Inconsistent conditional result types'
 expect_error firewall-map.yaml 'Inconsistent conditional result types'
 expect_error firewall-null.yaml 'argument must not be null'

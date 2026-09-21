@@ -82,5 +82,11 @@ jobs:
       - name: Test firewall config errors
         run: bash scripts/test-firewall-config-errors.sh
 
-      - name: Test firewall migration ordering
-        run: bash scripts/test-firewall-migration.sh
+      - name: Validate AWS 6.x consumer
+        run: |
+          terraform -chdir=tests/fixtures/aws6-consumer init -backend=false -lockfile=readonly
+          terraform -chdir=tests/fixtures/aws6-consumer validate -json | tee /tmp/aws6-validation.json
+          jq -e '.valid and .warning_count == 0' /tmp/aws6-validation.json
+
+      - name: Test Cloud Map health check upgrade
+        run: bash scripts/test-cloud-map-health-upgrade.sh

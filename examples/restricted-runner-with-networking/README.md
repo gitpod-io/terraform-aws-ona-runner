@@ -171,20 +171,19 @@ availability zone.
 
 ## Firewall policy
 
-The firewall is enabled by default. Two stateful rule groups match dynamic
-source IPs and TLS Server Name Indication (SNI):
+The firewall is enabled by default. Two stateful rule groups combine dynamic
+source membership with TLS Server Name Indication (SNI):
 
 - **Runner:** all Fargate tasks in the dedicated ECS cluster, including telemetry.
 - **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag
   **and** a `gitpod.dev/environment-id` tag. Any environment-ID value matches.
 
-The bundled [`firewall.yaml`](firewall.yaml) has separate `runner_allowed_domains`
-and `environment_allowed_domains` lists. Both contain the same baseline hosts;
-copy the file and edit either list to change access for that role.
-
 AWS maintains membership as tasks and instances change; no per-IP Terraform
 updates are needed. Unmatched established traffic is dropped and logged.
-Choose one of the three configuration methods below.
+The bundled [`firewall.yaml`](firewall.yaml) applies the same baseline to both
+roles. A custom YAML file can give each role a different complete allowlist.
+Choose one of the three configuration methods below. The generated policy also
+contains the explicit `containers.dev` rejection described below.
 
 | Service | Baseline domains | Purpose |
 | --- | --- | --- |
@@ -233,9 +232,10 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-`runner_allowed_domains` or `environment_allowed_domains` to add or remove
-hosts for that role. Keep both keys. Your file supplies the **complete allowlists**,
-without merging the baseline or additional domains.
+its `allowed_domains` list to replace the baseline for both roles. To configure
+the roles independently, replace that key with both `runner_allowed_domains`
+and `environment_allowed_domains`. Your file supplies the **complete
+allowlist(s)** without merging the baseline or additional domains.
 
 When running this example directly, make a separate copy:
 
@@ -258,9 +258,9 @@ firewall_config_path = "${path.module}/firewall.yaml"
 ```
 
 Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
-all firewall-routed traffic, set both lists to `[]` in your YAML file. Private
-endpoint routes are unaffected. YAML configures the TLS hostname allowlist;
-for other rule types, use a policy ARN.
+all firewall-routed traffic, set `allowed_domains: []`, or set both role lists
+to `[]`. Private endpoint routes are unaffected. YAML configures the TLS
+hostname allowlist; for other rule types, use a policy ARN.
 
 #### Separate runner and environment access
 
@@ -285,6 +285,38 @@ The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls
 back to the baseline. Do not edit `.terraform/modules`, which Terraform can
 replace during an update.
+
+### Control manifest requests
+
+When `containers.dev` is not allowlisted, the generated policy rejects TLS
+connections to that exact hostname on TCP port 443 from the runner subnets.
+The reject rule runs before the domain allowlist's generated drop rule and
+sends a TCP reset instead of silently dropping the request. This lets the
+Dev Containers CLI use its existing fallback without waiting for a network
+timeout. See the [upstream issue](https://github.com/microsoft/vscode-remote-release/issues/8808).
+
+The rule covers both runner tasks and environment VMs, including test sessions,
+in this dedicated network. It matches the hostname, not just the manifest URL
+path. Other destinations, subdomains, ports, and private endpoint routes retain
+their existing behavior. An outbound proxy that bypasses Network Firewall
+requires its own policy.
+
+Explicitly allowing `containers.dev` or `.containers.dev` for either role omits
+the subnet-scoped reject rule. A role that does not allow the hostname still
+gets the policy's normal default denial, without the prompt reset. A custom
+`firewall_policy_arn` remains entirely caller-managed. An empty YAML allowlist
+keeps its deny-all policy and does not add this rule or permit TCP establishment.
+
+Blocked requests do not refresh feature safety data: CLI 0.84.1 uses the cached
+manifest if present, or an empty manifest otherwise. This does not disable
+feature installation or allow feature downloads.
+
+Existing deployments must apply the updated Terraform configuration. Review
+the plan for a new stateful rule group and an in-place policy update; no runner
+or VM replacement is required by this change. After the firewall update has
+propagated, retry with a new connection and verify a prompt reset and a matching
+firewall alert. Restart an already-stuck devcontainer invocation, then check
+that a test session starts and previously allowed destinations still work.
 
 ### Domain matching and scope
 
@@ -350,12 +382,6 @@ both roles; other sources no longer receive those exceptions. An empty role
 list keeps its group with a deny-only rule, so removing the last domain does
 not delete an attached group. Allow for a brief interruption to public egress
 while rules and membership propagate, then verify connectivity.
-
-If an earlier attempt left both the original group and the new role groups in
-state, update the module and generate a new plan. Terraform keeps the original
-group, adopts the environment group, and removes the redundant runner group.
-It may warn about an occupied move destination; the original group must show
-an **in-place update**, not a deletion. Do not reuse the failed saved plan.
 
 ## Logging
 

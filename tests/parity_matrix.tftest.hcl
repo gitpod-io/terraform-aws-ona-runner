@@ -15,7 +15,8 @@ mock_provider "aws" {
 
   mock_data "aws_region" {
     defaults = {
-      name = "us-east-1"
+      region = "us-east-1"
+      name   = "us-east-1"
     }
   }
 
@@ -232,6 +233,7 @@ run "restricted_ingress_limits_environment_access_to_supervisor" {
       one(aws_service_discovery_private_dns_namespace.internal_runner).vpc == var.vpc_id &&
       length(aws_service_discovery_service.internal_runner) == 1 &&
       one(aws_service_discovery_service.internal_runner).name == "runner" &&
+      length(one(aws_service_discovery_service.internal_runner).health_check_custom_config) == 1 &&
       one(one(aws_service_discovery_service.internal_runner).dns_config).routing_policy == "MULTIVALUE" &&
       one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).type == "A" &&
       one(one(one(aws_service_discovery_service.internal_runner).dns_config).dns_records).ttl == 10 &&
@@ -309,7 +311,7 @@ run "public_elasticache_large_matches_cloudformation_options" {
   }
 
   assert {
-    condition     = !one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1
+    condition     = !one(aws_lb.proxy).internal && length(aws_memorydb_cluster.this) == 0 && length(aws_elasticache_cluster.this) == 1 && one(aws_elasticache_user.this).engine == "redis"
     error_message = "the public ElastiCache option must create only the supported ElastiCache branch."
   }
 
@@ -326,6 +328,31 @@ run "public_elasticache_large_matches_cloudformation_options" {
   assert {
     condition     = aws_ecs_service.runner.network_configuration[0].assign_public_ip && one(aws_ecs_service.proxy).network_configuration[0].assign_public_ip && aws_ecs_service.adot.network_configuration[0].assign_public_ip
     error_message = "AssignPublicIp must apply to all supported Fargate services."
+  }
+}
+
+run "provider_region_preserves_regional_configuration" {
+  command = plan
+
+  override_data {
+    target = data.aws_region.current
+    values = { region = "eu-west-3", name = "eu-west-3" }
+  }
+
+  variables {
+    cache_engine = "ElastiCache"
+  }
+
+  assert {
+    condition = (
+      local.region == "eu-west-3" &&
+      local.runner_log_options["awslogs-region"] == "eu-west-3" &&
+      one([for item in local.runner_container.environment : item.value if item.name == "AWS_REGION"]) == "eu-west-3" &&
+      local.runner_token_secret_name == "eu-west-3-${var.runner_id}-runner-token" &&
+      local.private_ecr_prefix == "025066274397.dkr.ecr.eu-west-3.amazonaws.com/gitpod/ecr" &&
+      one(aws_elasticache_cluster.this).node_type == "cache.t3.small"
+    )
+    error_message = "Provider region resolution must preserve regional logs, runtime settings, secrets, image mirrors, and non-Graviton cache sizing."
   }
 }
 
@@ -359,6 +386,29 @@ run "runner_configuration_matches_cloudformation_fixed_contract" {
   assert {
     condition     = length([for item in local.runner_container.environment : item if item.name == "GITPOD_DEVELOPMENT_VERSION"]) == 0
     error_message = "the runner task must not expose a Terraform-only development-version override."
+  }
+}
+
+run "runner_support_bundle_lifecycle" {
+  command = plan
+
+  assert {
+    condition = try(one([
+      for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : (
+        rule.filter[0].prefix == "runner-support-bundles/" &&
+        rule.expiration[0].days == 1 &&
+        rule.abort_incomplete_multipart_upload[0].days_after_initiation == 1
+      ) if rule.id == "expire-runner-support-bundles"
+    ]), false)
+    error_message = "runner support bundles must expire after one day and incomplete uploads must be aborted."
+  }
+
+  assert {
+    condition = try(length(aws_s3_bucket_lifecycle_configuration.agent.rule) == 2 && one([
+      for rule in aws_s3_bucket_lifecycle_configuration.agent.rule : rule.expiration[0].days == 360
+      if rule.id == "expire-agent-data"
+    ]), false)
+    error_message = "the support-bundle rule must not change the existing retention for other agent data."
   }
 }
 

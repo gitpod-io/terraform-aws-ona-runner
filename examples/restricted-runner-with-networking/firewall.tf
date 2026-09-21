@@ -16,14 +16,13 @@ locals {
     runner      = aws_networkfirewall_container_association.runner[0].container_association_arn
     environment = aws_resourcegroups_group.environments[0].arn
   } : {}
-  firewall_rule_priorities = { runner = 100, environment = 200 }
   # Index 0 and its AWS name are retained from the original shared allowlist.
-  firewall_rule_groups = local.firewall_managed ? [for role in ["runner", "environment"] : {
+  firewall_rule_groups = local.firewall_managed ? [for index, role in ["runner", "environment"] : {
     name       = role == "runner" ? "${local.network_name}-allowed-domains" : "${local.network_name}-environment-domains"
     role       = role
     domains    = local.firewall_allowed_domains[role]
     source_arn = local.firewall_source_arns[role]
-    priority   = local.firewall_rule_priorities[role]
+    priority   = (index + 1) * 100
   }] : []
 }
 
@@ -62,16 +61,6 @@ resource "aws_resourcegroups_group" "environments" {
   }
 
   tags = local.common_tags
-}
-
-moved {
-  from = aws_networkfirewall_rule_group.allowed_domains["runner"]
-  to   = aws_networkfirewall_rule_group.allowed_domains[0]
-}
-
-moved {
-  from = aws_networkfirewall_rule_group.allowed_domains["environment"]
-  to   = aws_networkfirewall_rule_group.allowed_domains[1]
 }
 
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
@@ -124,14 +113,50 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
   tags = local.common_tags
 
   lifecycle {
-    # Switch the policy's references before deleting a replaced, still-attached group.
-    create_before_destroy = true
-
     precondition {
       condition     = length(local.firewall_rule_groups[count.index].domains) <= 999
       error_message = "Each firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
     }
   }
+}
+
+resource "aws_networkfirewall_rule_group" "control_manifest_reject" {
+  count = (
+    length(aws_networkfirewall_rule_group.allowed_domains) > 0 &&
+    anytrue([for domains in values(local.firewall_allowed_domains) : length(domains) > 0]) &&
+    alltrue([for domains in values(local.firewall_allowed_domains) :
+      !contains(domains, "containers.dev") && !contains(domains, ".containers.dev")
+    ])
+  ) ? 1 : 0
+
+  capacity    = 1
+  name        = "${local.network_name}-control-manifest-reject"
+  description = "Reject blocked devcontainer control manifest requests without a TCP timeout."
+  type        = "STATEFUL"
+
+  rule_group {
+    rule_variables {
+      ip_sets {
+        key = "HOME_NET"
+
+        ip_set {
+          definition = values(local.runner_subnet_cidrs)
+        }
+      }
+    }
+
+    rules_source {
+      # Silent drops stall devcontainer startup; a reset lets the CLI use its manifest fallback.
+      # https://github.com/microsoft/vscode-remote-release/issues/8808
+      rules_string = "reject tls $HOME_NET any -> any 443 (ssl_state:client_hello; tls.sni; content:\"containers.dev\"; startswith; endswith; nocase; flow:to_server,established; msg:\"Reject devcontainer control manifest fetch\"; sid:500001; rev:1;)"
+    }
+
+    stateful_rule_options {
+      rule_order = "STRICT_ORDER"
+    }
+  }
+
+  tags = local.common_tags
 }
 
 resource "aws_networkfirewall_firewall_policy" "default" {
@@ -150,6 +175,15 @@ resource "aws_networkfirewall_firewall_policy" "default" {
       "aws:drop_strict",
       "aws:alert_strict",
     ]
+
+    dynamic "stateful_rule_group_reference" {
+      for_each = aws_networkfirewall_rule_group.control_manifest_reject
+
+      content {
+        priority     = 50
+        resource_arn = stateful_rule_group_reference.value.arn
+      }
+    }
 
     dynamic "stateful_rule_group_reference" {
       for_each = aws_networkfirewall_rule_group.allowed_domains

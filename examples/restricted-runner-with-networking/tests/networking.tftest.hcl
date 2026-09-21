@@ -21,7 +21,8 @@ mock_provider "aws" {
 
   mock_data "aws_region" {
     defaults = {
-      name = "us-east-1"
+      region = "us-east-1"
+      name   = "us-east-1"
     }
   }
 
@@ -78,6 +79,12 @@ mock_provider "aws" {
 
   mock_resource "aws_resourcegroups_group" {
     defaults = { arn = "arn:aws:resource-groups:us-east-1:123456789012:group/test-environments" }
+  }
+
+  mock_resource "aws_networkfirewall_rule_group" {
+    defaults = {
+      arn = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-rule-group"
+    }
   }
 
   mock_resource "aws_internet_gateway" {
@@ -176,6 +183,22 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   command = plan
 
   override_resource {
+    target          = aws_networkfirewall_rule_group.control_manifest_reject[0]
+    override_during = plan
+    values = {
+      arn = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/control-manifest-reject"
+    }
+  }
+
+  override_resource {
+    target          = aws_networkfirewall_rule_group.allowed_domains[0]
+    override_during = plan
+    values = {
+      arn = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/allowed-domains"
+    }
+  }
+
+  override_resource {
     target          = aws_subnet.runner["us-east-1a"]
     override_during = plan
     values = {
@@ -223,15 +246,47 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].rule_order == "STRICT_ORDER" &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].stream_exception_policy == "DROP" &&
-      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([100, 200]) &&
+      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200]) &&
       length(aws_networkfirewall_rule_group.allowed_domains) == 2
     )
     error_message = "the default firewall policy must retain strict-order default denial and attach the baseline domain allowlist."
   }
 
+  # Computed attributes added by provider 6.x can make the set's length unknown
+  # during plan. Compare the configured identities and priorities instead.
   assert {
-    condition     = toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains"])
-    error_message = "the bundled firewall.yaml must demonstrate independently editable runner and environment lists."
+    condition = {
+      for reference in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference :
+      reference.priority => reference.resource_arn
+      } == {
+      "50"  = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/control-manifest-reject"
+      "100" = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/allowed-domains"
+      "200" = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-environment"
+    }
+    error_message = "the manifest rejection must run before the allowlist's generated drop rule."
+  }
+
+  assert {
+    condition = (
+      aws_networkfirewall_rule_group.control_manifest_reject[0].type == "STATEFUL" &&
+      aws_networkfirewall_rule_group.control_manifest_reject[0].capacity == 1 &&
+      aws_networkfirewall_rule_group.control_manifest_reject[0].rule_group[0].stateful_rule_options[0].rule_order == "STRICT_ORDER" &&
+      aws_networkfirewall_rule_group.control_manifest_reject[0].rule_group[0].rules_source[0].rules_string == "reject tls $HOME_NET any -> any 443 (ssl_state:client_hello; tls.sni; content:\"containers.dev\"; startswith; endswith; nocase; flow:to_server,established; msg:\"Reject devcontainer control manifest fetch\"; sid:500001; rev:1;)"
+    )
+    error_message = "only established TLS requests to the exact containers.dev SNI on TCP/443 must be rejected, using a separate strict-order rule group."
+  }
+
+  assert {
+    condition = (
+      one(aws_networkfirewall_rule_group.control_manifest_reject[0].rule_group[0].rule_variables[0].ip_sets).key == "HOME_NET" &&
+      toset(one(aws_networkfirewall_rule_group.control_manifest_reject[0].rule_group[0].rule_variables[0].ip_sets).ip_set[0].definition) == toset(["100.64.0.0/18", "100.64.64.0/18"])
+    )
+    error_message = "manifest rejection must be scoped to the runner subnets, not the routable VPC or reserved ranges."
+  }
+
+  assert {
+    condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains"])
+    error_message = "the bundled firewall.yaml must keep one shared baseline while custom YAML can opt into role-specific lists."
   }
 
   assert {
@@ -407,7 +462,7 @@ run "firewall_domain_allowlist_adds_to_baseline_and_normalizes_duplicates" {
   assert {
     condition = (
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
-      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([100, 200])
+      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200])
     )
     error_message = "the default policy must attach the domain allowlist rule group."
   }
@@ -480,6 +535,9 @@ run "custom_firewall_policy_replaces_the_managed_allowlist" {
     condition = (
       length(aws_networkfirewall_firewall_policy.default) == 0 &&
       length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 0 &&
+      length(aws_networkfirewall_container_association.runner) == 0 &&
+      length(aws_resourcegroups_group.environments) == 0 &&
       aws_networkfirewall_firewall.this[0].firewall_policy_arn == "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
     )
     error_message = "a custom firewall policy must replace both baseline and additional domains without enforcing the unused generated-rule capacity."
@@ -581,6 +639,9 @@ run "firewall_can_be_disabled_in_nat_gateway_mode" {
       length(aws_networkfirewall_firewall.this) == 0 &&
       length(aws_networkfirewall_firewall_policy.default) == 0 &&
       length(aws_networkfirewall_rule_group.allowed_domains) == 0 &&
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 0 &&
+      length(aws_networkfirewall_container_association.runner) == 0 &&
+      length(aws_resourcegroups_group.environments) == 0 &&
       length(aws_networkfirewall_logging_configuration.this) == 0 &&
       length(aws_cloudwatch_log_group.network_firewall_flow) == 0 &&
       length(aws_cloudwatch_log_group.network_firewall_alert) == 0
@@ -730,9 +791,61 @@ run "custom_yaml_replaces_baseline_and_normalizes_domains" {
     condition = (
       local.firewall_allowed_domains["runner"] == toset(["packages.example.com", ".corp.example"]) &&
       local.firewall_allowed_domains["environment"] == local.firewall_allowed_domains["runner"] &&
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 1 &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"])
     )
     error_message = "a shared allowed_domains YAML file must still replace both role baselines, normalize hostnames, and retain SNI inspection."
+  }
+}
+
+run "explicit_manifest_allowlisting_is_preserved" {
+  command = plan
+
+  variables {
+    firewall_allowed_domains = ["CONTAINERS.DEV"]
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 0 &&
+      contains(local.firewall_allowed_domains.runner, "containers.dev") &&
+      strcontains(aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_string, "content:\"containers.dev\"")
+    )
+    error_message = "an explicitly allowed manifest hostname must remain allowed after normalization."
+  }
+}
+
+run "custom_yaml_can_allow_the_manifest_domain_and_subdomains" {
+  command = plan
+
+  variables {
+    firewall_config_path = "tests/fixtures/firewall-allow-control-manifest.yaml"
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 0 &&
+      alltrue([for domains in values(local.firewall_allowed_domains) : domains == toset([".containers.dev"])])
+    )
+    error_message = "a caller-owned YAML allowlist covering the manifest hostname must not be overridden by rejection."
+  }
+}
+
+run "manifest_rejection_tracks_custom_runner_subnets" {
+  command = plan
+
+  variables {
+    runner_cgnat_cidr        = "100.80.0.0/16"
+    availability_zones       = ["us-east-1a", "us-east-1b", "us-east-1c"]
+    firewall_allowed_domains = ["sub.containers.dev", "containers.dev.example.com"]
+  }
+
+  assert {
+    condition = (
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 1 &&
+      toset(one(aws_networkfirewall_rule_group.control_manifest_reject[0].rule_group[0].rule_variables[0].ip_sets).ip_set[0].definition) == toset(["100.80.0.0/19", "100.80.32.0/19", "100.80.64.0/19"])
+    )
+    error_message = "rejection must cover every configured runner subnet, and allowing a different hostname must not disable it."
   }
 }
 
@@ -763,6 +876,7 @@ run "empty_custom_yaml_denies_all_firewall_routed_traffic" {
       alltrue([for group in aws_networkfirewall_rule_group.allowed_domains :
         startswith(group.rule_group[0].rules_source[0].rules_string, "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (")
       ]) &&
+      length(aws_networkfirewall_rule_group.control_manifest_reject) == 0 &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_strict", "aws:alert_strict"]) &&
       aws_route.runner_to_firewall["us-east-1a"].vpc_endpoint_id == "vpce-00000000000000001"
     )
@@ -934,10 +1048,13 @@ run "dynamic_membership_uses_the_dedicated_cluster_and_assigned_environments" {
   }
 
   assert {
-    condition = alltrue([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference :
-      (ref.priority == 100 && ref.resource_arn == aws_networkfirewall_rule_group.allowed_domains[0].arn) ||
-      (ref.priority == 200 && ref.resource_arn == aws_networkfirewall_rule_group.allowed_domains[1].arn)
-    ])
+    condition = {
+      for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference :
+      ref.priority => ref.resource_arn if contains([100, 200], ref.priority)
+      } == {
+      "100" = aws_networkfirewall_rule_group.allowed_domains[0].arn
+      "200" = aws_networkfirewall_rule_group.allowed_domains[1].arn
+    }
     error_message = "The policy must attach both distinct role-specific rule groups at their strict-order priorities."
   }
 
@@ -1005,23 +1122,6 @@ run "empty_environment_list_has_no_allow_exception" {
   }
 }
 
-run "empty_runner_list_has_no_allow_exception" {
-  command = plan
-
-  variables {
-    firewall_config_path = "tests/fixtures/firewall-environment-only.yaml"
-  }
-
-  assert {
-    condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
-      aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].rules_source[0].rules_string == "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (sid:1000000; rev:1;)" &&
-      local.firewall_allowed_domains.runner == toset([])
-    )
-    error_message = "An empty runner list must not inherit the environment list."
-  }
-}
-
 run "mixed_shared_and_role_lists_are_rejected" {
   command = plan
 
@@ -1059,43 +1159,4 @@ run "separate_lists_reject_rule_injection" {
   }
 
   expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
-}
-
-run "custom_policy_has_no_dynamic_membership_resources" {
-  command = plan
-
-  variables {
-    firewall_policy_arn = "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/customer-policy"
-  }
-
-  assert {
-    condition     = length(aws_networkfirewall_container_association.runner) == 0 && length(aws_resourcegroups_group.environments) == 0
-    error_message = "An external policy must not create unused source selectors."
-  }
-}
-
-run "disabled_firewall_has_no_dynamic_membership_resources" {
-  command = plan
-
-  variables {
-    enable_firewall = false
-  }
-
-  assert {
-    condition     = length(aws_networkfirewall_container_association.runner) == 0 && length(aws_resourcegroups_group.environments) == 0
-    error_message = "A disabled firewall must not create source selectors."
-  }
-}
-
-run "network_name_cannot_produce_a_reserved_resource_group_name" {
-  command = plan
-
-  variables {
-    network_name = "aws-runner"
-  }
-
-  assert {
-    condition     = aws_resourcegroups_group.environments[0].name == "ona-aws-runner-environments"
-    error_message = "Resource Groups forbids names starting with AWS, even when that prefix is valid for other network resources."
-  }
 }

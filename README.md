@@ -22,6 +22,16 @@ example. The example creates the VPC and runner egress networking, with optional
 AWS Network Firewall and either managed NAT gateways or a customer-provided
 Transit Gateway.
 
+## AWS provider compatibility
+
+The modules support AWS provider 5.x and 6.x with their existing minimum versions.
+Choose the series in your root configuration: `~> 5.0` stays on 5.x, while
+`~> 6.60.0` selects the 6.60 patch series. Existing 5.x lockfiles remain usable.
+Before upgrading, select a module release or commit that allows 6.x, follow the
+[AWS provider v6 upgrade guide](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade),
+and review `terraform init -upgrade` lockfile changes and a live `terraform plan`
+before applying. Updates to `main` do not change existing published module tags.
+
 ## Restricted ingress
 
 Set `restrict_ingress = true` to opt into restricted inbound network access for

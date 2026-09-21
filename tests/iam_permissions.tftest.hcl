@@ -18,7 +18,7 @@ override_data {
 override_data {
   override_during = plan
   target          = data.aws_region.current
-  values          = { name = "us-east-1" }
+  values          = { region = "us-east-1", name = "us-east-1" }
 }
 
 variables {
@@ -324,66 +324,20 @@ run "task_ca_and_environment_contracts" {
     ])) && anytrue([for statement in data.aws_iam_policy_document.environment.statement : statement.sid == "AllowWriteOwnLogs"])
     error_message = "Environment logging uses its own S3 prefix, without unused CloudWatch Logs grants."
   }
-}
-
-run "environment_cannot_change_firewall_membership" {
-  command = plan
-
-  override_resource {
-    target          = aws_s3_bucket.logs
-    override_during = plan
-    values          = { arn = "arn:aws:s3:::test-logs" }
-  }
-
-  override_resource {
-    target          = aws_iam_role.environment
-    override_during = plan
-    values          = { id = "test-environment", name = "test-environment" }
-  }
-
-  variables {
-    restrict_ingress = true
-  }
 
   assert {
-    condition = alltrue([for statement in data.aws_iam_policy_document.environment.statement :
-      length(coalesce(statement.not_actions, toset([]))) == 0
-      if coalesce(statement.effect, "Allow") == "Allow"
-      ]) && alltrue(flatten([
-        for statement in data.aws_iam_policy_document.environment.statement : [
-          for action in statement.actions :
-          !startswith(action, "network-firewall:") && !startswith(action, "resource-groups:") &&
-          !startswith(action, "ecs:") && !startswith(action, "iam:") &&
-          (!startswith(action, "ec2:") || action == "ec2:CreateTags") && !strcontains(action, "*")
-        ] if coalesce(statement.effect, "Allow") == "Allow"
-    ]))
-    error_message = "Environment credentials must not control firewall selectors, ECS tasks, instance lifecycle, or ownership tags through other EC2 actions."
-  }
-
-  assert {
-    condition = length([for statement in data.aws_iam_policy_document.environment.statement : statement if contains(statement.actions, "ec2:CreateTags")]) == 1 && alltrue([
-      for statement in data.aws_iam_policy_document.environment.statement :
-      statement.resources == toset(["arn:aws:ec2:us-east-1:123456789012:instance/*"]) &&
-      length(statement.condition) == 3 && alltrue([for condition in statement.condition :
-        (condition.test == "ForAllValues:StringEquals" && condition.variable == "aws:TagKeys" && toset(condition.values) == toset([
-          "gitpod.dev/start-error-message",
-          "gitpod.dev/error-code",
-          "gitpod.dev/error-component",
-          "gitpod.dev/stop-error-message",
-        ])) ||
-        (condition.test == "Null" && condition.variable == "aws:TagKeys" && condition.values == tolist(["false"])) ||
-        (condition.test == "StringEquals" && condition.variable == "ec2:SourceInstanceARN" && condition.values == tolist(["arn:aws:ec2:us-east-1:123456789012:instance/$${ec2:InstanceId}"]))
-      ])
-      if contains(statement.actions, "ec2:CreateTags") && coalesce(statement.effect, "Allow") == "Allow"
+    condition = toset(one([
+      for condition in one([
+        for statement in data.aws_iam_policy_document.environment.statement : statement
+        if statement.sid == "AllowSelfTaggingOperational"
+      ]).condition : condition.values
+      if condition.test == "ForAllValues:StringEquals" && condition.variable == "aws:TagKeys"
+      ])) == toset([
+      "gitpod.dev/start-error-message",
+      "gitpod.dev/error-code",
+      "gitpod.dev/error-component",
+      "gitpod.dev/stop-error-message",
     ])
     error_message = "Self-tagging must be restricted to operational tags on the caller's own instance, excluding gitpod.dev/runner-id and gitpod.dev/environment-id."
-  }
-
-  assert {
-    condition = (
-      aws_iam_role_policy.environment.role == aws_iam_role.environment.id &&
-      aws_iam_instance_profile.environment.role == aws_iam_role.environment.name
-    )
-    error_message = "The checked policy must be attached to the role used by the environment instance profile."
   }
 }

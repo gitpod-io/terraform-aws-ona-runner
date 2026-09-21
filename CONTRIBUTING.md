@@ -81,7 +81,7 @@ for example_dir in examples/*/; do
 done
 bash scripts/test-restricted-runner-settings.sh
 bash scripts/test-firewall-config-errors.sh
-bash scripts/test-firewall-migration.sh
+bash scripts/test-cloud-map-health-upgrade.sh
 ```
 
 The restricted-runner check inspects generated ECS task definitions and runner
@@ -89,9 +89,6 @@ SSM configuration from mocked plans. It verifies API endpoint, proxy, and CA
 passthrough through both restricted wrappers, including unchanged defaults and
 partially configured proxy settings.
 The firewall check verifies native file, YAML, and type errors without AWS access.
-The migration check uses synthetic state and the real provider's plan graph to
-verify in-place upgrades, partial-apply recovery, and policy-before-delete
-ordering for replacements. It makes no AWS calls.
 
 ## Releases
 

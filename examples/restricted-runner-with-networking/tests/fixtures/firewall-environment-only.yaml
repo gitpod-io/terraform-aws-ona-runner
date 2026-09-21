@@ -1,3 +1,0 @@
-runner_allowed_domains: []
-environment_allowed_domains:
-  - mcr.microsoft.com

@@ -19,8 +19,8 @@ enable_firewall = true
 firewall_allowed_domains = []
 
 # To replace the baseline instead, copy firewall.yaml to firewall-custom.yaml,
-# edit runner_allowed_domains and environment_allowed_domains independently,
-# and uncomment this path. Keep additions empty.
+# edit allowed_domains for a shared list or replace it with both role-specific
+# keys, and uncomment this path. Keep additions empty.
 # firewall_config_path = "./firewall-custom.yaml"
 
 # Or use an existing policy instead of either allowlist option.

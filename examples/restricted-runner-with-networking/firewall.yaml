@@ -1,33 +1,9 @@
 # Baseline TLS hostnames for the example-managed egress policy.
-# To replace it, copy this file into your deployment directory, edit either list,
+# To replace it, copy this file into your deployment directory, edit the list,
 # and set firewall_config_path to your copy's path.
-# Both lists are complete allowlists; neither inherits from the other.
-runner_allowed_domains:
-  # Linear: read and publish issues through its GraphQL API.
-  - api.linear.app
-
-  # GitHub: clone repositories over HTTPS and push changes.
-  - github.com
-  # GitHub API: read repository metadata and manage issues and pull requests.
-  - api.github.com
-  # GitHub archives: download repository source archives.
-  - codeload.github.com
-  # GitHub content: retrieve raw source files and release assets.
-  - .githubusercontent.com
-
-  # Jira Cloud: read and publish issues through the OAuth API gateway.
-  # Direct site APIs and self-hosted Jira need explicit additional hostnames.
-  - api.atlassian.com
-
-  # OpenAI: direct model requests using a bring-your-own API key.
-  - api.openai.com
-
-  # MCR registry: resolve base devcontainer image manifests for new environments.
-  - mcr.microsoft.com
-  # MCR data endpoints: download image layers from regional delivery hosts.
-  - .data.mcr.microsoft.com
-
-environment_allowed_domains:
+# Use runner_allowed_domains and environment_allowed_domains instead when the
+# two workload roles need different complete allowlists.
+allowed_domains:
   # Linear: read and publish issues through its GraphQL API.
   - api.linear.app
 
