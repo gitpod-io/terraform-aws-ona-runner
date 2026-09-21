@@ -171,17 +171,19 @@ availability zone.
 
 ## Firewall policy
 
-The firewall is enabled by default. Two stateful rule groups combine dynamic
+The firewall is enabled by default. Three stateful rule groups combine dynamic
 source membership with TLS Server Name Indication (SNI):
 
 - **Runner:** all Fargate tasks in the dedicated ECS cluster, including telemetry.
-- **Environments:** EC2 instances with this runner's `gitpod.dev/runner-id` tag
-  **and** a `gitpod.dev/environment-id` tag. Any environment-ID value matches.
+- **Environments:** assigned EC2 instances for this runner with the `default`,
+  `workflow`, or `base-snapshot-build` environment role.
+- **Prebuilds:** assigned EC2 instances for this runner with the `prebuild` role.
 
 AWS maintains membership as tasks and instances change; no per-IP Terraform
 updates are needed. Unmatched established traffic is dropped and logged.
-The bundled [`firewall.yaml`](firewall.yaml) applies the same baseline to both
-roles. A custom YAML file can give each role a different complete allowlist.
+The bundled [`firewall.yaml`](firewall.yaml) has explicit lists for all three
+roles. They start with the same baseline for upgrade compatibility and can be
+edited independently in a custom YAML file.
 Choose one of the three configuration methods below. The generated policy also
 contains the explicit `containers.dev` rejection described below.
 
@@ -232,11 +234,9 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-its `allowed_domains` list to replace the baseline for all three roles. To
-configure the roles independently, replace that key with
-`runner_allowed_domains`, `environment_allowed_domains`, and
-`prebuild_allowed_domains`. Your file supplies the **complete allowlist(s)**
-without merging the baseline or additional domains.
+its `runner_allowed_domains`, `environment_allowed_domains`, and
+`prebuild_allowed_domains` lists. Your file supplies the **complete
+allowlists** without merging the baseline or additional domains.
 
 When running this example directly, make a separate copy:
 
@@ -282,8 +282,8 @@ prebuild_allowed_domains:
 Set `firewall_config_path` as above. These lists do not inherit the baseline or
 each other; add any repository, integration, and package hosts your workflow
 needs to the role that calls them. `[]` gives that role no allow exceptions.
-For a shared list, you can still replace all three keys with `allowed_domains`;
-do not combine the shared and separate forms.
+For one shared list, replace all three keys with `allowed_domains`; do not
+combine the shared and separate forms.
 
 The file must exist wherever Terraform runs before planning. A missing file,
 invalid YAML, unknown key, or invalid hostname fails the plan; it never falls

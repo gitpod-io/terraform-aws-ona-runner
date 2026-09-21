@@ -304,8 +304,8 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains"])
-    error_message = "the bundled firewall.yaml must keep one shared baseline while custom YAML can opt into role-specific lists."
+    condition     = toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
+    error_message = "the bundled firewall.yaml must use the explicit three-role schema."
   }
 
   assert {
