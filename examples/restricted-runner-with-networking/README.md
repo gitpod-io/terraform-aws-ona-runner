@@ -215,7 +215,7 @@ Your policy replaces the generated policy. The baseline and
 ### 2. Add domains to the baseline
 
 Keep the [bundled allowlist](firewall.yaml) and add deployment-specific hosts
-for **both roles** in your `.tfvars` file:
+for the runner, normal environments, and prebuilds in your `.tfvars` file:
 
 ```hcl
 firewall_allowed_domains = [
@@ -232,10 +232,11 @@ policy ARN instead.
 ### 3. Replace the allowlist with your own YAML file
 
 Copy [`firewall.yaml`](firewall.yaml) into your deployment directory and edit
-its `allowed_domains` list to replace the baseline for both roles. To configure
-the roles independently, replace that key with both `runner_allowed_domains`
-and `environment_allowed_domains`. Your file supplies the **complete
-allowlist(s)** without merging the baseline or additional domains.
+its `allowed_domains` list to replace the baseline for all three roles. To
+configure the roles independently, replace that key with
+`runner_allowed_domains`, `environment_allowed_domains`, and
+`prebuild_allowed_domains`. Your file supplies the **complete allowlist(s)**
+without merging the baseline or additional domains.
 
 When running this example directly, make a separate copy:
 
@@ -258,14 +259,15 @@ firewall_config_path = "${path.module}/firewall.yaml"
 ```
 
 Leave `firewall_policy_arn` unset and `firewall_allowed_domains` empty. To deny
-all firewall-routed traffic, set `allowed_domains: []`, or set both role lists
-to `[]`. Private endpoint routes are unaffected. YAML configures the TLS
+all firewall-routed traffic, set `allowed_domains: []`, or set all three role
+lists to `[]`. Private endpoint routes are unaffected. YAML configures the TLS
 hostname allowlist; for other rule types, use a policy ARN.
 
-#### Separate runner and environment access
+#### Separate runner, environment, and prebuild access
 
-Edit the two lists independently. For example, this replacement allows model
-access from the runner and base-image downloads from environments:
+Edit the three lists independently. For example, this replacement allows model
+access from the runner, base-image downloads from normal environments, and a
+narrower set of package downloads from prebuilds:
 
 ```yaml
 runner_allowed_domains:
@@ -273,12 +275,14 @@ runner_allowed_domains:
 environment_allowed_domains:
   - mcr.microsoft.com
   - .data.mcr.microsoft.com
+prebuild_allowed_domains:
+  - mcr.microsoft.com
 ```
 
 Set `firewall_config_path` as above. These lists do not inherit the baseline or
 each other; add any repository, integration, and package hosts your workflow
 needs to the role that calls them. `[]` gives that role no allow exceptions.
-For a shared list, you can still replace both keys with `allowed_domains`;
+For a shared list, you can still replace all three keys with `allowed_domains`;
 do not combine the shared and separate forms.
 
 The file must exist wherever Terraform runs before planning. A missing file,
@@ -362,8 +366,9 @@ security groups and IAM, not this egress policy. Do not route environment
 egress through a runner-side proxy that would hide its source IP.
 
 Keep the ECS cluster dedicated and protect ownership tags. Environment IAM
-permits only operational self-tagging, not changes to `gitpod.dev/runner-id` or
-`gitpod.dev/environment-id`; do not broaden it to allow membership or ECS control.
+permits only operational self-tagging, not changes to `gitpod.dev/runner-id`,
+`gitpod.dev/environment-id`, or `gitpod.dev/environment-role`; do not broaden
+it to allow membership or ECS control.
 The deploying identity needs Resource Groups and Network Firewall management permissions,
 `ecs:DescribeClusters`, and first-use `iam:CreateServiceLinkedRole`.
 See [AWS container associations](https://docs.aws.amazon.com/network-firewall/latest/developerguide/container-associations.html)
@@ -374,14 +379,15 @@ and [tag-based groups](https://docs.aws.amazon.com/network-firewall/latest/devel
 Update the module and run a fresh `terraform plan` before applying. No state
 edits or manual AWS policy changes are needed for the original shared-group
 deployment. Terraform updates `<network_name>-allowed-domains` in place for
-runner traffic and adds `<network_name>-environment-domains` for environments.
-The firewall, policy, subnets, and routes remain in place.
+runner traffic and adds `<network_name>-environment-domains` for normal
+environments and `<network_name>-prebuild-domains` for prebuilds. The firewall,
+policy, subnets, and routes remain in place.
 
 Existing shared YAML and additional-domain inputs retain their destinations for
-both roles; other sources no longer receive those exceptions. An empty role
-list keeps its group with a deny-only rule, so removing the last domain does
-not delete an attached group. Allow for a brief interruption to public egress
-while rules and membership propagate, then verify connectivity.
+all three roles; other sources no longer receive those exceptions. An empty
+role list keeps its group with a deny-only rule, so removing the last domain
+does not delete an attached group. Allow for a brief interruption to public
+egress while rules and membership propagate, then verify connectivity.
 
 ## Logging
 

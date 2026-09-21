@@ -3,7 +3,7 @@ locals {
   firewall_config_file = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
   firewall_config      = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
   firewall_config_domains = {
-    for role in ["runner", "environment"] : role => local.firewall_managed ? (
+    for role in ["runner", "environment", "prebuild"] : role => local.firewall_managed ? (
       contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config.allowed_domains : local.firewall_config["${role}_allowed_domains"]
     ) : []
   }
@@ -15,15 +15,30 @@ locals {
   firewall_source_arns = local.firewall_managed ? {
     runner      = aws_networkfirewall_container_association.runner[0].container_association_arn
     environment = aws_resourcegroups_group.environments[0].arn
+    prebuild    = aws_resourcegroups_group.environments[1].arn
   } : {}
   # Index 0 and its AWS name are retained from the original shared allowlist.
-  firewall_rule_groups = local.firewall_managed ? [for index, role in ["runner", "environment"] : {
-    name       = role == "runner" ? "${local.network_name}-allowed-domains" : "${local.network_name}-environment-domains"
+  firewall_rule_groups = local.firewall_managed ? [for index, role in ["runner", "environment", "prebuild"] : {
+    name = {
+      runner      = "${local.network_name}-allowed-domains"
+      environment = "${local.network_name}-environment-domains"
+      prebuild    = "${local.network_name}-prebuild-domains"
+    }[role]
     role       = role
     domains    = local.firewall_allowed_domains[role]
     source_arn = local.firewall_source_arns[role]
     priority   = (index + 1) * 100
   }] : []
+  firewall_environment_groups = [
+    {
+      name  = "ona-${local.network_name}-environments"
+      roles = ["default", "workflow", "base-snapshot-build"]
+    },
+    {
+      name  = "ona-${local.network_name}-prebuilds"
+      roles = ["prebuild"]
+    },
+  ]
 }
 
 resource "aws_networkfirewall_container_association" "runner" {
@@ -41,9 +56,9 @@ resource "aws_networkfirewall_container_association" "runner" {
 }
 
 resource "aws_resourcegroups_group" "environments" {
-  count = local.firewall_managed ? 1 : 0
+  count = local.firewall_managed ? length(local.firewall_environment_groups) : 0
 
-  name = "ona-${local.network_name}-environments"
+  name = local.firewall_environment_groups[count.index].name
 
   configuration {
     type = "AWS::NetworkFirewall::RuleGroup"
@@ -56,6 +71,7 @@ resource "aws_resourcegroups_group" "environments" {
       TagFilters = [
         { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
         { Key = "gitpod.dev/environment-id" },
+        { Key = "gitpod.dev/environment-role", Values = local.firewall_environment_groups[count.index].roles },
       ]
     })
   }
@@ -216,9 +232,9 @@ resource "aws_networkfirewall_firewall_policy" "default" {
     precondition {
       condition = (
         toset(keys(local.firewall_config)) == toset(["allowed_domains"]) ||
-        toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains"])
+        toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
       )
-      error_message = "Firewall YAML must contain either allowed_domains, or both runner_allowed_domains and environment_allowed_domains. Do not mix these forms or add other keys."
+      error_message = "Firewall YAML must contain either allowed_domains, or runner_allowed_domains, environment_allowed_domains, and prebuild_allowed_domains. Do not mix these forms or add other keys."
     }
 
     precondition {

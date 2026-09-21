@@ -164,6 +164,24 @@ override_resource {
 }
 
 override_resource {
+  target          = aws_networkfirewall_rule_group.allowed_domains[2]
+  override_during = plan
+  values          = { arn = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-prebuild" }
+}
+
+override_resource {
+  target          = aws_resourcegroups_group.environments[0]
+  override_during = plan
+  values          = { arn = "arn:aws:resource-groups:us-east-1:123456789012:group/test-environments" }
+}
+
+override_resource {
+  target          = aws_resourcegroups_group.environments[1]
+  override_during = plan
+  values          = { arn = "arn:aws:resource-groups:us-east-1:123456789012:group/test-prebuilds" }
+}
+
+override_resource {
   target          = aws_security_group.vpc_endpoints
   override_during = plan
   values = {
@@ -246,8 +264,8 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].rule_order == "STRICT_ORDER" &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_engine_options[0].stream_exception_policy == "DROP" &&
-      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200]) &&
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2
+      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200, 300]) &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3
     )
     error_message = "the default firewall policy must retain strict-order default denial and attach the baseline domain allowlist."
   }
@@ -262,6 +280,7 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       "50"  = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/control-manifest-reject"
       "100" = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/allowed-domains"
       "200" = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-environment"
+      "300" = "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-prebuild"
     }
     error_message = "the manifest rejection must run before the allowlist's generated drop rule."
   }
@@ -290,7 +309,7 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition = alltrue([for role in ["runner", "environment"] : local.firewall_allowed_domains[role] == toset([
+    condition = alltrue([for role in ["runner", "environment", "prebuild"] : local.firewall_allowed_domains[role] == toset([
       "api.linear.app",
       "github.com",
       "api.github.com",
@@ -301,7 +320,7 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
       "mcr.microsoft.com",
       ".data.mcr.microsoft.com",
     ])])
-    error_message = "both default allowlists must retain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
+    error_message = "all default allowlists must retain exactly the reviewed integration, model API, and base-image endpoints, without broad provider wildcards."
   }
 
   assert {
@@ -435,13 +454,15 @@ run "firewall_domain_allowlist_adds_to_baseline_and_normalizes_duplicates" {
 
   assert {
     condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
       aws_networkfirewall_rule_group.allowed_domains[0].name == "${local.network_name}-allowed-domains" &&
       aws_networkfirewall_rule_group.allowed_domains[1].name == "${local.network_name}-environment-domains" &&
+      aws_networkfirewall_rule_group.allowed_domains[2].name == "${local.network_name}-prebuild-domains" &&
       aws_networkfirewall_rule_group.allowed_domains[0].capacity == 1000 &&
       aws_networkfirewall_rule_group.allowed_domains[0].type == "STATEFUL" &&
       aws_networkfirewall_rule_group.allowed_domains[0].rule_group[0].stateful_rule_options[0].rule_order == "STRICT_ORDER" &&
       local.firewall_allowed_domains["runner"] == local.firewall_allowed_domains["environment"] &&
+      local.firewall_allowed_domains["runner"] == local.firewall_allowed_domains["prebuild"] &&
       local.firewall_allowed_domains["runner"] == toset([
         "api.linear.app",
         "github.com",
@@ -462,7 +483,7 @@ run "firewall_domain_allowlist_adds_to_baseline_and_normalizes_duplicates" {
   assert {
     condition = (
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"]) &&
-      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200])
+      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([50, 100, 200, 300])
     )
     error_message = "the default policy must attach the domain allowlist rule group."
   }
@@ -477,7 +498,7 @@ run "explicit_empty_allowlist_retains_baseline" {
 
   assert {
     condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
       length(local.firewall_allowed_domains["runner"]) == 9 &&
       contains(local.firewall_allowed_domains["runner"], "api.openai.com") &&
       contains(local.firewall_allowed_domains["runner"], ".data.mcr.microsoft.com")
@@ -791,10 +812,11 @@ run "custom_yaml_replaces_baseline_and_normalizes_domains" {
     condition = (
       local.firewall_allowed_domains["runner"] == toset(["packages.example.com", ".corp.example"]) &&
       local.firewall_allowed_domains["environment"] == local.firewall_allowed_domains["runner"] &&
+      local.firewall_allowed_domains["prebuild"] == local.firewall_allowed_domains["runner"] &&
       length(aws_networkfirewall_rule_group.control_manifest_reject) == 1 &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"])
     )
-    error_message = "a shared allowed_domains YAML file must still replace both role baselines, normalize hostnames, and retain SNI inspection."
+    error_message = "a shared allowed_domains YAML file must still replace all role baselines, normalize hostnames, and retain SNI inspection."
   }
 }
 
@@ -871,8 +893,8 @@ run "empty_custom_yaml_denies_all_firewall_routed_traffic" {
 
   assert {
     condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
-      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([100, 200]) &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
+      toset([for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference : ref.priority]) == toset([100, 200, 300]) &&
       alltrue([for group in aws_networkfirewall_rule_group.allowed_domains :
         startswith(group.rule_group[0].rules_source[0].rules_string, "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (")
       ]) &&
@@ -1041,30 +1063,48 @@ run "dynamic_membership_uses_the_dedicated_cluster_and_assigned_environments" {
         TagFilters = [
           { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
           { Key = "gitpod.dev/environment-id" },
+          { Key = "gitpod.dev/environment-role", Values = ["default", "workflow", "base-snapshot-build"] },
         ]
       }
     )
-    error_message = "Environment membership must require this runner's ID AND an environment-ID tag with any value, excluding unclaimed warm-pool instances and other runners."
+    error_message = "Normal environment membership must require this runner's ID, an assigned environment ID, and a non-prebuild role."
+  }
+
+  assert {
+    condition = (
+      one(aws_resourcegroups_group.environments[1].configuration).type == "AWS::NetworkFirewall::RuleGroup" &&
+      aws_resourcegroups_group.environments[1].resource_query[0].type == "TAG_FILTERS_1_0" &&
+      jsondecode(aws_resourcegroups_group.environments[1].resource_query[0].query) == {
+        ResourceTypeFilters = ["AWS::EC2::Instance"]
+        TagFilters = [
+          { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
+          { Key = "gitpod.dev/environment-id" },
+          { Key = "gitpod.dev/environment-role", Values = ["prebuild"] },
+        ]
+      }
+    )
+    error_message = "Prebuild membership must be disjoint from normal environment membership and scoped to this runner."
   }
 
   assert {
     condition = {
       for ref in aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_rule_group_reference :
-      ref.priority => ref.resource_arn if contains([100, 200], ref.priority)
+      ref.priority => ref.resource_arn if contains([100, 200, 300], ref.priority)
       } == {
       "100" = aws_networkfirewall_rule_group.allowed_domains[0].arn
       "200" = aws_networkfirewall_rule_group.allowed_domains[1].arn
+      "300" = aws_networkfirewall_rule_group.allowed_domains[2].arn
     }
-    error_message = "The policy must attach both distinct role-specific rule groups at their strict-order priorities."
+    error_message = "The policy must attach all three distinct role-specific rule groups at their strict-order priorities."
   }
 
   assert {
     condition = alltrue([for index, group in aws_networkfirewall_rule_group.allowed_domains :
       length(group.rule_group[0].reference_sets[0].ip_set_references) == 1 &&
       one(group.rule_group[0].reference_sets[0].ip_set_references).key == "SOURCE_IPS" &&
-      one(group.rule_group[0].reference_sets[0].ip_set_references).ip_set_reference[0].reference_arn == local.firewall_source_arns[index == 0 ? "runner" : "environment"] &&
+      one(group.rule_group[0].reference_sets[0].ip_set_references).ip_set_reference[0].reference_arn == local.firewall_source_arns[local.firewall_rule_groups[index].role] &&
       length(group.rule_group[0].rules_source[0].rules_source_list) == 0 &&
-      length(split("\n", group.rule_group[0].rules_source[0].rules_string)) == length(local.firewall_allowed_domains[index == 0 ? "runner" : "environment"]) &&
+      length(split("\n", group.rule_group[0].rules_source[0].rules_string)) == length(local.firewall_allowed_domains[local.firewall_rule_groups[index].role]) &&
       alltrue([for rule in split("\n", group.rule_group[0].rules_source[0].rules_string) :
         startswith(rule, "pass tls @SOURCE_IPS any -> $EXTERNAL_NET any (ssl_state:client_hello; tls.sni;") &&
         strcontains(rule, "flow:to_server,established;")
@@ -1077,7 +1117,8 @@ run "dynamic_membership_uses_the_dedicated_cluster_and_assigned_environments" {
     condition = (
       local.firewall_source_arns.runner == aws_networkfirewall_container_association.runner[0].container_association_arn &&
       local.firewall_source_arns.environment == aws_resourcegroups_group.environments[0].arn &&
-      local.firewall_source_arns.runner != local.firewall_source_arns.environment
+      local.firewall_source_arns.prebuild == aws_resourcegroups_group.environments[1].arn &&
+      length(toset(values(local.firewall_source_arns))) == 3
     )
     error_message = "Each role must reference its own dynamic source set, never the other role's membership."
   }
@@ -1102,9 +1143,14 @@ run "separate_yaml_generates_source_scoped_exact_and_suffix_rules" {
     ])
     error_message = "Environment exceptions must use their own list, match hostname boundaries, and use SIDs distinct from runner rules."
   }
+
+  assert {
+    condition     = aws_networkfirewall_rule_group.allowed_domains[2].rule_group[0].rules_source[0].rules_string == "pass tls @SOURCE_IPS any -> $EXTERNAL_NET any (ssl_state:client_hello; tls.sni; content:\"mcr.microsoft.com\"; startswith; endswith; nocase; flow:to_server,established; sid:3000001; rev:1;)"
+    error_message = "Prebuild exceptions must use their own narrower list and source membership."
+  }
 }
 
-run "empty_environment_list_has_no_allow_exception" {
+run "empty_environment_and_prebuild_lists_have_no_allow_exception" {
   command = plan
 
   variables {
@@ -1113,12 +1159,14 @@ run "empty_environment_list_has_no_allow_exception" {
 
   assert {
     condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
       aws_networkfirewall_rule_group.allowed_domains[1].rule_group[0].rules_source[0].rules_string == "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (sid:2000000; rev:1;)" &&
+      aws_networkfirewall_rule_group.allowed_domains[2].rule_group[0].rules_source[0].rules_string == "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (sid:3000000; rev:1;)" &&
       local.firewall_allowed_domains.environment == toset([]) &&
+      local.firewall_allowed_domains.prebuild == toset([]) &&
       aws_networkfirewall_firewall_policy.default[0].firewall_policy[0].stateful_default_actions == toset(["aws:drop_established", "aws:alert_established"])
     )
-    error_message = "An empty environment list must not inherit runner or baseline destinations, or disable default denial."
+    error_message = "Empty environment and prebuild lists must not inherit runner or baseline destinations, or disable default denial."
   }
 }
 
@@ -1132,7 +1180,7 @@ run "mixed_shared_and_role_lists_are_rejected" {
   expect_failures = [aws_networkfirewall_firewall_policy.default[0]]
 }
 
-run "both_roles_empty_denies_all_inspected_traffic" {
+run "all_roles_empty_denies_all_inspected_traffic" {
   command = plan
 
   variables {
@@ -1141,7 +1189,7 @@ run "both_roles_empty_denies_all_inspected_traffic" {
 
   assert {
     condition = (
-      length(aws_networkfirewall_rule_group.allowed_domains) == 2 &&
+      length(aws_networkfirewall_rule_group.allowed_domains) == 3 &&
       alltrue([for group in aws_networkfirewall_rule_group.allowed_domains :
         startswith(group.rule_group[0].rules_source[0].rules_string, "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (")
       ]) &&
