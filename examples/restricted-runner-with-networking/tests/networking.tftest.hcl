@@ -135,6 +135,8 @@ mock_provider "aws" {
     }
   }
 }
+mock_provider "http" {}
+mock_provider "archive" {}
 
 mock_provider "random" {}
 
@@ -148,7 +150,7 @@ override_resource {
 
 variables {
   aws_region         = "us-east-1"
-  runner_id          = "019d6999-807b-7e52-ab6f-c9202f13ecf2"
+  runner_id          = "runner-a"
   runner_token       = "test-token"
   availability_zones = ["us-east-1a", "us-east-1b"]
   routable_vpc_cidr  = "10.42.0.0/24"
@@ -211,7 +213,7 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-2ec33d556332a866"
+    condition     = aws_networkfirewall_firewall.this[0].name == "ona-runner-51cf5b27370ded93"
     error_message = "the default network name must derive from runner_name and the full runner ID."
   }
 
@@ -375,8 +377,13 @@ run "nat_gateway_mode_is_zonal_and_symmetric" {
   }
 
   assert {
-    condition     = output.runner_config_parameter_name == "/gitpod/runner/019d6999-807b-7e52-ab6f-c9202f13ecf2"
+    condition     = output.runner_config_parameter_name == "/gitpod/runner/runner-a"
     error_message = "the example must pass its VPC and runner subnets to the restricted runner module."
+  }
+
+  assert {
+    condition     = module.runner.release_version == "20260917.975"
+    error_message = "omitting runner_template_build_version must preserve the current production runner release."
   }
 }
 
@@ -976,5 +983,48 @@ run "api_endpoint_custom" {
       aws_vpc_endpoint.management_plane.private_dns_enabled
     )
     error_message = "a custom API endpoint must not alter the default firewall policy or management-plane PrivateLink endpoint."
+  }
+}
+
+run "prepare_forwards_control_through_restricted_networking" {
+  command = plan
+
+  variables {
+    runner_iam_phase              = "prepare"
+    runner_releases_url           = "https://releases.example.com"
+    runner_template_build_version = "20260917.657"
+    custom_ca_trust_bundle        = "s3://gitpod-customer-ca/shared/ca-bundle.pem"
+    custom_ca_s3_object_arn       = "arn:aws:s3:::gitpod-customer-ca/shared/ca-bundle.pem"
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.http.runner_release_manifest
+    values = {
+      response_body = <<-JSON
+        {"version":"20260917.657","image_digest":"public.ecr.aws/example/runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","proxy_image_digest":"public.ecr.aws/example/proxy@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","runner_control_protocol":1,"runner_control_source_sha256":"sha256:61e3e54dc5206a73859ff79d1e723648214b0d6510f96b3c665f561aca60c2d6","cloudformation_template_url":"https://releases.example.com/ec2/releases/20260917.657/gitpod-ec2-runner-enterprise-fargate-private-ecr.json"}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.http.runner_release_template
+    values = {
+      response_body = <<-JSON
+        {"Resources":{"Control":{"Type":"AWS::Lambda::Function","Properties":{"Handler":"index.handler","Code":{"ZipFile":"exports.handler = async () => ({ ok: true });"},"Environment":{"Variables":{"APPROVED_IMAGE_IDS":"ami-00000000000000001"}}}}}}
+      JSON
+    }
+  }
+
+  override_data {
+    target = module.runner.module.runner.data.archive_file.runner_control
+    values = {
+      output_path         = "/tmp/networking-runner-control.zip"
+      output_base64sha256 = "YWJj"
+    }
+  }
+
+  assert {
+    condition     = output.runner_iam_phase == "prepare" && module.runner.release_version == "20260917.657"
+    error_message = "the restricted-networking example must forward the explicit fixture phase and version through both modules."
   }
 }

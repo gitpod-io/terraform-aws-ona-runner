@@ -176,6 +176,34 @@ variable "runner_template_build_version" {
   }
 }
 
+variable "runner_iam_phase" {
+  description = "Runner IAM migration phase. Keep legacy for existing releases; advance capable releases through prepare, cutover, and confined."
+  type        = string
+  default     = "legacy"
+
+  validation {
+    condition     = contains(["legacy", "prepare", "cutover", "confined"], var.runner_iam_phase)
+    error_message = "runner_iam_phase must be legacy, prepare, cutover, or confined."
+  }
+}
+
+variable "runner_iam_retirement_confirmed" {
+  description = "Confirms that legacy runner tasks have stopped and their role sessions have expired before the confined phase removes legacy authority."
+  type        = bool
+  default     = false
+}
+
+variable "runner_releases_url" {
+  description = "Trusted base URL for immutable runner release manifests and templates."
+  type        = string
+  default     = "https://releases.gitpod.io"
+
+  validation {
+    condition     = can(regex("^https://[^/?#]+(?:/[^?#]*)?$", var.runner_releases_url))
+    error_message = "runner_releases_url must be an HTTPS base URL without a query or fragment."
+  }
+}
+
 variable "proxy_config" {
   description = "HTTP proxy settings for runner containers and Bottlerocket hosts."
   type = object({
@@ -191,6 +219,20 @@ variable "custom_ca_trust_bundle" {
   description = "Optional custom CA trust bundle content or URL understood by the runner."
   type        = string
   default     = ""
+}
+
+variable "custom_ca_s3_object_arn" {
+  description = "Exact S3 object ARN for a custom CA bundle used by a managed runner. Required for every S3 CA source, including an ARN in custom_ca_trust_bundle."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.custom_ca_s3_object_arn == "" ||
+      can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[^*?\\$\\{\\}[:space:]]([^*?\\$\\{\\}]*)$", var.custom_ca_s3_object_arn))
+    )
+    error_message = "custom_ca_s3_object_arn must be empty or a literal exact arn:aws:s3:::bucket/key object ARN; wildcards and policy or dynamic-reference syntax are not supported."
+  }
 }
 
 variable "tags" {

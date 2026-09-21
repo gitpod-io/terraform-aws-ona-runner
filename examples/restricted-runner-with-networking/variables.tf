@@ -14,6 +14,35 @@ variable "runner_token" {
   sensitive   = true
 }
 
+variable "runner_iam_phase" {
+  description = "Runner IAM migration phase. Use confined for a declared fresh capable installation; existing installations advance through prepare and cutover."
+  type        = string
+  default     = "legacy"
+}
+
+variable "runner_template_build_version" {
+  description = "Runner template build version from the same runner release manifest as the container images."
+  type        = string
+  default     = "20260917.975"
+
+  validation {
+    condition     = trimspace(var.runner_template_build_version) != "" && !strcontains(var.runner_template_build_version, "__")
+    error_message = "runner_template_build_version must be a resolved release version without placeholder tokens."
+  }
+}
+
+variable "runner_iam_retirement_confirmed" {
+  description = "Confirms legacy task and role-session retirement before the confined phase."
+  type        = bool
+  default     = false
+}
+
+variable "runner_releases_url" {
+  description = "Trusted base URL for immutable runner release manifests and templates."
+  type        = string
+  default     = "https://releases.gitpod.io"
+}
+
 variable "api_endpoint" {
   description = "Ona management plane API endpoint. Changing this does not reconfigure PrivateLink, DNS, firewall rules, or proxy bypass settings."
   type        = string
@@ -46,6 +75,20 @@ variable "custom_ca_trust_bundle" {
   description = "Optional custom CA trust bundle content or URL understood by the runner."
   type        = string
   default     = ""
+}
+
+variable "custom_ca_s3_object_arn" {
+  description = "Exact S3 object ARN for a custom CA bundle used by a managed runner."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      var.custom_ca_s3_object_arn == "" ||
+      can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/[^*?\\$\\{\\}[:space:]]([^*?\\$\\{\\}]*)$", var.custom_ca_s3_object_arn))
+    )
+    error_message = "custom_ca_s3_object_arn must be empty or a literal exact arn:aws:s3:::bucket/key object ARN; wildcards and policy or dynamic-reference syntax are not supported."
+  }
 }
 
 variable "availability_zones" {

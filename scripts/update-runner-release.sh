@@ -35,11 +35,19 @@ if [[ "$template_url" != "$expected_template_url" ]]; then
   exit 1
 fi
 
-VERSION="$version" perl -0pi -e 's/(variable "runner_template_build_version" \{.*?default\s+=\s+")[^"]+(".*?\n\})/$1$ENV{VERSION}$2/s' variables.tf
+version_files=(
+  variables.tf
+  modules/restricted-runner/variables.tf
+  examples/restricted-runner-with-networking/variables.tf
+)
+for version_file in "${version_files[@]}"; do
+  [[ -f "$version_file" ]] || continue
+  VERSION="$version" perl -0pi -e 's/(variable "runner_template_build_version" \{.*?default\s+=\s+")[^"]+(".*?\n\})/$1$ENV{VERSION}$2/s' "$version_file"
 
-if ! grep -Fq -- "default     = \"${version}\"" variables.tf; then
-  echo "Failed to update runner_template_build_version" >&2
-  exit 1
-fi
+  if ! sed -n '/variable "runner_template_build_version" {/,/^}/p' "$version_file" | grep -Fq -- "default     = \"${version}\""; then
+    echo "Failed to update runner_template_build_version in $version_file" >&2
+    exit 1
+  fi
+done
 
 echo "$version"

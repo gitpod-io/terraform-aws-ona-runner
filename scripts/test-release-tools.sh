@@ -36,9 +36,13 @@ cp "${repo_root}/VERSION" "${repo_root}/variables.tf" "$validation_root/"
 )
 
 update_root="${test_root}/runner-update"
-mkdir -p "${update_root}/scripts" "${update_root}/bin"
+mkdir -p "${update_root}/scripts" "${update_root}/bin" \
+  "${update_root}/modules/restricted-runner" \
+  "${update_root}/examples/restricted-runner-with-networking"
 cp "${repo_root}/scripts/update-runner-release.sh" "${update_root}/scripts/"
 cp "${repo_root}/variables.tf" "$update_root/"
+cp "${repo_root}/modules/restricted-runner/variables.tf" "${update_root}/modules/restricted-runner/"
+cp "${repo_root}/examples/restricted-runner-with-networking/variables.tf" "${update_root}/examples/restricted-runner-with-networking/"
 
 cat > "${update_root}/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -74,7 +78,13 @@ chmod +x "${update_root}/bin/curl"
     exit 1
   fi
 
-  grep -Fq 'default     = "20260901.123"' variables.tf
+  for version_file in \
+    variables.tf \
+    modules/restricted-runner/variables.tf \
+    examples/restricted-runner-with-networking/variables.tf; do
+    sed -n '/variable "runner_template_build_version" {/,/^}/p' "$version_file" |
+      grep -Fq 'default     = "20260901.123"'
+  done
 )
 
 target_repo="${test_root}/target-repo"

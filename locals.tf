@@ -67,13 +67,17 @@ locals {
   ssh_over_gateway = var.restrict_ingress ? "false" : "true"
 
   release_public_ecr_prefix = "public.ecr.aws/k5t9d3j5/application/gitpod-next"
-  release_runner_image = var.runner_image != "" ? var.runner_image : (
-    "${local.release_public_ecr_prefix}/gitpod-ec2-runner:${var.runner_template_build_version}"
+  release_runner_image = local.runner_iam_managed ? try(local.runner_release_manifest.image_digest, "") : (
+    var.runner_image != "" ? var.runner_image : "${local.release_public_ecr_prefix}/gitpod-ec2-runner:${var.runner_template_build_version}"
   )
-  release_proxy_image = var.proxy_image != "" ? var.proxy_image : (
-    "${local.release_public_ecr_prefix}/gitpod-proxy:${var.runner_template_build_version}"
+  release_proxy_image = local.runner_iam_managed ? try(local.runner_release_manifest.proxy_image_digest, "") : (
+    var.proxy_image != "" ? var.proxy_image : "${local.release_public_ecr_prefix}/gitpod-proxy:${var.runner_template_build_version}"
   )
-  release_inputs_are_consistent = endswith(local.release_runner_image, ":${var.runner_template_build_version}") && endswith(local.release_proxy_image, ":${var.runner_template_build_version}")
+  release_inputs_are_consistent = local.runner_iam_managed ? (
+    var.runner_image == "" && var.proxy_image == ""
+    ) : (
+    endswith(local.release_runner_image, ":${var.runner_template_build_version}") && endswith(local.release_proxy_image, ":${var.runner_template_build_version}")
+  )
 
   # Keep these paths aligned with the private-ECR template renderer in
   # gitpod-next/dev/ci-jobs/tasks/ec2-runner/releasebundle.
