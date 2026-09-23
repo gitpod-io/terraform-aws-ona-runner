@@ -68,6 +68,11 @@ output "ecs_cluster_name" {
   value       = module.runner.ecs_cluster_name
 }
 
+output "ecs_cluster_arn" {
+  description = "ECS cluster ARN for runner tasks."
+  value       = module.runner.ecs_cluster_arn
+}
+
 output "ecs_service_name" {
   description = "ECS service name for the Fargate runner task."
   value       = module.runner.ecs_service_name
