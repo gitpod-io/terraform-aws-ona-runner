@@ -1,19 +1,98 @@
 locals {
-  firewall_managed        = var.enable_firewall && var.firewall_policy_arn == null
-  firewall_config_file    = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
-  firewall_config         = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
-  firewall_config_domains = local.firewall_managed ? local.firewall_config.allowed_domains : []
-  firewall_allowed_domains = toset([
-    for domain in concat(local.firewall_config_domains, tolist(var.firewall_allowed_domains)) : lower(domain)
+  firewall_managed     = var.enable_firewall && var.firewall_policy_arn == null
+  firewall_config_file = coalesce(var.firewall_config_path, "${path.module}/firewall.yaml")
+  firewall_config      = local.firewall_managed ? yamldecode(file(local.firewall_config_file)) : null
+  firewall_role_keys   = ["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"]
+  firewall_has_role_domains = local.firewall_managed && anytrue([
+    for key in local.firewall_role_keys : contains(keys(local.firewall_config), key)
   ])
+  firewall_shared_domains = local.firewall_managed && contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config.allowed_domains : []
+  firewall_config_domains = {
+    for role in ["runner", "environment", "prebuild"] : role => local.firewall_managed ? (
+      concat(
+        local.firewall_shared_domains,
+        local.firewall_has_role_domains || !contains(keys(local.firewall_config), "allowed_domains") ? local.firewall_config["${role}_allowed_domains"] : [],
+      )
+    ) : []
+  }
+  firewall_allowed_domains = {
+    for role, domains in local.firewall_config_domains : role => toset([
+      for domain in concat(domains, tolist(var.firewall_allowed_domains)) : lower(domain)
+    ])
+  }
+  firewall_source_arns = local.firewall_managed ? {
+    runner      = aws_networkfirewall_container_association.runner[0].container_association_arn
+    environment = aws_resourcegroups_group.environments[0].arn
+    prebuild    = aws_resourcegroups_group.environments[1].arn
+  } : {}
+  # Index 0 and its AWS name are retained from the original shared allowlist.
+  firewall_rule_groups = local.firewall_managed ? [for index, role in ["runner", "environment", "prebuild"] : {
+    name = {
+      runner      = "${local.network_name}-allowed-domains"
+      environment = "${local.network_name}-environment-domains"
+      prebuild    = "${local.network_name}-prebuild-domains"
+    }[role]
+    role       = role
+    domains    = local.firewall_allowed_domains[role]
+    source_arn = local.firewall_source_arns[role]
+    priority   = (index + 1) * 100
+  }] : []
+  firewall_environment_groups = [
+    {
+      name  = "ona-${local.network_name}-environments"
+      roles = ["default", "workflow", "base-snapshot-build"]
+    },
+    {
+      name  = "ona-${local.network_name}-prebuilds"
+      roles = ["prebuild"]
+    },
+  ]
+}
+
+resource "aws_networkfirewall_container_association" "runner" {
+  count = local.firewall_managed ? 1 : 0
+
+  container_association_name = "${local.network_name}-runner"
+  type                       = "ECS"
+
+  # Fargate requires an unfiltered association; the cluster is dedicated to this runner.
+  container_monitoring_configuration {
+    cluster_arn = module.runner.ecs_cluster_arn
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_resourcegroups_group" "environments" {
+  count = local.firewall_managed ? length(local.firewall_environment_groups) : 0
+
+  name = local.firewall_environment_groups[count.index].name
+
+  configuration {
+    type = "AWS::NetworkFirewall::RuleGroup"
+  }
+
+  resource_query {
+    type = "TAG_FILTERS_1_0"
+    query = jsonencode({
+      ResourceTypeFilters = ["AWS::EC2::Instance"]
+      TagFilters = [
+        { Key = "gitpod.dev/runner-id", Values = [var.runner_id] },
+        { Key = "gitpod.dev/environment-id" },
+        { Key = "gitpod.dev/environment-role", Values = local.firewall_environment_groups[count.index].roles },
+      ]
+    })
+  }
+
+  tags = local.common_tags
 }
 
 resource "aws_networkfirewall_rule_group" "allowed_domains" {
-  count = local.firewall_managed && (var.firewall_config_path == null || length(local.firewall_config_domains) > 0) ? 1 : 0
+  count = length(local.firewall_rule_groups)
 
   capacity    = 1000
-  name        = "${local.network_name}-allowed-domains"
-  description = "HTTPS domains allowed from Ona runner subnets."
+  name        = local.firewall_rule_groups[count.index].name
+  description = "TLS domains allowed from Ona ${local.firewall_rule_groups[count.index].role} IPs."
   type        = "STATEFUL"
 
   rule_group {
@@ -27,12 +106,27 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
       }
     }
 
-    rules_source {
-      rules_source_list {
-        generated_rules_type = "ALLOWLIST"
-        target_types         = ["TLS_SNI"]
-        targets              = local.firewall_allowed_domains
+    # AWS requires container and resource-group references to use separate rule groups.
+    reference_sets {
+      ip_set_references {
+        key = "SOURCE_IPS"
+        ip_set_reference {
+          reference_arn = local.firewall_rule_groups[count.index].source_arn
+        }
       }
+    }
+
+    rules_source {
+      rules_string = length(local.firewall_rule_groups[count.index].domains) == 0 ? (
+        "drop ip @SOURCE_IPS any -> $EXTERNAL_NET any (sid:${local.firewall_rule_groups[count.index].priority * 10000}; rev:1;)"
+        ) : join("\n", [
+          for index, domain in sort(tolist(local.firewall_rule_groups[count.index].domains)) : format(
+            "pass tls @SOURCE_IPS any -> $EXTERNAL_NET any (ssl_state:client_hello; tls.sni; %scontent:\"%s\"; %sendswith; nocase; flow:to_server,established; sid:%d; rev:1;)",
+            startswith(domain, ".") ? "dotprefix; " : "", domain,
+            startswith(domain, ".") ? "" : "startswith; ",
+            local.firewall_rule_groups[count.index].priority * 10000 + index + 1,
+          )
+      ])
     }
 
     stateful_rule_options {
@@ -44,8 +138,8 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
 
   lifecycle {
     precondition {
-      condition     = length(local.firewall_allowed_domains) <= 999
-      error_message = "The firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
+      condition     = length(local.firewall_rule_groups[count.index].domains) <= 999
+      error_message = "Each firewall allowlist must contain at most 999 distinct hostnames, including any baseline and additional domains."
     }
   }
 }
@@ -53,8 +147,10 @@ resource "aws_networkfirewall_rule_group" "allowed_domains" {
 resource "aws_networkfirewall_rule_group" "control_manifest_reject" {
   count = (
     length(aws_networkfirewall_rule_group.allowed_domains) > 0 &&
-    !contains(local.firewall_allowed_domains, "containers.dev") &&
-    !contains(local.firewall_allowed_domains, ".containers.dev")
+    anytrue([for domains in values(local.firewall_allowed_domains) : length(domains) > 0]) &&
+    alltrue([for domains in values(local.firewall_allowed_domains) :
+      !contains(domains, "containers.dev") && !contains(domains, ".containers.dev")
+    ])
   ) ? 1 : 0
 
   capacity    = 1
@@ -76,7 +172,7 @@ resource "aws_networkfirewall_rule_group" "control_manifest_reject" {
     rules_source {
       # Silent drops stall devcontainer startup; a reset lets the CLI use its manifest fallback.
       # https://github.com/microsoft/vscode-remote-release/issues/8808
-      rules_string = "reject tls $HOME_NET any -> any 443 (ssl_state:client_hello; tls.sni; content:\"containers.dev\"; startswith; endswith; nocase; flow:to_server,established; msg:\"Reject devcontainer control manifest fetch\"; sid:1000001; rev:1;)"
+      rules_string = "reject tls $HOME_NET any -> any 443 (ssl_state:client_hello; tls.sni; content:\"containers.dev\"; startswith; endswith; nocase; flow:to_server,established; msg:\"Reject devcontainer control manifest fetch\"; sid:500001; rev:1;)"
     }
 
     stateful_rule_options {
@@ -96,7 +192,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
   firewall_policy {
     stateless_default_actions          = ["aws:forward_to_sfe"]
     stateless_fragment_default_actions = ["aws:forward_to_sfe"]
-    stateful_default_actions = var.firewall_config_path == null || length(local.firewall_config_domains) > 0 ? [
+    stateful_default_actions = anytrue([for domains in values(local.firewall_allowed_domains) : length(domains) > 0]) ? [
       "aws:drop_established",
       "aws:alert_established",
       ] : [
@@ -117,7 +213,7 @@ resource "aws_networkfirewall_firewall_policy" "default" {
       for_each = aws_networkfirewall_rule_group.allowed_domains
 
       content {
-        priority     = 100
+        priority     = local.firewall_rule_groups[stateful_rule_group_reference.key].priority
         resource_arn = stateful_rule_group_reference.value.arn
       }
     }
@@ -142,17 +238,21 @@ resource "aws_networkfirewall_firewall_policy" "default" {
 
   lifecycle {
     precondition {
-      condition     = toset(keys(local.firewall_config)) == toset(["allowed_domains"])
-      error_message = "Firewall YAML must contain only the allowed_domains key."
+      condition = (
+        toset(keys(local.firewall_config)) == toset(["allowed_domains"]) ||
+        toset(keys(local.firewall_config)) == toset(["runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"]) ||
+        toset(keys(local.firewall_config)) == toset(["allowed_domains", "runner_allowed_domains", "environment_allowed_domains", "prebuild_allowed_domains"])
+      )
+      error_message = "Firewall YAML must contain allowed_domains, all three role-specific lists, or allowed_domains plus all three role-specific lists. Do not add other keys."
     }
 
     precondition {
-      condition = alltrue([
-        for domain in local.firewall_config.allowed_domains :
+      condition = alltrue([for domains in values(local.firewall_config_domains) : alltrue([
+        for domain in domains :
         domain == tostring(domain) && length(domain) <= 253 &&
         can(regex("^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$", domain))
-      ])
-      error_message = "Firewall allowed_domains must contain valid hostname strings, optionally prefixed with a dot for subdomains."
+      ])])
+      error_message = "Firewall domain lists must contain valid hostname strings, optionally prefixed with a dot for subdomains."
     }
   }
 }

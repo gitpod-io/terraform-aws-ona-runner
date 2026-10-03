@@ -1,27 +1,42 @@
 # Baseline TLS hostnames for the example-managed egress policy.
-# To replace it, copy this file into your deployment directory, edit the list,
-# and set firewall_config_path to your copy's path.
-allowed_domains:
+# To replace it, copy this file into your deployment directory, edit the shared
+# and role-specific allowlists, and set firewall_config_path to your copy's path.
+
+# Domains added here are allowed for the runner, environments, and prebuilds.
+allowed_domains: []
+
+runner_allowed_domains:
   # Linear: read and publish issues through its GraphQL API.
   - api.linear.app
 
-  # GitHub: clone repositories over HTTPS and push changes.
+  # GitHub: runner-side context parsing, repository APIs, and OAuth.
   - github.com
-  # GitHub API: read repository metadata and manage issues and pull requests.
   - api.github.com
-  # GitHub archives: download repository source archives.
-  - codeload.github.com
-  # GitHub content: retrieve raw source files and release assets.
-  - .githubusercontent.com
 
-  # Jira Cloud: read and publish issues through the OAuth API gateway.
-  # Direct site APIs and self-hosted Jira need explicit additional hostnames.
+  # Jira Cloud: issue access through the OAuth API gateway.
   - api.atlassian.com
 
   # OpenAI: direct model requests using a bring-your-own API key.
   - api.openai.com
 
-  # MCR registry: resolve base devcontainer image manifests for new environments.
+environment_allowed_domains:
+  # GitHub: HTTPS Git, APIs, archives, raw files, and release assets.
+  - github.com
+  - api.github.com
+  - codeload.github.com
+  - .githubusercontent.com
+
+  # MCR: base-image manifests and image-layer downloads.
   - mcr.microsoft.com
-  # MCR data endpoints: download image layers from regional delivery hosts.
+  - .data.mcr.microsoft.com
+
+prebuild_allowed_domains:
+  # GitHub: clone source and download repository-hosted build inputs.
+  - github.com
+  - api.github.com
+  - codeload.github.com
+  - .githubusercontent.com
+
+  # MCR: resolve and download base images used by prebuilds.
+  - mcr.microsoft.com
   - .data.mcr.microsoft.com

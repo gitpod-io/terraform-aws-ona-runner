@@ -132,7 +132,7 @@ variable "firewall_policy_arn" {
 }
 
 variable "firewall_allowed_domains" {
-  description = "Additional HTTPS domains allowed alongside the firewall.yaml baseline. An empty set retains the baseline. Prefix a domain with a dot to include the domain and all subdomains. The combined list supports at most 999 distinct hostnames. Ignored when firewall_policy_arn is set; cannot be combined with firewall_config_path."
+  description = "Additional TLS domains allowed for runners, normal environments, and prebuilds alongside the firewall.yaml baseline. An empty set retains the baseline. Prefix a domain with a dot to include the domain and all subdomains. Each list supports at most 999 distinct hostnames. Ignored when firewall_policy_arn is set; cannot be combined with firewall_config_path."
   type        = set(string)
   default     = []
 
@@ -146,7 +146,7 @@ variable "firewall_allowed_domains" {
 }
 
 variable "firewall_config_path" {
-  description = "Local YAML file replacing the entire baseline allowlist. Copy firewall.yaml into your deployment directory, edit allowed_domains, and pass its path. An empty allowed_domains list denies all firewall-routed traffic. Cannot be combined with firewall_policy_arn or non-empty firewall_allowed_domains."
+  description = "Local YAML file replacing the baseline. Use allowed_domains for a list shared by all roles, the three role-specific keys for separate complete lists, or both forms to add shared domains to each role list. Empty lists give no allow exceptions. Copy firewall.yaml into your deployment directory, edit it, and pass its path. Cannot be combined with firewall_policy_arn or non-empty firewall_allowed_domains."
   type        = string
   default     = null
 

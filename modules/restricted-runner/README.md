@@ -60,6 +60,11 @@ base-image layer endpoints and the three policy configuration options. Use that
 as a reference for your own policy; this wrapper does not install the baseline
 or accept the networking example's firewall inputs.
 
+To keep runner and environment VMs in the same subnets but give them different
+egress lists, see the example's [separate-access configuration](../../examples/restricted-runner-with-networking/README.md#separate-runner-and-environment-access).
+It uses AWS-managed dynamic IP membership. This wrapper also exposes
+`ecs_cluster_arn` for networks that manage their own ECS association.
+
 ## Outbound proxy and custom CA
 
 Set these optional inputs on the module block:

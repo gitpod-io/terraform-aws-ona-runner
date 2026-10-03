@@ -324,4 +324,20 @@ run "task_ca_and_environment_contracts" {
     ])) && anytrue([for statement in data.aws_iam_policy_document.environment.statement : statement.sid == "AllowWriteOwnLogs"])
     error_message = "Environment logging uses its own S3 prefix, without unused CloudWatch Logs grants."
   }
+
+  assert {
+    condition = toset(one([
+      for condition in one([
+        for statement in data.aws_iam_policy_document.environment.statement : statement
+        if statement.sid == "AllowSelfTaggingOperational"
+      ]).condition : condition.values
+      if condition.test == "ForAllValues:StringEquals" && condition.variable == "aws:TagKeys"
+      ])) == toset([
+      "gitpod.dev/start-error-message",
+      "gitpod.dev/error-code",
+      "gitpod.dev/error-component",
+      "gitpod.dev/stop-error-message",
+    ])
+    error_message = "Self-tagging must be restricted to operational tags on the caller's own instance, excluding gitpod.dev/runner-id and gitpod.dev/environment-id."
+  }
 }

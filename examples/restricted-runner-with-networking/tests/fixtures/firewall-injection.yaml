@@ -1,0 +1,4 @@
+runner_allowed_domains:
+  - 'example.com"; sid:42;) pass ip any any -> any any (sid:43;)'
+environment_allowed_domains: []
+prebuild_allowed_domains: []

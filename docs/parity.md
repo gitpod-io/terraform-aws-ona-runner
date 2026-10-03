@@ -76,6 +76,15 @@ service and authenticated internal LLM listener remain available.
   TCP/443 TLS connections from runner subnets to avoid control-manifest fetch
   timeouts. Explicit hostname allowlisting and empty deny-all YAML policies
   retain their behavior. This remains a Terraform-only network policy change.
+- The managed firewall uses separate source-scoped rule groups for the runner
+  ECS cluster, normal EC2 environments, and prebuild EC2 environments.
+  Environment membership requires this runner's `gitpod.dev/runner-id`, an
+  assigned `gitpod.dev/environment-id`, and an explicit environment role,
+  excluding unclaimed warm-pool instances. Shared lists retain their
+  destinations for all three roles; custom YAML can combine a shared extension
+  list with complete role-specific lists. The original rule-group address and
+  name remain the runner group. This Terraform-only extension requires AWS
+  provider 6.60.x in the networking example.
 
 Review counterpart behavior for IAM, ECS/bootstrap commands, networking, storage,
 configuration, and release-default changes. Record the reference release,

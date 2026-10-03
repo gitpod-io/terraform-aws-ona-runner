@@ -1,0 +1,8 @@
+runner_allowed_domains:
+  - API.OpenAI.com
+  - api.openai.com
+environment_allowed_domains:
+  - mcr.microsoft.com
+  - .data.mcr.microsoft.com
+prebuild_allowed_domains:
+  - mcr.microsoft.com
