@@ -187,6 +187,19 @@ The YAML comments explain each entry. Endpoint references:
 [OpenAI](https://platform.openai.com/docs/api-reference/responses), and
 [MCR](https://github.com/microsoft/containerregistry/blob/main/docs/client-firewall-rules.md).
 
+### Default devcontainer egress
+
+When no devcontainer configuration or custom default image is set, Ona uses
+Microsoft's `devcontainers/base` image without adding package-install commands
+or Dev Container Features. Compatible runner VM images preload it; keep both
+MCR entries in [`firewall.yaml`](firewall.yaml) for uncached HTTPS image pulls
+from the environment VM.
+
+Pulling the image does not reinstall its baked-in packages or features. Docker
+Hub, GHCR, apt, npm, and PyPI are not required for this fallback alone. Custom
+images, features, dotfiles, and project setup commands can require additional
+hosts; [add them explicitly](#2-add-domains-to-the-baseline).
+
 ### 1. Use an existing firewall policy
 
 Set the ARN of your AWS Network Firewall **policy**, not a rule group, in your
