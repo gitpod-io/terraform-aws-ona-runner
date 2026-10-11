@@ -1,0 +1,4 @@
+runner_allowed_domains:
+  - api.openai.com
+environment_allowed_domains: []
+prebuild_allowed_domains: []
