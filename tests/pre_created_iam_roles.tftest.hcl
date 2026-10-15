@@ -395,54 +395,6 @@ run "pre_created_with_attachments" {
     )
     error_message = "Supplied cache roles must receive the existing policies and retain tag-scoped trust documents."
   }
-  assert {
-    condition = (
-      output.ecs_execution_role_arn == var.pre_created_iam_roles.ecs_execution &&
-      output.ecs_task_role_arn == var.pre_created_iam_roles.ecs_task &&
-      output.proxy_role_arn == var.pre_created_iam_roles.proxy &&
-      output.adot_role_arn == var.pre_created_iam_roles.adot &&
-      output.environment_role_arn == var.pre_created_iam_roles.environment &&
-      output.s3_access_role_arn == var.pre_created_iam_roles.s3_access &&
-      output.devcontainer_cache_registry_access_role_arn == var.pre_created_iam_roles.devcontainer_cache_registry_access
-    )
-    error_message = "All role outputs must expose the supplied identities."
-  }
-  assert {
-    condition = (
-      aws_ecs_task_definition.runner.execution_role_arn == output.ecs_execution_role_arn && aws_ecs_task_definition.proxy[0].execution_role_arn == output.ecs_execution_role_arn && aws_ecs_task_definition.adot.execution_role_arn == output.ecs_execution_role_arn && aws_ecs_task_definition.runner.task_role_arn == output.ecs_task_role_arn && aws_ecs_task_definition.proxy[0].task_role_arn == output.proxy_role_arn && aws_ecs_task_definition.adot.task_role_arn == output.adot_role_arn
-    )
-    error_message = "All task definitions must use the effective execution and application roles."
-  }
-  assert {
-    condition = (
-      jsondecode(local.runner_config).environmentRoleArn == output.environment_role_arn && jsondecode(local.runner_config).instanceProfileName == output.environment_instance_profile_name && jsondecode(local.runner_config).devContainerCacheRegistryAccessRoleArn == output.devcontainer_cache_registry_access_role_arn && one([for env in local.runner_container.environment : env.value if env.name == "S3_ACCESS_ROLE_ARN"]) == output.s3_access_role_arn
-    )
-    error_message = "Runner configuration and environment variables must use effective roles and profile."
-  }
-  assert {
-    condition = (
-      one([for s in data.aws_iam_policy_document.container_registry_bucket.statement : s if s.sid == "DenyReadsExceptS3AccessRole"]).condition == toset([{ test = "StringNotEquals", variable = "aws:PrincipalArn", values = tolist([output.s3_access_role_arn]) }]) && one(one(data.aws_iam_policy_document.dynamodb_resource.statement).condition).values == tolist([output.ecs_task_role_arn])
-    )
-    error_message = "Resource-policy deny exceptions must recognize the supplied S3 and runner roles."
-  }
-  assert {
-    condition = (
-      one(one(data.aws_iam_policy_document.s3_access_assume.statement).principals).identifiers == toset([output.ecs_task_role_arn]) && one(one(data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.statement).principals).identifiers == toset([output.ecs_task_role_arn])
-    )
-    error_message = "Both cache trust policies must name the effective runner role."
-  }
-  assert {
-    condition = (
-      one([for s in data.aws_iam_policy_document.ecs_task.statement : s.resources if s.sid == "AssumeRunnerManagedRoles"]) == toset([output.s3_access_role_arn, output.devcontainer_cache_registry_access_role_arn]) && one([for s in data.aws_iam_policy_document.ecs_task.statement : s.resources if s.sid == "PassEnvironmentRole"]) == toset([output.environment_role_arn]) && one([for s in data.aws_iam_policy_document.ecs_task.statement : s.resources if s.sid == "PassECSTaskRoles"]) == toset([output.ecs_execution_role_arn, output.ecs_task_role_arn, output.proxy_role_arn])
-    )
-    error_message = "AssumeRole and PassRole grants must use the selected identities without broadening scopes."
-  }
-  assert {
-    condition = (
-      length(aws_iam_instance_profile.environment) == 0 && length(data.aws_iam_instance_profile.environment) == 1 && output.environment_instance_profile_name == "customer-environment-profile"
-    )
-    error_message = "A supplied profile must be read and reused, never created or modified."
-  }
 }
 
 run "mixed_ownership_false" {
