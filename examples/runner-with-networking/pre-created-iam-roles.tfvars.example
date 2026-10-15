@@ -1,0 +1,24 @@
+# Copy this file into your deployment and supply existing account resources.
+aws_region               = "us-east-1"
+runner_id                = "replace-with-runner-id"
+runner_token             = "replace-with-runner-token"
+runner_domain            = "runner.example.com"
+certificate_arn          = "arn:aws:acm:us-east-1:123456789012:certificate/example"
+vpc_id                   = "vpc-00000000000000000"
+runner_subnet_ids        = ["subnet-00000000000000000"]
+load_balancer_subnet_ids = ["subnet-00000000000000000"]
+
+pre_created_iam_roles = {
+  ecs_execution                      = "arn:aws:iam::123456789012:role/customer/execution"
+  ecs_task                           = "arn:aws:iam::123456789012:role/customer/runner"
+  proxy                              = "arn:aws:iam::123456789012:role/customer/proxy"
+  adot                               = "arn:aws:iam::123456789012:role/customer/telemetry"
+  environment                        = "arn:aws:iam::123456789012:role/customer/environment"
+  s3_access                          = "arn:aws:iam::123456789012:role/customer/s3-cache"
+  devcontainer_cache_registry_access = "arn:aws:iam::123456789012:role/customer/ecr-cache"
+  # true lets Terraform install required permissions. Trust/tags/boundaries stay customer-owned.
+  attach_iam_policies = false
+}
+
+# Omit this to have Terraform create the profile around the supplied role.
+environment_instance_profile_name = "customer-environment-profile"
