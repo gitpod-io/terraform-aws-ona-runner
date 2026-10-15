@@ -198,24 +198,10 @@ variable "pre_created_iam_roles" {
   })
   default  = {}
   nullable = false
-
-  validation {
-    condition = alltrue([
-      for name, arn in var.pre_created_iam_roles :
-      arn == null ? true : can(regex("^arn:aws:iam::[0-9]{12}:role/([!-~]+/)?[A-Za-z0-9_+=,.@-]{1,64}$", arn))
-      if name != "attach_iam_policies" && name != "proxy"
-    ])
-    error_message = "Pre-created IAM roles must be null or AWS IAM role ARNs (including an optional role path)."
-  }
 }
 
 variable "environment_instance_profile_name" {
   description = "Existing instance profile containing the supplied environment role. Requires pre_created_iam_roles.environment. When null, a profile is created around the effective environment role, independently of attach_iam_policies."
   type        = string
   default     = null
-
-  validation {
-    condition     = var.environment_instance_profile_name == null ? true : can(regex("^[A-Za-z0-9_+=,.@-]{1,128}$", var.environment_instance_profile_name))
-    error_message = "environment_instance_profile_name must be null or an instance profile name, not an ARN."
-  }
 }
