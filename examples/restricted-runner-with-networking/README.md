@@ -332,5 +332,5 @@ by the restricted topology.
 ## Pre-created IAM roles
 
 This entrypoint accepts `pre_created_iam_roles` and
-`environment_instance_profile_name` and exports effective role ARNs. See
+`environment_instance_profile_name`. See
 [the IAM ownership and policy-source documentation](../../docs/pre-created-iam-roles.md).
