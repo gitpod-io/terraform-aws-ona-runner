@@ -95,3 +95,9 @@ CloudFormation `{{resolve:ssm:...}}` references are not expanded by Terraform.
 Custom trust is not automatically installed in devcontainer images or image
 builds. See the [AWS setup guide](https://ona.com/docs/ona/runners/aws/setup#custom-ca-certificate)
 for runtime limitations.
+
+## Pre-created IAM roles
+
+This entrypoint accepts `pre_created_iam_roles` and
+`environment_instance_profile_name` and exports effective role ARNs. See
+[the IAM ownership and policy-source documentation](../../docs/pre-created-iam-roles.md).

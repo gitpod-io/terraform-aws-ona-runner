@@ -87,3 +87,23 @@ output "ssh_port" {
   description = "SSH port used by environment instances."
   value       = module.runner.ssh_port
 }
+
+output "ecs_execution_role_arn" {
+  description = "Effective IAM role ARN for ecs execution."
+  value       = module.runner.ecs_execution_role_arn
+}
+
+output "ecs_task_role_arn" {
+  description = "Effective IAM role ARN for ecs task."
+  value       = module.runner.ecs_task_role_arn
+}
+
+output "proxy_role_arn" {
+  description = "Effective IAM role ARN for proxy."
+  value       = module.runner.proxy_role_arn
+}
+
+output "adot_role_arn" {
+  description = "Effective IAM role ARN for adot."
+  value       = module.runner.adot_role_arn
+}

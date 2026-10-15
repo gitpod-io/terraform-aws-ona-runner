@@ -206,7 +206,7 @@ data "aws_iam_policy_document" "container_registry_bucket" {
     condition {
       test     = "StringNotEquals"
       variable = "aws:PrincipalArn"
-      values   = [aws_iam_role.s3_access.arn]
+      values   = [local.s3_access_role_arn]
     }
   }
 }

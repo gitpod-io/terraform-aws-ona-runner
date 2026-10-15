@@ -53,6 +53,13 @@ service and authenticated internal LLM listener remain available.
 
 ## Intentional differences and upgrade review
 
+- Pre-created IAM roles are an opt-in Terraform extension for new runners.
+  The same role-specific permission documents and resource-policy protections
+  apply to effective identities. Customers own supplied-role trust, tags and
+  boundaries; `attach_iam_policies` controls permission-policy attachment only.
+  With restricted ingress, a supplied proxy role is ignored completely.
+  See [the ownership contract](pre-created-iam-roles.md).
+
 - Terraform owns resource names, tags, task definitions, and initial service
   desired counts. A plan after runtime updates or autoscaling needs review.
 - Runner configuration and Redis connection parameters use `SecureString`.

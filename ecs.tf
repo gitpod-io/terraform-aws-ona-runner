@@ -242,7 +242,7 @@ locals {
     environment = concat([
       { name = "AWS_REGION", value = local.region },
       { name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix },
-      { name = "S3_ACCESS_ROLE_ARN", value = aws_iam_role.s3_access.arn },
+      { name = "S3_ACCESS_ROLE_ARN", value = local.s3_access_role_arn },
       { name = "PORT_AUTHENTICATION_ENABLED", value = "true" },
       { name = "REDIS_CLUSTER_MODE", value = var.cache_engine == "MemoryDB" ? "true" : "false" },
       { name = "RUNNER_CONFIG_HASH", value = sha256(local.runner_config) },
@@ -339,8 +339,8 @@ resource "aws_ecs_task_definition" "runner" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = local.runner_task_cpu
   memory                   = local.runner_task_memory
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  execution_role_arn       = local.ecs_execution_role_arn
+  task_role_arn            = local.ecs_task_role_arn
   container_definitions = jsonencode([
     merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
     merge(local.runner_container, { logConfiguration = { logDriver = "awslogs", options = local.runner_log_options } }),
@@ -360,8 +360,8 @@ resource "aws_ecs_task_definition" "proxy" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = local.proxy_task_cpu
   memory                   = local.proxy_task_memory
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.proxy[0].arn
+  execution_role_arn       = local.ecs_execution_role_arn
+  task_role_arn            = local.proxy_role_arn
   container_definitions = jsonencode([
     merge(local.ca_init_container, { command = ["update-ca-certificates && /app/gitpod-ec2-runner setup-ca && chmod 777 /proxy-config"], mountPoints = concat(local.ca_init_mounts, [{ sourceVolume = "proxy-config", containerPath = "/proxy-config", readOnly = false }]), logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
     merge(local.proxy_container, { logConfiguration = { logDriver = "awslogs", options = local.proxy_log_options } }),
@@ -379,8 +379,8 @@ resource "aws_ecs_task_definition" "adot" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = 256
   memory                   = 512
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.adot.arn
+  execution_role_arn       = local.ecs_execution_role_arn
+  task_role_arn            = local.adot_role_arn
   container_definitions = jsonencode([
     merge(local.ca_init_container, { logConfiguration = { logDriver = "awslogs", options = local.adot_log_options } }),
     merge(local.adot_container, { logConfiguration = { logDriver = "awslogs", options = local.adot_log_options } }),
@@ -457,6 +457,11 @@ resource "aws_ecs_service" "runner" {
   }
   depends_on = [
     aws_iam_role_policy.ecs_task,
+    aws_iam_role_policy.environment,
+    aws_iam_role_policy.s3_access,
+    aws_iam_role_policy.devcontainer_cache_registry_access,
+    aws_iam_role_policy.ecs_execution,
+    aws_iam_role_policy_attachment.ecs_execution,
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
@@ -506,6 +511,7 @@ resource "aws_ecs_service" "proxy" {
   depends_on = [
     aws_ecs_service.runner,
     aws_lb_listener.proxy_tls[0],
+    aws_iam_role_policy.proxy,
     aws_ssm_parameter.runner_config,
     aws_ssm_parameter.redis_connection,
   ]
@@ -534,7 +540,7 @@ resource "aws_ecs_service" "adot" {
     assign_public_ip = local.task_network_configuration.assign_public_ip
   }
   service_connect_configuration { enabled = true }
-  depends_on = [aws_ecs_service.runner, aws_ssm_parameter.adot_config]
+  depends_on = [aws_ecs_service.runner, aws_ssm_parameter.adot_config, aws_iam_role_policy.adot]
   tags       = local.common_tags
 }
 

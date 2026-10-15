@@ -35,8 +35,9 @@ override_resource {
   target          = aws_iam_role.ecs_task
   override_during = plan
   values = {
-    arn = "arn:aws:iam::123456789012:role/test-runner"
-    id  = "test-runner"
+    arn  = "arn:aws:iam::123456789012:role/test-runner"
+    id   = "test-runner"
+    name = "test-runner"
   }
 }
 
@@ -100,8 +101,8 @@ run "warm_pool_runtime_permissions" {
 
   assert {
     condition = (
-      aws_iam_role_policy.ecs_task.role == aws_iam_role.ecs_task.id &&
-      aws_ecs_task_definition.runner.task_role_arn == aws_iam_role.ecs_task.arn
+      aws_iam_role_policy.ecs_task[0].role == aws_iam_role.ecs_task[0].id &&
+      aws_ecs_task_definition.runner.task_role_arn == aws_iam_role.ecs_task[0].arn
     )
     error_message = "Warm-pool permissions must be attached to the role used by the runner task."
   }

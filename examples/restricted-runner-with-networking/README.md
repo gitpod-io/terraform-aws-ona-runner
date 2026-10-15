@@ -328,3 +328,9 @@ used by this example.
 The restricted runner module creates the workload security groups and limits
 environment ingress to the supervisor control and private LLM paths required
 by the restricted topology.
+
+## Pre-created IAM roles
+
+This entrypoint accepts `pre_created_iam_roles` and
+`environment_instance_profile_name` and exports effective role ARNs. See
+[the IAM ownership and policy-source documentation](../../docs/pre-created-iam-roles.md).

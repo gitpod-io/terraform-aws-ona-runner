@@ -9,6 +9,9 @@ module "runner" {
   runner_subnet_ids = var.runner_subnet_ids
   restrict_ingress  = true
 
+  pre_created_iam_roles             = var.pre_created_iam_roles
+  environment_instance_profile_name = var.environment_instance_profile_name
+
   proxy_config           = var.proxy_config
   custom_ca_trust_bundle = var.custom_ca_trust_bundle
 }

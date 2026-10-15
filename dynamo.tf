@@ -43,7 +43,7 @@ data "aws_iam_policy_document" "dynamodb_resource" {
     condition {
       test     = "StringNotEquals"
       variable = "aws:PrincipalArn"
-      values   = [aws_iam_role.ecs_task.arn]
+      values   = [local.ecs_task_role_arn]
     }
   }
 }

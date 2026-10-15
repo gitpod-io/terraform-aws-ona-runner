@@ -7,3 +7,9 @@ provide the existing runner and load-balancer subnet IDs.
 For a restricted runner without ingress infrastructure, use the
 [`restricted-runner-with-networking`](../restricted-runner-with-networking/)
 example.
+
+## Pre-created IAM roles
+
+This entrypoint accepts `pre_created_iam_roles` and
+`environment_instance_profile_name` and exports effective role ARNs. See
+[the IAM ownership and policy-source documentation](../../docs/pre-created-iam-roles.md).
