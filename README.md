@@ -121,11 +121,8 @@ Terraform creates the applicable role-specific permission-boundary classes for
 execution, runner, telemetry, environment, S3, and devcontainer-cache roles,
 plus the proxy role for standard deployments.
 
-For new runners, supply existing role ARNs through `pre_created_iam_roles`.
-Its `attach_iam_policies` flag optionally delegates permission-policy management
-to Terraform while supplied-role trust, tags, and boundaries remain customer-owned.
-See [pre-created IAM roles](docs/pre-created-iam-roles.md) for profile selection,
-policy source references, ordering, and effective role outputs.
+See [pre-created IAM roles](docs/pre-created-iam-roles.md) for the
+`pre_created_iam_roles` input and its `attach_iam_policies` flag.
 
 By default, Terraform also manages bucket-level S3 Public Access Block settings
 for the container registry, logs, and agent buckets. Set
