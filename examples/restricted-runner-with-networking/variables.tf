@@ -183,3 +183,25 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "pre_created_iam_roles" {
+  description = "Existing IAM role ARNs for a new runner. Omitted roles are created and fully configured. attach_iam_policies manages permission policies on supplied roles only; trust, tags, and boundaries remain customer-owned. The proxy value is ignored when restrict_ingress is true."
+  type = object({
+    ecs_execution                      = optional(string)
+    ecs_task                           = optional(string)
+    proxy                              = optional(string)
+    adot                               = optional(string)
+    environment                        = optional(string)
+    s3_access                          = optional(string)
+    devcontainer_cache_registry_access = optional(string)
+    attach_iam_policies                = optional(bool, false)
+  })
+  default  = {}
+  nullable = false
+}
+
+variable "environment_instance_profile_name" {
+  description = "Existing instance profile containing the supplied environment role. Requires pre_created_iam_roles.environment. When null, a profile is created around the effective environment role, independently of attach_iam_policies."
+  type        = string
+  default     = null
+}

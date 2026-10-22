@@ -53,6 +53,9 @@ service and authenticated internal LLM listener remain available.
 
 ## Intentional differences and upgrade review
 
+- [Pre-created IAM roles and optional policy attachment](pre-created-iam-roles.md)
+  are opt-in Terraform inputs for new runners.
+
 - Terraform owns resource names, tags, task definitions, and initial service
   desired counts. A plan after runtime updates or autoscaling needs review.
 - Runner configuration and Redis connection parameters use `SecureString`.

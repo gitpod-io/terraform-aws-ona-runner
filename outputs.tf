@@ -20,22 +20,22 @@ output "environment_security_group_id" {
 
 output "environment_instance_profile_name" {
   description = "Instance profile name for environment instances."
-  value       = aws_iam_instance_profile.environment.name
+  value       = local.environment_instance_profile_name
 }
 
 output "environment_role_arn" {
   description = "IAM role ARN for environment instances."
-  value       = aws_iam_role.environment.arn
+  value       = local.environment_role_arn
 }
 
 output "s3_access_role_arn" {
   description = "IAM role ARN used for S3 cache access."
-  value       = aws_iam_role.s3_access.arn
+  value       = local.s3_access_role_arn
 }
 
 output "devcontainer_cache_registry_access_role_arn" {
   description = "IAM role ARN used for devcontainer cache registry access."
-  value       = aws_iam_role.devcontainer_cache_registry_access.arn
+  value       = local.devcontainer_cache_registry_access_role_arn
 }
 
 output "container_registry_bucket_name" {
@@ -111,4 +111,24 @@ output "release_version" {
 output "ssh_port" {
   description = "SSH port used by environment instances."
   value       = 29222
+}
+
+output "ecs_execution_role_arn" {
+  description = "Effective IAM role ARN for ecs execution."
+  value       = local.ecs_execution_role_arn
+}
+
+output "ecs_task_role_arn" {
+  description = "Effective IAM role ARN for ecs task."
+  value       = local.ecs_task_role_arn
+}
+
+output "proxy_role_arn" {
+  description = "Effective IAM role ARN for proxy. Null when ingress is restricted."
+  value       = local.proxy_role_arn
+}
+
+output "adot_role_arn" {
+  description = "Effective IAM role ARN for adot."
+  value       = local.adot_role_arn
 }

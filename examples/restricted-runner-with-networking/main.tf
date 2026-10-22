@@ -5,6 +5,9 @@ provider "aws" {
 module "runner" {
   source = "../../modules/restricted-runner"
 
+  pre_created_iam_roles             = var.pre_created_iam_roles
+  environment_instance_profile_name = var.environment_instance_profile_name
+
   runner_id         = var.runner_id
   runner_token      = var.runner_token
   api_endpoint      = var.api_endpoint

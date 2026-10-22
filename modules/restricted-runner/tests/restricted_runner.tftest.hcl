@@ -144,3 +144,32 @@ run "api_endpoint_custom" {
     api_endpoint = "https://ona.example.com/api"
   }
 }
+
+run "pre_created_iam_passthrough" {
+  command = plan
+  variables {
+    pre_created_iam_roles = {
+      ecs_task            = "arn:aws:iam::123456789012:role/customer/platform/customer-ecs-task"
+      environment         = "arn:aws:iam::123456789012:role/customer/platform/customer-environment"
+      proxy               = "ignored-malformed-proxy"
+      attach_iam_policies = true
+    }
+    environment_instance_profile_name = "customer-environment-profile"
+  }
+  override_data {
+    target = module.runner.data.aws_iam_role.pre_created["ecs_task"]
+    values = { arn = "arn:aws:iam::123456789012:role/customer/platform/customer-ecs-task" }
+  }
+  override_data {
+    target = module.runner.data.aws_iam_role.pre_created["environment"]
+    values = { arn = "arn:aws:iam::123456789012:role/customer/platform/customer-environment" }
+  }
+  override_data {
+    target = module.runner.data.aws_iam_instance_profile.environment
+    values = { name = "customer-environment-profile", role_arn = "arn:aws:iam::123456789012:role/customer/platform/customer-environment" }
+  }
+  assert {
+    condition     = output.ecs_task_role_arn == var.pre_created_iam_roles.ecs_task && output.environment_role_arn == var.pre_created_iam_roles.environment && output.environment_instance_profile_name == var.environment_instance_profile_name && output.proxy_role_arn == null
+    error_message = "The restricted wrapper must forward supplied roles/profile and always ignore the proxy."
+  }
+}

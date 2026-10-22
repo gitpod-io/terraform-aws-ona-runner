@@ -42,13 +42,13 @@ require_pattern 'health_check_grace_period_seconds  = 60' ecs.tf
 require_pattern 'stopTimeout            = 120' ecs.tf
 require_pattern 'dns_record_client_routing_policy = "availability_zone_affinity"' loadbalancer.tf
 require_pattern '"ecs:ListServices"' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.ecs_execution_boundary.arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.ecs_task_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.ecs_execution_boundary[0].arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.ecs_task_boundary[0].arn' iam.tf
 require_pattern 'permissions_boundary = aws_iam_policy.proxy_boundary[0].arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.adot_boundary.arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.environment_boundary.arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.s3_access_boundary.arn' iam.tf
-require_pattern 'permissions_boundary = aws_iam_policy.devcontainer_cache_boundary.arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.adot_boundary[0].arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.environment_boundary[0].arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.s3_access_boundary[0].arn' iam.tf
+require_pattern 'permissions_boundary = aws_iam_policy.devcontainer_cache_boundary[0].arn' iam.tf
 require_pattern '{ name = "GITPOD_PRIVATE_ECR_PREFIX", value = local.private_ecr_prefix }' ecs.tf
 require_pattern 'private_ecr_prefix' locals.tf
 require_pattern 'k5t9d3j5/application/gitpod-next/external/aws-otel-collector:v0.43.3' locals.tf

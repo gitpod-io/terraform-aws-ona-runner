@@ -373,6 +373,8 @@ locals {
 }
 
 resource "aws_iam_policy" "ecs_execution_boundary" {
+  count = local.create_iam_roles.ecs_execution ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-ecs-exec-boundary-"
   description = "Permission boundary for the Ona runner ECS execution role"
   policy      = jsonencode(local.ecs_execution_boundary_policy)
@@ -380,6 +382,8 @@ resource "aws_iam_policy" "ecs_execution_boundary" {
 }
 
 resource "aws_iam_policy" "ecs_task_boundary" {
+  count = local.create_iam_roles.ecs_task ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-ecs-task-boundary-"
   description = "Permission boundary for the Ona runner ECS task role"
   policy      = jsonencode(local.ecs_task_boundary_policy)
@@ -387,7 +391,7 @@ resource "aws_iam_policy" "ecs_task_boundary" {
 }
 
 resource "aws_iam_policy" "proxy_boundary" {
-  count = var.restrict_ingress ? 0 : 1
+  count = local.create_iam_roles.proxy ? 1 : 0
 
   name_prefix = "${local.iam_role_name_prefix}-proxy-boundary-"
   description = "Permission boundary for the Ona runner proxy role"
@@ -396,6 +400,8 @@ resource "aws_iam_policy" "proxy_boundary" {
 }
 
 resource "aws_iam_policy" "adot_boundary" {
+  count = local.create_iam_roles.adot ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-adot-boundary-"
   description = "Permission boundary for the Ona runner ADOT role"
   policy      = jsonencode(local.adot_boundary_policy)
@@ -403,6 +409,8 @@ resource "aws_iam_policy" "adot_boundary" {
 }
 
 resource "aws_iam_policy" "environment_boundary" {
+  count = local.create_iam_roles.environment ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-environment-boundary-"
   description = "Permission boundary for Ona environment instances"
   policy      = jsonencode(local.environment_boundary_policy)
@@ -410,6 +418,8 @@ resource "aws_iam_policy" "environment_boundary" {
 }
 
 resource "aws_iam_policy" "s3_access_boundary" {
+  count = local.create_iam_roles.s3_access ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-s3-boundary-"
   description = "Permission boundary for the Ona runner S3 access role"
   policy      = jsonencode(local.s3_access_boundary_policy)
@@ -417,6 +427,8 @@ resource "aws_iam_policy" "s3_access_boundary" {
 }
 
 resource "aws_iam_policy" "devcontainer_cache_boundary" {
+  count = local.create_iam_roles.devcontainer_cache_registry_access ? 1 : 0
+
   name_prefix = "${local.iam_role_name_prefix}-ecr-boundary-"
   description = "Permission boundary for the Ona devcontainer cache registry role"
   policy      = jsonencode(local.devcontainer_cache_boundary_policy)

@@ -44,19 +44,25 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 resource "aws_iam_role" "ecs_execution" {
+  count = local.create_iam_roles.ecs_execution ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-ecs-exec-"
   assume_role_policy   = data.aws_iam_policy_document.ecs_assume_role.json
-  permissions_boundary = aws_iam_policy.ecs_execution_boundary.arn
+  permissions_boundary = aws_iam_policy.ecs_execution_boundary[0].arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_execution" {
-  role       = aws_iam_role.ecs_execution.name
+  count = local.attach_iam_role_policies.ecs_execution ? 1 : 0
+
+  role       = local.ecs_execution_role_name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 resource "aws_iam_role_policy" "ecs_execution" {
-  role   = aws_iam_role.ecs_execution.id
+  count = local.attach_iam_role_policies.ecs_execution ? 1 : 0
+
+  role   = local.ecs_execution_role_name
   policy = data.aws_iam_policy_document.ecs_execution.json
 }
 
@@ -75,14 +81,18 @@ data "aws_iam_policy_document" "ecs_execution" {
 }
 
 resource "aws_iam_role" "ecs_task" {
+  count = local.create_iam_roles.ecs_task ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-ecs-task-"
   assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
-  permissions_boundary = aws_iam_policy.ecs_task_boundary.arn
+  permissions_boundary = aws_iam_policy.ecs_task_boundary[0].arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy" "ecs_task" {
-  role   = aws_iam_role.ecs_task.id
+  count = local.attach_iam_role_policies.ecs_task ? 1 : 0
+
+  role   = local.ecs_task_role_name
   policy = data.aws_iam_policy_document.ecs_task.json
 }
 
@@ -147,7 +157,7 @@ data "aws_iam_policy_document" "ecs_task" {
   statement {
     sid       = "AssumeRunnerManagedRoles"
     actions   = ["sts:AssumeRole", "sts:TagSession"]
-    resources = [aws_iam_role.s3_access.arn, aws_iam_role.devcontainer_cache_registry_access.arn]
+    resources = [local.s3_access_role_arn, local.devcontainer_cache_registry_access_role_arn]
   }
 
   statement {
@@ -366,7 +376,7 @@ data "aws_iam_policy_document" "ecs_task" {
   statement {
     sid       = "PassEnvironmentRole"
     actions   = ["iam:PassRole"]
-    resources = [aws_iam_role.environment.arn]
+    resources = [local.environment_role_arn]
 
     condition {
       test     = "StringEquals"
@@ -379,9 +389,9 @@ data "aws_iam_policy_document" "ecs_task" {
     sid     = "PassECSTaskRoles"
     actions = ["iam:PassRole"]
     resources = concat([
-      aws_iam_role.ecs_execution.arn,
-      aws_iam_role.ecs_task.arn,
-    ], aws_iam_role.proxy[*].arn)
+      local.ecs_execution_role_arn,
+      local.ecs_task_role_arn,
+    ], compact([local.proxy_role_arn]))
 
     condition {
       test     = "StringEquals"
@@ -431,7 +441,7 @@ data "aws_iam_policy_document" "ecs_task" {
 }
 
 resource "aws_iam_role" "proxy" {
-  count = var.restrict_ingress ? 0 : 1
+  count = local.create_iam_roles.proxy ? 1 : 0
 
   name_prefix          = "${local.iam_role_name_prefix}-proxy-"
   assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
@@ -440,9 +450,9 @@ resource "aws_iam_role" "proxy" {
 }
 
 resource "aws_iam_role_policy" "proxy" {
-  count = var.restrict_ingress ? 0 : 1
+  count = local.attach_iam_role_policies.proxy ? 1 : 0
 
-  role   = aws_iam_role.proxy[0].id
+  role   = local.proxy_role_name
   policy = data.aws_iam_policy_document.proxy.json
 }
 
@@ -461,14 +471,18 @@ data "aws_iam_policy_document" "proxy" {
 }
 
 resource "aws_iam_role" "adot" {
+  count = local.create_iam_roles.adot ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-adot-"
   assume_role_policy   = data.aws_iam_policy_document.fargate_task_assume_role.json
-  permissions_boundary = aws_iam_policy.adot_boundary.arn
+  permissions_boundary = aws_iam_policy.adot_boundary[0].arn
   tags                 = local.common_tags
 }
 
 resource "aws_iam_role_policy" "adot" {
-  role   = aws_iam_role.adot.id
+  count = local.attach_iam_role_policies.adot ? 1 : 0
+
+  role   = local.adot_role_name
   policy = data.aws_iam_policy_document.adot.json
 }
 
@@ -500,20 +514,26 @@ data "aws_iam_policy_document" "adot" {
 }
 
 resource "aws_iam_role" "environment" {
+  count = local.create_iam_roles.environment ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-environment-"
   assume_role_policy   = data.aws_iam_policy_document.ec2_assume_role.json
-  permissions_boundary = aws_iam_policy.environment_boundary.arn
+  permissions_boundary = aws_iam_policy.environment_boundary[0].arn
   tags                 = merge(local.common_tags, { "gitpod.dev/environment-role" = "true" })
 }
 
 resource "aws_iam_instance_profile" "environment" {
+  count = var.environment_instance_profile_name == null ? 1 : 0
+
   name_prefix = "${local.name_prefix}-environment-"
-  role        = aws_iam_role.environment.name
+  role        = local.environment_role_name
   tags        = local.common_tags
 }
 
 resource "aws_iam_role_policy" "environment" {
-  role   = aws_iam_role.environment.id
+  count = local.attach_iam_role_policies.environment ? 1 : 0
+
+  role   = local.environment_role_name
   policy = data.aws_iam_policy_document.environment.json
 }
 
@@ -585,9 +605,11 @@ data "aws_iam_policy_document" "environment" {
 }
 
 resource "aws_iam_role" "s3_access" {
+  count = local.create_iam_roles.s3_access ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-s3-access-"
   assume_role_policy   = data.aws_iam_policy_document.s3_access_assume.json
-  permissions_boundary = aws_iam_policy.s3_access_boundary.arn
+  permissions_boundary = aws_iam_policy.s3_access_boundary[0].arn
   tags                 = local.common_tags
 }
 
@@ -597,7 +619,7 @@ data "aws_iam_policy_document" "s3_access_assume" {
 
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      identifiers = [local.ecs_task_role_arn]
     }
 
     condition {
@@ -615,7 +637,9 @@ data "aws_iam_policy_document" "s3_access_assume" {
 }
 
 resource "aws_iam_role_policy" "s3_access" {
-  role   = aws_iam_role.s3_access.id
+  count = local.attach_iam_role_policies.s3_access ? 1 : 0
+
+  role   = local.s3_access_role_name
   policy = data.aws_iam_policy_document.s3_access.json
 }
 
@@ -657,9 +681,11 @@ data "aws_iam_policy_document" "s3_access" {
 }
 
 resource "aws_iam_role" "devcontainer_cache_registry_access" {
+  count = local.create_iam_roles.devcontainer_cache_registry_access ? 1 : 0
+
   name_prefix          = "${local.iam_role_name_prefix}-ecr-cache-"
   assume_role_policy   = data.aws_iam_policy_document.devcontainer_cache_registry_access_assume.json
-  permissions_boundary = aws_iam_policy.devcontainer_cache_boundary.arn
+  permissions_boundary = aws_iam_policy.devcontainer_cache_boundary[0].arn
   tags                 = local.common_tags
 }
 
@@ -669,13 +695,15 @@ data "aws_iam_policy_document" "devcontainer_cache_registry_access_assume" {
 
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_role.ecs_task.arn]
+      identifiers = [local.ecs_task_role_arn]
     }
   }
 }
 
 resource "aws_iam_role_policy" "devcontainer_cache_registry_access" {
-  role   = aws_iam_role.devcontainer_cache_registry_access.id
+  count = local.attach_iam_role_policies.devcontainer_cache_registry_access ? 1 : 0
+
+  role   = local.devcontainer_cache_registry_access_role_name
   policy = data.aws_iam_policy_document.devcontainer_cache_registry_access.json
 }
 
