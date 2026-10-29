@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Semantic-version tag to publish
+        description: Tag to publish (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-beta.N)
         required: true
         type: string
       release_sha:
@@ -127,23 +127,33 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          release_flags=()
+          if [[ "$RELEASE_TAG" == *-beta.* ]]; then
+            release_flags+=(--prerelease --latest=false)
+          fi
+
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "GitHub release $RELEASE_TAG already exists"
           elif git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
             gh release create "$RELEASE_TAG" \
               --verify-tag \
               --title "$RELEASE_TAG" \
-              --notes-file release-body.md
+              --notes-file release-body.md "${release_flags[@]}"
           else
             gh release create "$RELEASE_TAG" \
               --target "$RELEASE_SHA" \
               --title "$RELEASE_TAG" \
-              --notes-file release-body.md
+              --notes-file release-body.md "${release_flags[@]}"
           fi
 
       - name: Advance module version
         run: |
           set -euo pipefail
+
+          if [[ "$RELEASE_TAG" == *-beta.* ]]; then
+            echo "Beta release leaves VERSION unchanged"
+            exit 0
+          fi
 
           git fetch origin main
           git checkout -B module-version-bump origin/main
