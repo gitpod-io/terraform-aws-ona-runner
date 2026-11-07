@@ -93,16 +93,48 @@ The firewall check verifies native file, YAML, and type errors without AWS acces
 ## Releases
 
 Module releases use semantic versions and immutable Git tags. `VERSION` holds
-the module version to publish; runner application versions remain pinned
-separately by `runner_template_build_version`.
+the upcoming stable module version without a suffix; runner application versions
+remain pinned separately by `runner_template_build_version`.
 
 Every EC2 `latest` release updates `runner_template_build_version` on `main`
 from that release's immutable manifest. When an EC2 release is promoted to
 `stable`, the promotion workflow finds the module commit containing that exact
 runner version and dispatches this repository's release workflow with the
 commit SHA and the semantic version from that commit's `VERSION` file. After a
-successful module release, the release workflow advances `VERSION` to the next
-patch version on `main`.
+successful stable module release, the release workflow advances `VERSION` to the
+next patch version on `main`.
+
+### Beta releases
+
+Use the same release workflow for manually published betas. With `VERSION` set
+to `0.1.5`, dispatch a tag such as `v0.1.5-beta.1`, then `v0.1.5-beta.2` for a
+subsequent candidate. The beta number must be a nonnegative integer without
+leading zeros. Keep `VERSION` at `0.1.5`: beta publication marks the GitHub
+release as a prerelease, excludes it from GitHub's latest release, and skips
+the patch-version bump. Publishing `v0.1.5` later follows the stable path and
+advances `VERSION` to `0.1.6`.
+
+```bash
+gh workflow run release.yml --ref main \
+  -f tag=v0.1.5-beta.1 \
+  -f release_sha="<validated-merged-candidate-sha>"
+```
+
+Both channels require an exact candidate commit on `main`, the existing
+runner-manifest and Terraform validation, AWS deployment checks, and approval
+through `terraform-registry-release`. The selected candidate must contain the
+beta-aware validation scripts; older commits still reject beta tags. A beta
+module does not change the runner release pin automatically. There is no new
+automatic beta trigger or separate registry module.
+
+The [Terraform Registry discovers module versions from Git tags](https://developer.hashicorp.com/terraform/registry/modules/publish).
+Testers must [pin an exact prerelease version](https://developer.hashicorp.com/terraform/language/expressions/version-constraints#specify-a-pre-release-version),
+for example `version = "0.1.5-beta.1"`; range constraints do not select betas.
+The Registry can still [display a prerelease as latest](https://developer.hashicorp.com/terraform/registry/faq#can-i-prevent-prereleases-from-being-the-latest-version),
+independently of GitHub's latest-release flag. Create a new immutable tag for
+each candidate; never replace a beta tag when promoting to stable.
+
+### Validation and publication
 
 Release validation runs `scripts/validate-release-candidate.sh` from the selected
 commit. Add candidate-specific checks there, not to the workflow's inline command
