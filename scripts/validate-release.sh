@@ -9,8 +9,9 @@ if [[ ! "$module_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$
   exit 1
 fi
 
-if [[ "$release_tag" != "v${module_version}" ]]; then
-  echo "Release tag must be v${module_version}, got: ${release_tag:-<empty>}" >&2
+release_pattern="^v${module_version//./\\.}(-beta\\.(0|[1-9][0-9]*))?$"
+if [[ ! "$release_tag" =~ $release_pattern ]]; then
+  echo "Release tag must be v${module_version} or v${module_version}-beta.N, got: ${release_tag:-<empty>}" >&2
   exit 1
 fi
 
